@@ -101,7 +101,7 @@ loop 5 times:
 
 loop all (liste):
     say local loop-value
-    if loop-number is 3:
+    if loop-number == 3:
         skip loop
 ```
 
