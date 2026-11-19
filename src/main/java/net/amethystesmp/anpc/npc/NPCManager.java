@@ -253,7 +253,8 @@ public final class NPCManager implements Listener {
 
     public boolean create(String id, String type, Location location) {
         if (id == null || !id.matches("[A-Za-z0-9_-]+") || type == null || type.isBlank()
-                || location == null || location.getWorld() == null || get(id) != null) {
+                || location == null || location.getWorld() == null
+                || definitions.containsKey(id.toLowerCase(Locale.ROOT)) || get(id) != null) {
             return false;
         }
 
@@ -290,15 +291,17 @@ public final class NPCManager implements Listener {
                 .filter(entry -> entry.getValue().id().equalsIgnoreCase(id))
                 .map(Map.Entry::getKey)
                 .toList();
-        if (matches.isEmpty()) return false;
+        String normalizedId = id.toLowerCase(Locale.ROOT);
+        String yamlId = findYamlId(id);
+        boolean knownDefinition = definitions.containsKey(normalizedId) || yamlId != null;
+        if (matches.isEmpty() && !knownDefinition) return false;
 
         for (String key : matches) {
             ManagedNPC npc = npcs.remove(key);
             if (npc != null) npc.close();
         }
 
-        definitions.remove(id.toLowerCase(Locale.ROOT));
-        String yamlId = findYamlId(id);
+        definitions.remove(normalizedId);
         if (yamlId != null && yaml != null) {
             yaml.set("npcs." + yamlId, null);
             save();
@@ -311,7 +314,9 @@ public final class NPCManager implements Listener {
         List<ManagedNPC> matches = npcs.values().stream()
                 .filter(npc -> npc.id().equalsIgnoreCase(id))
                 .toList();
-        if (matches.isEmpty()) return false;
+        String normalizedId = id.toLowerCase(Locale.ROOT);
+        NPCDefinition currentDefinition = definitions.get(normalizedId);
+        if (matches.isEmpty() && currentDefinition == null) return false;
 
         for (ManagedNPC npc : matches) {
             NPCDefinition current = npc.definition();
@@ -319,14 +324,13 @@ public final class NPCManager implements Listener {
                     current.x(), current.y(), current.z(), current.yaw(), current.pitch(), current.skin()));
         }
 
-        NPCDefinition currentDefinition = definitions.get(id.toLowerCase(Locale.ROOT));
         if (currentDefinition != null) {
-            definitions.put(id.toLowerCase(Locale.ROOT), new NPCDefinition(currentDefinition.id(), displayName,
+            definitions.put(normalizedId, new NPCDefinition(currentDefinition.id(), displayName,
                     currentDefinition.type(), currentDefinition.worlds(), currentDefinition.x(), currentDefinition.y(),
                     currentDefinition.z(), currentDefinition.yaw(), currentDefinition.pitch(), currentDefinition.skin()));
         }
         String yamlId = findYamlId(id);
-        if (yamlId != null) {
+        if (yamlId != null && yaml != null) {
             yaml.set("npcs." + yamlId + ".display-name", displayName);
             save();
         }
