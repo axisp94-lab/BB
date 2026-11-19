@@ -1318,7 +1318,18 @@ public final class ScriptEngine implements Listener {
             plugin.getLogger().warning("Vol impossible pour " + npc.id() + " : la cible est dans un autre monde.");
             return;
         }
-        moveAlongCheckpoints(npc, target, List.of(target.clone()));
+
+        List<Location> checkpoints = net.amethystesmp.anpc.npc.FlyingPathfinder.findPath(
+                start,
+                target,
+                plugin.getConfig().getInt("movement.flying.max-nodes", 5000),
+                plugin.getConfig().getDouble("movement.flying.max-distance", 128.0),
+                plugin.getConfig().getDouble("movement.checkpoint-spacing", 2.0));
+        if (checkpoints.isEmpty()) {
+            plugin.getLogger().warning("Aucun chemin aérien praticable trouvé pour le NPC " + npc.id() + ".");
+            return;
+        }
+        moveAlongCheckpoints(npc, target, checkpoints);
     }
 
     private void moveAlongCheckpoints(ManagedNPC npc, Location target, List<Location> checkpoints) {
