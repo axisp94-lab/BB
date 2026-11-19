@@ -19,6 +19,32 @@ class VariableStoreTest {
     }
 
     @Test
+    void legacyGlobalOwnerIsMigratedToCanonicalGlobalStorage() throws Exception {
+        Path database = temporaryDirectory.resolve("legacy.db");
+        try (Connection connection = DriverManager.getConnection("jdbc:sqlite:" + database.toAbsolutePath());
+             PreparedStatement create = connection.prepareStatement("""
+                     CREATE TABLE variables (
+                         scope TEXT NOT NULL,
+                         owner TEXT NOT NULL,
+                         name TEXT NOT NULL,
+                         value TEXT,
+                         PRIMARY KEY(scope, owner, name)
+                     )
+                     """)) {
+            create.executeUpdate();
+            try (PreparedStatement insert = connection.prepareStatement(
+                    "INSERT INTO variables(scope,owner,name,value) VALUES('global','@','season','autumn')")) {
+                insert.executeUpdate();
+            }
+        }
+
+        try (VariableStore store = new VariableStore(database.toFile())) {
+            assertEquals("autumn", store.getGlobal("season", null));
+            assertNull(store.get("global", "@", "season", null));
+        }
+    }
+
+    @Test
     void localVariablesAreIsolatedByWorld() throws Exception {
         try (VariableStore store = openStore()) {
             store.setLocal("guardian", "world", "counter", 12);
