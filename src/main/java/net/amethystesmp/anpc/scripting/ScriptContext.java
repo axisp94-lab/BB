@@ -2,6 +2,7 @@ package net.amethystesmp.anpc.scripting;
 
 import net.amethystesmp.anpc.npc.ManagedNPC;
 import org.bukkit.Bukkit;
+import org.bukkit.attribute.Attribute;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemStack;
 import java.util.HashMap;
@@ -69,6 +70,9 @@ public final class ScriptContext {
         if(k.equals("x of npc"))return npc.location().getX();
         if(k.equals("y of npc"))return npc.location().getY();
         if(k.equals("z of npc"))return npc.location().getZ();
+        if(k.equals("yaw of npc"))return npc.location().getYaw();
+        if(k.equals("pitch of npc"))return npc.location().getPitch();
+        if(k.equals("world of npc"))return npc.location().getWorld().getName();
         if(k.equals("health of npc"))return npc.health();
         if(k.equals("max health of npc"))return npc.maxHealth();
         if(k.equals("speed of npc"))return npc.speed();
@@ -81,6 +85,15 @@ public final class ScriptContext {
             if(k.equals("x of player"))return player.getLocation().getX();
             if(k.equals("y of player"))return player.getLocation().getY();
             if(k.equals("z of player"))return player.getLocation().getZ();
+            if(k.equals("yaw of player"))return player.getLocation().getYaw();
+            if(k.equals("pitch of player"))return player.getLocation().getPitch();
+            if(k.equals("is online")||k.equals("player is online"))return player.isOnline();
+            if(k.equals("is op")||k.equals("player is op"))return player.isOp();
+            if(k.equals("is sprinting")||k.equals("player is sprinting"))return player.isSprinting();
+            if(k.equals("is flying")||k.equals("player is flying"))return player.isFlying();
+            if(k.equals("game mode of player"))return player.getGameMode().name();
+            if(k.equals("max health of player"))return player.getAttribute(Attribute.MAX_HEALTH)==null?20.0:player.getAttribute(Attribute.MAX_HEALTH).getValue();
+            if(k.equals("movement speed of player"))return player.getAttribute(Attribute.MOVEMENT_SPEED)==null?0.1:player.getAttribute(Attribute.MOVEMENT_SPEED).getValue();
             if(k.equals("health of player"))return player.getHealth();
             if(k.equals("food level of player"))return player.getFoodLevel();
             if(k.equals("level of player"))return player.getLevel();
