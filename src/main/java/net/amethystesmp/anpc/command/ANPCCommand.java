@@ -149,7 +149,7 @@ public final class ANPCCommand implements TabExecutor {
                 "kill", "remove", "restore", "delete", "disable", "enable", "reload"), args[0]);
         if (args.length == 2 && Set.of("tp", "center", "rename", "kill", "remove", "restore",
                 "delete", "disable", "enable").contains(args[0].toLowerCase(Locale.ROOT))) {
-            return filter(plugin.npcs().all().stream().map(ManagedNPC::id).distinct().toList(), args[1]);
+            return filter(plugin.npcs().allIds(), args[1]);
         }
         if (args.length == 3 && args[0].equalsIgnoreCase("delete")) return filter(List.of("confirm"), args[2]);
         return Collections.emptyList();
