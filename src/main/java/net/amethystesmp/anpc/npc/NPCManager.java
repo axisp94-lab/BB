@@ -20,6 +20,8 @@ import java.io.IOException;
 import java.awt.image.BufferedImage;
 import javax.imageio.ImageIO;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.StandardCopyOption;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -236,6 +238,7 @@ public final class NPCManager {
         try {
             NPCDefinition definition = NPCDefinition.read(id, backup);
             saveDefinition(definition);
+            restoreDeletedScript(id);
             plugin.variables().set("npc-lifecycle", id, "removed", false);
             yaml.set("npcs." + id + ".scripts-enabled", true);
             List<String> recoveryWorlds = backup.getStringList("recovery-worlds");
@@ -277,6 +280,7 @@ public final class NPCManager {
             plugin.variables().delete("npc-runtime", owner, "speed");
         }
         backupDeletedNPC(definition, worldNames);
+        backupDeletedScript(id);
         for (String mapKey : matchingKeys(id)) {
             ManagedNPC npc = npcs.remove(mapKey);
             if (npc != null) npc.close();
@@ -421,13 +425,63 @@ public final class NPCManager {
         saveDeleted();
     }
 
+    private File scriptFile(String id) {
+        if (id == null || !id.matches("[A-Za-z0-9_-]+")) return null;
+        return new File(new File(plugin.getDataFolder(), "scripts"), id + ".aa");
+    }
+
+    private File deletedScriptFile(String id) {
+        if (id == null || !id.matches("[A-Za-z0-9_-]+")) return null;
+        return new File(new File(plugin.getDataFolder(), "deleted-scripts"), id + ".aa");
+    }
+
+    private void backupDeletedScript(String id) {
+        File source = scriptFile(id);
+        File backup = deletedScriptFile(id);
+        if (source == null || backup == null) return;
+        try {
+            File folder = backup.getParentFile();
+            if (!folder.exists() && !folder.mkdirs()) throw new IOException("Dossier deleted-scripts impossible à créer.");
+            if (source.isFile()) Files.copy(source.toPath(), backup.toPath(), StandardCopyOption.REPLACE_EXISTING);
+            else Files.deleteIfExists(backup.toPath());
+            Files.deleteIfExists(source.toPath());
+        } catch (IOException exception) {
+            plugin.getLogger().warning("Archivage du script de " + id + " impossible : " + exception.getMessage());
+        }
+    }
+
+    private void restoreDeletedScript(String id) {
+        File backup = deletedScriptFile(id);
+        File destination = scriptFile(id);
+        if (backup == null || destination == null || !backup.isFile()) return;
+        try {
+            File folder = destination.getParentFile();
+            if (!folder.exists() && !folder.mkdirs()) throw new IOException("Dossier scripts impossible à créer.");
+            Files.copy(backup.toPath(), destination.toPath(), StandardCopyOption.REPLACE_EXISTING);
+            Files.deleteIfExists(backup.toPath());
+        } catch (IOException exception) {
+            plugin.getLogger().warning("Restauration du script de " + id + " impossible : " + exception.getMessage());
+        }
+    }
+
+    private void deleteBackupScript(String id) {
+        File backup = deletedScriptFile(id);
+        if (backup != null) {
+            try { Files.deleteIfExists(backup.toPath()); }
+            catch (IOException exception) { plugin.getLogger().warning("Nettoyage du script archivé de " + id + " impossible : " + exception.getMessage()); }
+        }
+    }
+
     private void purgeExpiredDeletedNPCs() {
         if (deletedYaml == null) return;
         ConfigurationSection root = deletedYaml.getConfigurationSection("npcs");
         if (root == null) return;
         long cutoff = System.currentTimeMillis() - 24L * 60L * 60L * 1000L;
         for (String id : new ArrayList<>(root.getKeys(false))) {
-            if (root.getLong(id + ".deleted-at", 0L) < cutoff) deletedYaml.set("npcs." + id, null);
+            if (root.getLong(id + ".deleted-at", 0L) < cutoff) {
+                deletedYaml.set("npcs." + id, null);
+                deleteBackupScript(id);
+            }
         }
         saveDeleted();
     }
