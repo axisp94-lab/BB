@@ -90,7 +90,8 @@ public final class NPCManager {
         try { return ModelProfile.of(UUID.fromString(def.skin())); }
         catch (IllegalArgumentException ignored) {
             Player online = Bukkit.getPlayerExact(def.skin());
-            return online == null ? null : ModelProfile.of(BukkitAdapter.adapt(online)).asUncompleted();
+            if (online != null) return ModelProfile.of(BukkitAdapter.adapt(online)).asUncompleted();
+            return ModelProfile.of(Bukkit.getOfflinePlayer(def.skin()).getUniqueId());
         }
     }
 
