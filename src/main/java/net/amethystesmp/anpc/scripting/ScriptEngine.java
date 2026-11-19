@@ -530,6 +530,7 @@ public final class ScriptEngine implements Listener {
 
     private boolean isKnownInstruction(String instruction){
         String text=instruction.trim().toLowerCase(Locale.ROOT);
+        if(text.matches("[a-z_][a-z0-9_-]*\\s*\\(.*\\)"))return true;
         if(text.startsWith("if ")&&text.endsWith(":"))return true;
         if(text.startsWith("loop ")&&text.endsWith(":"))return true;
         if(text.startsWith("set state ")||text.startsWith("set hostile ")
