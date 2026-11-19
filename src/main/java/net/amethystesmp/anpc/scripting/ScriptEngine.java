@@ -196,7 +196,7 @@ public final class ScriptEngine implements Listener {
         if(split>=0)return isKnownConditionSyntax(value.substring(0,split))&&isKnownConditionSyntax(value.substring(split+3));
         if(value.toLowerCase(Locale.ROOT).startsWith("not "))return isKnownConditionSyntax(value.substring(4));
         String lower=value.toLowerCase(Locale.ROOT);
-        if(lower.matches("flag \\\\([a-z0-9_-]+\\\\) is (on|off)"))return true;
+        if(lower.matches("flag \\([a-z0-9_-]+\\) is (on|off)"))return true;
         if(lower.startsWith("block below is ")){
             String expected=value.substring(15).trim();
             if(expected.toLowerCase(Locale.ROOT).startsWith("not "))return Material.matchMaterial(expected.substring(4).trim())!=null;
@@ -218,7 +218,7 @@ public final class ScriptEngine implements Listener {
         if(contains>=0){
             String left=value.substring(0,contains).trim(),right=value.substring(contains+8).trim();
             if(left.isBlank()||right.isBlank())return false;
-            java.util.regex.Matcher repeated=java.util.regex.Pattern.compile("^(.*?)\\\\s+(more than|less than)\\\\s+\\\\d+\\\\s+times$",java.util.regex.Pattern.CASE_INSENSITIVE).matcher(right);
+            java.util.regex.Matcher repeated=java.util.regex.Pattern.compile("^(.*?)\\s+(more than|less than)\\s+\\d+\\s+times$",java.util.regex.Pattern.CASE_INSENSITIVE).matcher(right);
             return isKnownConditionOperand(left)&&isKnownConditionOperand(repeated.matches()?repeated.group(1).trim():right);
         }
         for(String operator:List.of("==","!=",">=","<=",">","<")){
@@ -232,12 +232,15 @@ public final class ScriptEngine implements Listener {
     private boolean isKnownConditionOperand(String expression){
         String value=stripOuterParentheses(expression.trim());
         if(value.isBlank())return false;
-        if(value.equalsIgnoreCase("true")||value.equalsIgnoreCase("false")||value.matches("-?\\\\d+(\\\\.\\\\d+)?"))return true;
+        if(value.equalsIgnoreCase("true")||value.equalsIgnoreCase("false")||value.matches("-?\\d+(\\.\\d+)?"))return true;
         if(value.startsWith("\"")&&value.endsWith("\""))return true;
         if(value.matches("[a-z_][a-z0-9_-]*"))return true;
         if(value.matches("(name|id|type|skin|location|position|world|x|y|z|yaw|pitch|health|max health|speed|attack damage|target|animation|state|primary state|secondary states|biome|light level|weather|time|uuid|food level|level|total experience|exp progress|game mode|movement speed|ping) of (npc|player|world)(:[a-z0-9_-]+)?"))return true;
-        if(value.matches("number of [a-z0-9_:-]+ in (range|sphere) \\\\d+"))return true;
-        if(value.matches("[a-z_][a-z0-9_-]*\\\\s*\\\\(.*\\\\)"))return true;
+        if(value.matches("event (message|command|entity|item|place|npc)")||value.equals("player"))return true;
+        if(value.matches("@p|@a|@n|@e|@e\\\\[type=[a-z0-9_:-]+\\\\]|@n\\\\[type=[a-z0-9_:-]+\\\\]"))return true;
+        if(value.matches("(npc|player):[a-z0-9_-]+"))return true;
+        if(value.matches("number of [a-z0-9_:-]+ in (range|sphere) \\d+"))return true;
+        if(value.matches("[a-z_][a-z0-9_-]*\\s*\\(.*\\)"))return true;
         for(char operator:new char[]{'+','-','*','/'}){
             int position=findTopLevelOperator(value,operator);
             if(position>0)return isKnownConditionOperand(value.substring(0,position))
