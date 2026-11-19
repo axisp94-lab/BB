@@ -266,7 +266,7 @@ public final class NPCManager {
             List<String> recoveryWorlds = backup.getStringList("recovery-worlds");
             if (recoveryWorlds.isEmpty()) recoveryWorlds = definition.worlds().stream().anyMatch(name -> name.equalsIgnoreCase("all"))
                     ? Bukkit.getWorlds().stream().map(World::getName).toList() : definition.worlds();
-            for (String worldName : recoveryWorlds) plugin.variables().restoreLocalVariables(id, worldName);
+            plugin.variables().restoreAllLocalVariables(id);
             deletedYaml.set("npcs." + id, null);
             saveDeleted();
             save();
@@ -286,22 +286,8 @@ public final class NPCManager {
         List<String> worldNames = definition.worlds().stream().anyMatch(name -> name.equalsIgnoreCase("all"))
                 ? Bukkit.getWorlds().stream().map(World::getName).toList()
                 : definition.worlds();
-        for (String worldName : worldNames) {
-            plugin.variables().archiveLocalVariables(id, worldName);
-            String owner = net.amethystesmp.anpc.storage.VariableStore.localOwner(id, worldName);
-            plugin.variables().delete("npc-runtime", owner, "primary-state");
-            plugin.variables().delete("npc-runtime", owner, "secondary-states");
-            plugin.variables().delete("npc-runtime", owner, "follow-target");
-            plugin.variables().delete("npc-runtime", owner, "follow-min");
-            plugin.variables().delete("npc-runtime", owner, "follow-max");
-            plugin.variables().delete("npc-runtime", owner, "hostile");
-            plugin.variables().delete("npc-runtime", owner, "target-selector");
-            plugin.variables().delete("npc-runtime", owner, "last-attacker");
-            plugin.variables().delete("npc-runtime", owner, "health");
-            plugin.variables().delete("npc-runtime", owner, "max-health");
-            plugin.variables().delete("npc-runtime", owner, "speed");
-            plugin.variables().delete("npc-runtime", owner, "attack-damage");
-        }
+        plugin.variables().archiveAllLocalVariables(id);
+        plugin.variables().deleteOwnerAndPrefix("npc-runtime", id);
         backupDeletedNPC(definition, worldNames);
         backupDeletedScript(id);
         for (String mapKey : matchingKeys(id)) {
