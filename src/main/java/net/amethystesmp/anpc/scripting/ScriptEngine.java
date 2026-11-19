@@ -366,7 +366,7 @@ public final class ScriptEngine implements Listener {
                 continue;
             }
 
-            if (line.startsWith("set ")) {
+            if (line.startsWith("set \"")) {
                 String body = line.substring(4).trim();
                 int closingQuote = body.indexOf('"', 1);
                 if (body.startsWith("\"") && closingQuote > 0) {
@@ -765,15 +765,26 @@ public final class ScriptEngine implements Listener {
             Object left = resolve(context, expressionText.substring(0, position));
             Object right = resolve(context, expressionText.substring(position + operator.length()));
             if (operator.equals(" contains ")) return String.valueOf(left).contains(String.valueOf(right));
-            double leftNumber = num(left);
-            double rightNumber = num(right);
+            Double leftNumber = numericValue(left);
+            Double rightNumber = numericValue(right);
+            if (leftNumber != null && rightNumber != null) {
+                return switch (operator.trim()) {
+                    case ">" -> leftNumber > rightNumber;
+                    case "<" -> leftNumber < rightNumber;
+                    case ">=" -> leftNumber >= rightNumber;
+                    case "<=" -> leftNumber <= rightNumber;
+                    case "!=" -> Double.compare(leftNumber, rightNumber) != 0;
+                    default -> Double.compare(leftNumber, rightNumber) == 0;
+                };
+            }
+            int comparison = String.valueOf(left).compareTo(String.valueOf(right));
             return switch (operator.trim()) {
-                case ">" -> leftNumber > rightNumber;
-                case "<" -> leftNumber < rightNumber;
-                case ">=" -> leftNumber >= rightNumber;
-                case "<=" -> leftNumber <= rightNumber;
+                case ">" -> comparison > 0;
+                case "<" -> comparison < 0;
+                case ">=" -> comparison >= 0;
+                case "<=" -> comparison <= 0;
                 case "!=" -> !Objects.equals(String.valueOf(left), String.valueOf(right));
-                default -> Objects.equals(String.valueOf(left), String.valueOf(right)) || leftNumber == rightNumber;
+                default -> Objects.equals(String.valueOf(left), String.valueOf(right));
             };
         }
 
@@ -874,7 +885,7 @@ public final class ScriptEngine implements Listener {
                 return new FunctionResult(true, null);
             }
 
-            ScriptContext context = new ScriptContext(parent.npc(), parent.player());
+            ScriptContext context = new ScriptContext(parent.npc(), parent.player(), parent.eventNpc());
             context.locals().putAll(parent.locals());
             for (int i = 0; i < arguments.size(); i++) {
                 context.locals().put(function.parameters().get(i), resolve(parent, arguments.get(i)));
@@ -1061,7 +1072,15 @@ public final class ScriptEngine implements Listener {
         String owner = parts.length > 1 ? parts[1] : context.npc().id();
         variables.set(scope, owner, name, value);
     }
-    private double num(Object o){try{return Double.parseDouble(String.valueOf(o));}catch(Exception e){return 0;}}
+    private Double numericValue(Object value) {
+        if (value instanceof Number number) return number.doubleValue();
+        if (value == null) return null;
+        try {
+            return Double.parseDouble(String.valueOf(value).trim());
+        } catch (NumberFormatException ignored) {
+            return null;
+        }
+    }
     private String unquote(String s){s=s.trim();return s.length()>=2&&s.startsWith("\"")&&s.endsWith("\"")?s.substring(1,s.length()-1):s;}
     private Player nearest(Location location) {
         if (location.getWorld() == null) return null;
