@@ -49,6 +49,10 @@ public final class ScriptEngine implements Listener {
     private final Map<ManagedNPC,Long> lastAttackTimes=new ConcurrentHashMap<>();
     private final Map<String,BukkitTask> intervalTasks=new ConcurrentHashMap<>();
     private final Map<ScriptContext,BukkitTask> watchdogTasks=new ConcurrentHashMap<>();
+    private final Map<String,Long> scriptLastRun=new ConcurrentHashMap<>();
+    private final Map<String,Long> scriptLastChange=new ConcurrentHashMap<>();
+    private final Map<String,Long> scriptLastWarning=new ConcurrentHashMap<>();
+    private BukkitTask scriptWatchdogTask;
     private final Map<String,Set<UUID>> nearbyPlayers=new ConcurrentHashMap<>();
     private final Map<String,Set<String>> nearbyNpcs=new ConcurrentHashMap<>();
     public ScriptEngine(ANPCPlugin plugin,NPCManager npcs,VariableStore variables){this.plugin=plugin;this.npcs=npcs;this.variables=variables;}
@@ -69,7 +73,7 @@ public final class ScriptEngine implements Listener {
                 scripts.put(id,parse(lines));
             }catch(Exception exception){plugin.getLogger().warning("Erreur script "+file.getName()+" : "+exception.getMessage());}
         }
-        scheduleIntervals(); scheduleProximity();
+        scheduleIntervals(); scheduleProximity(); startScriptWatchdog();
         for(ManagedNPC npc:npcs.all()){
             Map<String,List<Instruction>> map=scripts.get(npc.id().toLowerCase(Locale.ROOT));
             if(map!=null&&map.get("spawn")!=null&&npc.scriptsEnabled())execute(npc,null,map.get("spawn"),0);
@@ -270,11 +274,50 @@ public final class ScriptEngine implements Listener {
     private void execute(ManagedNPC npc,Player player,List<Instruction> code,int baseIndent){execute(npc,player,code,baseIndent,"",null);}
     private void execute(ManagedNPC npc,Player player,List<Instruction> code,int baseIndent,String eventData){execute(npc,player,code,baseIndent,eventData,null);}
     private void execute(ManagedNPC npc,Player player,List<Instruction> code,int baseIndent,String eventData,ManagedNPC eventNpc){
+        String key=npcInstanceKey(npc);
+        long now=System.currentTimeMillis();
+        Long previousRun=scriptLastRun.put(key,now);
+        if(previousRun==null||now-previousRun>5_000L)scriptLastChange.put(key,now);
         ScriptContext ctx=new ScriptContext(npc,player);
         ctx.setEventData(eventData);
         ctx.setEventNpc(eventNpc);
         int indent=code.isEmpty()?baseIndent:code.get(0).indent();
         runBlock(ctx,code,0,indent);
+    }
+
+    private String npcInstanceKey(ManagedNPC npc){
+        return npc.id().toLowerCase(Locale.ROOT)+"@"+npc.location().getWorld().getName().toLowerCase(Locale.ROOT);
+    }
+
+    private void markChanged(ScriptContext context){
+        context.markChanged();
+        scriptLastChange.put(npcInstanceKey(context.npc()),System.currentTimeMillis());
+    }
+
+    private void startScriptWatchdog(){
+        if(scriptWatchdogTask!=null){scriptWatchdogTask.cancel();tasks.remove(scriptWatchdogTask);}
+        scriptWatchdogTask=Bukkit.getScheduler().runTaskTimer(plugin,()->{
+            long now=System.currentTimeMillis();
+            for(String key:new HashSet<>(scriptLastRun.keySet())){
+                long lastRun=scriptLastRun.getOrDefault(key,0L);
+                long lastChange=scriptLastChange.getOrDefault(key,lastRun);
+                if(now-lastRun>5_000L||now-lastChange<5_000L)continue;
+                ManagedNPC npc=npcs.all().stream().filter(candidate->npcInstanceKey(candidate).equals(key)).findFirst().orElse(null);
+                if(npc==null||!npc.scriptsEnabled()){
+                    scriptLastRun.remove(key);scriptLastChange.remove(key);scriptLastWarning.remove(key);continue;
+                }
+                if(movementTasks.containsKey(npc)||followTasks.containsKey(npc)||combatTasks.containsKey(npc)){
+                    scriptLastChange.put(key,now);continue;
+                }
+                long lastWarning=scriptLastWarning.getOrDefault(key,0L);
+                if(now-lastWarning<5_000L)continue;
+                String permission=plugin.getConfig().getString("script-warning-permission","anpc.script.warning");
+                for(Player online:Bukkit.getOnlinePlayers())if(online.hasPermission(permission))
+                    online.sendMessage(ChatColor.YELLOW+"[AmethyysNPCs] Le script du NPC "+npc.id()+" n'a rien modifié depuis 100 ticks.");
+                scriptLastWarning.put(key,now);
+            }
+        },100L,100L);
+        tasks.add(scriptWatchdogTask);
     }
     private int runBlock(ScriptContext c,List<Instruction> code,int index,int indent){if(!c.npc().scriptsEnabled()||c.npc().tracker().isClosed())return code.size();while(index<code.size()){if(!c.npc().scriptsEnabled()||c.npc().tracker().isClosed()||c.returned())return code.size();if(c.loopControlRequested())return code.size();Instruction in=code.get(index);if(in.indent()<indent)break;if(in.indent()>indent){index++;continue;}String s=in.text();int line=in.line();
         if(s.equals("return")){c.setReturnValue(null);return code.size();}
@@ -285,7 +328,7 @@ public final class ScriptEngine implements Listener {
         if(s.equals("skip loop")){c.skipLoop();return code.size();}
         if(s.startsWith("if ")&&s.endsWith(":")){int end=findEnd(code,index+1,in.indent());if(test(c,s.substring(3,s.length()-1))){int child=index+1<code.size()?code.get(index+1).indent():in.indent()+4;runBlock(c,code,index+1,child);}index=end;continue;}
         if(s.startsWith("set hostile ")){setHostile(c.npc(),s.substring(12).trim().equalsIgnoreCase("on"));index++;continue;}
-        if(s.startsWith("set health of npc to ")){c.npc().setHealth(num(resolve(c,s.substring(21).trim())));c.markChanged();index++;continue;}
+        if(s.startsWith("set health of npc to ")){c.npc().setHealth(num(resolve(c,s.substring(21).trim())));markChanged(c);index++;continue;}
         if(s.startsWith("set max health of npc to ")){c.npc().setMaxHealth(num(resolve(c,s.substring(25).trim())));c.markChanged();index++;continue;}
         if(s.startsWith("set speed of npc to ")){c.npc().setSpeed(num(resolve(c,s.substring(20).trim())));c.markChanged();index++;continue;}
         if(s.startsWith("set target of npc to ")){setTargetSelector(c.npc(),s.substring(21).trim());index++;continue;}
@@ -1140,5 +1183,5 @@ public final class ScriptEngine implements Listener {
             npc.hide(e.getPlayer());
         }
     }
-    public void shutdown(){tasks.forEach(BukkitTask::cancel);tasks.clear();movementTasks.clear();followTasks.clear();combatTasks.clear();lastAttackTimes.clear();intervalTasks.clear();watchdogTasks.clear();scripts.clear();functions.clear();nearbyPlayers.clear();nearbyNpcs.clear();}
+    public void shutdown(){tasks.forEach(BukkitTask::cancel);tasks.clear();movementTasks.clear();followTasks.clear();combatTasks.clear();lastAttackTimes.clear();intervalTasks.clear();watchdogTasks.clear();scriptLastRun.clear();scriptLastChange.clear();scriptLastWarning.clear();scriptWatchdogTask=null;scripts.clear();functions.clear();nearbyPlayers.clear();nearbyNpcs.clear();}
 }
