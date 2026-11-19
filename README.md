@@ -54,6 +54,13 @@ on entity approach:
 on interval:
     if flag (ouvert) is on:
         say local "La porte est ouverte."
+
+on player chat:
+    if event message contains "bonjour":
+        say local "Bonjour !"
+
+on npc approach:
+    say local "Un autre NPC approche."
 ```
 
 ### Variables
@@ -106,6 +113,20 @@ loop all (liste):
 ```
 
 `stop loop` arrête la boucle courante ; `skip loop` passe à l'itération suivante.
+
+### Déplacements et suivi
+
+```python
+on right click:
+    move to @p
+    follow @p at 2
+    # ou : follow @p min 2 max 5
+    # ou : keep distance 4 from @p
+
+stop follow
+```
+
+Le déplacement au sol utilise un pathfinding avec évitement des blocs solides. La limite est réglable dans `config.yml` via `movement.max-path-attempts` (100 par défaut). Le suivi s'arrête si la cible se déconnecte ou change de monde.
 
 ### États
 
