@@ -1379,6 +1379,7 @@ public final class ScriptEngine implements Listener {
         }
         if(expression.equalsIgnoreCase("event npc")||expression.equalsIgnoreCase("location of event npc"))
             return context.eventNpc()==null?null:context.eventNpc().location();
+        if(expression.equalsIgnoreCase("event place"))return context.eventPlace();
         if(expression.equalsIgnoreCase("event entity")){Entity entity=context.eventEntity();return entity==null?null:entity.getLocation();}
         if(expression.equalsIgnoreCase("location of npc"))return context.npc().location();
         Object target=resolve(context,expression);
