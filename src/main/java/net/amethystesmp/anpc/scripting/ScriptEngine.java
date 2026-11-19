@@ -26,8 +26,11 @@ import java.util.concurrent.ConcurrentHashMap;
 public final class ScriptEngine implements Listener {
     private record Instruction(int indent, String text, int line) {}
     private record LoopPlan(String variable, List<Object> values) {}
+    private record FunctionDefinition(List<String> parameters, List<Instruction> code) {}
+    private record ScriptData(Map<String, List<Instruction>> events, Map<String, FunctionDefinition> functions) {}
+    private record FunctionResult(boolean returned, Object value) {}
     private final ANPCPlugin plugin; private final NPCManager npcs; private final VariableStore variables;
-    private final Map<String,Map<String,List<Instruction>>> scripts=new ConcurrentHashMap<>();
+    private final Map<String, ScriptData> scripts = new ConcurrentHashMap<>();
     private final Set<BukkitTask> tasks=ConcurrentHashMap.newKeySet();
     private final Map<String,Set<UUID>> nearbyPlayers=new ConcurrentHashMap<>();
     public ScriptEngine(ANPCPlugin plugin,NPCManager npcs,VariableStore variables){this.plugin=plugin;this.npcs=npcs;this.variables=variables;}
@@ -53,20 +56,22 @@ public final class ScriptEngine implements Listener {
         scheduleIntervals();
         scheduleProximity();
         for (ManagedNPC npc : npcs.all()) {
-            Map<String, List<Instruction>> events = scripts.get(npc.id().toLowerCase(Locale.ROOT));
-            if (events != null) {
-                List<Instruction> spawn = events.get("spawn");
+            ScriptData script = scripts.get(npc.id().toLowerCase(Locale.ROOT));
+            if (script != null) {
+                List<Instruction> spawn = script.events().get("spawn");
                 if (spawn != null) execute(npc, null, spawn, 0);
             }
         }
     }
-    private Map<String, List<Instruction>> parse(List<String> lines, String source) {
-        Map<String, List<Instruction>> result = new LinkedHashMap<>();
-        String event = null;
+    private ScriptData parse(List<String> lines, String source) {
+        Map<String, List<Instruction>> events = new LinkedHashMap<>();
+        Map<String, FunctionDefinition> functions = new LinkedHashMap<>();
+        String currentEvent = null;
+        List<Instruction> currentBody = null;
         int bodyIndent = -1;
 
         for (int i = 0; i < lines.size(); i++) {
-            String raw = lines.get(i).replace("\t", "    ");
+            String raw = lines.get(i).replace("\\t", "    ");
             if (raw.isBlank() || raw.stripLeading().startsWith("#")) continue;
 
             int indent = raw.length() - raw.stripLeading().length();
@@ -74,29 +79,54 @@ public final class ScriptEngine implements Listener {
             String lower = text.toLowerCase(Locale.ROOT);
 
             if (indent == 0 && lower.startsWith("on ") && text.endsWith(":")) {
-                event = text.substring(3, text.length() - 1).trim().toLowerCase(Locale.ROOT);
-                result.computeIfAbsent(event, ignored -> new ArrayList<>());
+                currentEvent = text.substring(3, text.length() - 1).trim().toLowerCase(Locale.ROOT);
+                currentBody = events.computeIfAbsent(currentEvent, ignored -> new ArrayList<>());
                 bodyIndent = -1;
                 continue;
             }
 
-            if (event == null) {
-                plugin.getLogger().warning(source + ":" + (i + 1) + " : instruction ignorée hors d'un événement.");
+            if (indent == 0 && lower.startsWith("def ") && text.endsWith(":")) {
+                currentEvent = null;
+                String signature = text.substring(4, text.length() - 1).trim();
+                int open = signature.indexOf('(');
+                int close = signature.lastIndexOf(')');
+                if (open <= 0 || close < open) {
+                    plugin.getLogger().warning(source + ":" + (i + 1) + " : définition de fonction invalide.");
+                    currentBody = null;
+                    bodyIndent = -1;
+                    continue;
+                }
+                String name = signature.substring(0, open).trim().toLowerCase(Locale.ROOT);
+                List<String> parameters = Arrays.stream(signature.substring(open + 1, close).split(","))
+                        .map(String::trim)
+                        .filter(parameter -> !parameter.isBlank())
+                        .map(parameter -> parameter.toLowerCase(Locale.ROOT))
+                        .toList();
+                currentBody = new ArrayList<>();
+                functions.put(name, new FunctionDefinition(parameters, currentBody));
+                bodyIndent = -1;
+                continue;
+            }
+
+            if (currentBody == null) {
+                plugin.getLogger().warning(source + ":" + (i + 1) + " : instruction ignorée hors d'un événement ou d'une fonction.");
                 continue;
             }
 
             if (bodyIndent < 0) {
                 bodyIndent = indent;
                 if (bodyIndent == 0) {
-                    plugin.getLogger().warning(source + ":" + (i + 1) + " : le contenu d'un événement doit être indenté.");
-                    event = null;
+                    plugin.getLogger().warning(source + ":" + (i + 1) + " : le contenu doit être indenté.");
+                    currentBody = null;
+                    currentEvent = null;
                     continue;
                 }
             }
 
             if (indent < bodyIndent) {
                 plugin.getLogger().warning(source + ":" + (i + 1) + " : indentation inattendue ; instruction ignorée.");
-                event = null;
+                currentBody = null;
+                currentEvent = null;
                 continue;
             }
 
@@ -104,16 +134,16 @@ public final class ScriptEngine implements Listener {
             if (relativeIndent % 4 != 0) {
                 plugin.getLogger().warning(source + ":" + (i + 1) + " : indentation non multiple de quatre espaces.");
             }
-            result.get(event).add(new Instruction(relativeIndent, text, i + 1));
+            currentBody.add(new Instruction(relativeIndent, text, i + 1));
         }
-        return result;
+        return new ScriptData(events, functions);
     }
     private void scheduleIntervals() {
         long period = Math.max(1L, plugin.getConfig().getLong("script-default-interval", 20L));
         for (ManagedNPC npc : npcs.all()) {
-            Map<String, List<Instruction>> events = scripts.get(npc.id().toLowerCase(Locale.ROOT));
-            if (events == null) continue;
-            List<Instruction> code = events.get("interval");
+            ScriptData script = scripts.get(npc.id().toLowerCase(Locale.ROOT));
+            if (script == null) continue;
+            List<Instruction> code = script.events().get("interval");
             if (code == null) continue;
 
             BukkitTask task = Bukkit.getScheduler().runTaskTimer(plugin,
@@ -159,9 +189,9 @@ public final class ScriptEngine implements Listener {
         return npc.id().toLowerCase(Locale.ROOT) + "@" + world;
     }
     public void fire(String npc, String event, Player player) {
-        Map<String, List<Instruction>> events = scripts.get(npc.toLowerCase(Locale.ROOT));
-        if (events == null) return;
-        List<Instruction> code = events.get(event.toLowerCase(Locale.ROOT));
+        ScriptData script = scripts.get(npc.toLowerCase(Locale.ROOT));
+        if (script == null) return;
+        List<Instruction> code = script.events().get(event.toLowerCase(Locale.ROOT));
         ManagedNPC managed = player == null ? npcs.get(npc) : npcs.get(npc, player.getWorld());
         if (code != null && managed != null) execute(managed, player, code, 0);
     }
