@@ -1,9 +1,9 @@
 # AmethyysNPCs
 
-Plugin Paper 1.21.11 / Java 21. BetterModel 2.2.0 est une dépendance optionnelle à l'exécution mais nécessaire pour afficher les modèles BetterModel. MythicMobs, ItemsAdder et Multiverse sont détectés comme intégrations optionnelles.
+Plugin Paper 1.21.11 / Java 21. BetterModel 2.2.0 est requis pour afficher les modèles. MythicMobs, ItemsAdder et Multiverse sont prévus comme intégrations optionnelles.
 
 ## Compilation
-`mvn clean package` — le JAR ombré est produit dans `target/AmethyysNPCs-0.1.0.jar`.
+`mvn clean package` — le JAR est produit dans `target/AmethyysNPCs-0.1.0.jar`. Le workflow GitHub Actions compile le projet avec Java 21.
 
 ## Installation
 1. Installer Paper 1.21.11 et Java 21.
@@ -23,11 +23,20 @@ npcs:
     z: 0.5
     yaw: 0
     pitch: 0
-    skin: "00000000-0000-0000-0000-000000000000" # UUID de profil BetterModel, si souhaité
+    skin: "file:gardiens.png"
 ```
 
-`type: player` sélectionne le limb `steve`; `skin` peut être un UUID ou le nom d'un joueur actuellement connecté. Pour les modèles classiques, `type` est le nom BetterModel. `world` accepte un nom, une liste de noms ou `all`.
+`type: player` sélectionne le limb `steve`. Pour les modèles classiques, `type` est le nom BetterModel. `world` accepte un nom, une liste de noms ou `all`.
 
+### Skins des NPC joueur
+Le champ `skin` accepte :
+- un UUID de profil Minecraft ;
+- le nom d'un joueur actuellement connecté ;
+- `file:nom.png`, pour un fichier placé directement dans `plugins/AmethyysNPCs/npcs/`.
+
+Les PNG doivent mesurer 64×64 ou 64×32 pixels. Pour le modèle bras fins (slim), termine le nom par `_slim.png` ou `-slim.png`. Le serveur local de textures écoute uniquement sur l'interface de boucle locale et s'arrête avec le plugin.
+
+## Scripts
 Scripts : `plugins/AmethyysNPCs/scripts/<id>.aa`. Les événements et blocs utilisent une indentation de 4 espaces.
 
 ```python
@@ -53,6 +62,8 @@ on interval:
 - `/anpc reload`
 
 ## État de cette livraison (0.1.0)
-Cette archive fournit le socle exécutable : chargement `npc.yml`, NPC BetterModel basés sur `DummyTracker`, hitbox d'interaction, suivi des joueurs visibles, déplacement interpolé, animations, commandes de base, événements de clic/approche/intervalle, flags, premières conditions/actions, et stockage SQLite.
+Le socle comprend le chargement de `npc.yml`, les NPC BetterModel basés sur `DummyTracker`, les hitboxes d'interaction, le suivi des joueurs visibles, le déplacement interpolé, les animations, les commandes de base, les premiers événements/conditions/actions et le stockage SQLite.
 
-Ce n'est pas encore l'intégralité de la liste « validée » de la documentation : le langage est en première tranche (les fonctions, boucles, tous les types d'événements, la totalité des variables/conditions/actions et les modes avancés de déplacement ne sont pas encore implémentés). MythicMobs, ItemsAdder et Multiverse sont déclarés en dépendances souples mais leurs adaptateurs ne sont pas encore codés. La gestion des skins personnalisés par fichier et la vérification en jeu restent à terminer. La compilation n'a pas pu être lancée dans cet environnement faute de Maven et d'accès réseau ; le workflow GitHub Actions fourni effectuera le build.
+La stabilisation du cycle de vie, des commandes et du rechargement a été compilée avec succès par GitHub Actions. La prise en charge des skins PNG locaux vient d'être ajoutée ; elle reste à vérifier en jeu avec BetterModel 2.2.0.
+
+Le langage `.aa` reste une première tranche : fonctions, boucles, tous les types d'événements, l'ensemble des variables/conditions/actions et les modes avancés de déplacement ne sont pas encore implémentés. Les adaptateurs MythicMobs, ItemsAdder et Multiverse restent à développer.
