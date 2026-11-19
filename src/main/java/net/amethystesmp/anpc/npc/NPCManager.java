@@ -11,6 +11,7 @@ import org.bukkit.World;
 import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.entity.Player;
+import org.bukkit.entity.Entity;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
 import org.bukkit.event.world.WorldLoadEvent;
@@ -90,14 +91,22 @@ public final class NPCManager implements Listener {
                 .anyMatch(name -> name.equalsIgnoreCase("all") || name.equalsIgnoreCase(world.getName()));
         if (!configured) return;
 
-        ModelRenderer renderer = resolveRenderer(definition);
-        if (renderer == null) {
-            plugin.getLogger().severe("Modèle BetterModel introuvable pour " + definition.id() + " : " + definition.type());
-            return;
-        }
-
         try {
-            ManagedNPC managed = new ManagedNPC(definition, renderer, definition.location(world), skinProfile(definition));
+            ManagedNPC managed;
+            if (isMythicMob(definition.type())) {
+                String mythicId = definition.type().substring("mythicmob:".length()).trim();
+                Entity entity = MythicMobAdapter.spawn(plugin, mythicId, definition.location(world), definition.displayName());
+                if (entity == null) return;
+                managed = new ManagedNPC(definition, entity);
+            } else {
+                ModelRenderer renderer = resolveRenderer(definition);
+                if (renderer == null) {
+                    plugin.getLogger().severe("Modèle BetterModel introuvable pour " + definition.id() + " : " + definition.type());
+                    return;
+                }
+                managed = new ManagedNPC(definition, renderer, definition.location(world), skinProfile(definition));
+            }
+
             String key = instanceKey(definition.id(), world);
             ManagedNPC previous = npcs.put(key, managed);
             if (previous != null) previous.close();
@@ -128,6 +137,10 @@ public final class NPCManager implements Listener {
             ManagedNPC npc = npcs.remove(key);
             if (npc != null) npc.close();
         }
+    }
+
+    private boolean isMythicMob(String type) {
+        return type != null && type.toLowerCase(Locale.ROOT).startsWith("mythicmob:");
     }
 
     private ModelProfile.Uncompleted skinProfile(NPCDefinition definition) {
@@ -246,11 +259,20 @@ public final class NPCManager implements Listener {
 
         NPCDefinition definition = new NPCDefinition(id, id, type, List.of(location.getWorld().getName()),
                 location.getX(), location.getY(), location.getZ(), location.getYaw(), location.getPitch(), "");
-        ModelRenderer renderer = resolveRenderer(type);
-        if (renderer == null) return false;
 
         try {
-            ManagedNPC managed = new ManagedNPC(definition, renderer, location, skinProfile(definition));
+            ManagedNPC managed;
+            if (isMythicMob(type)) {
+                String mythicId = type.substring("mythicmob:".length()).trim();
+                Entity entity = MythicMobAdapter.spawn(plugin, mythicId, location, definition.displayName());
+                if (entity == null) return false;
+                managed = new ManagedNPC(definition, entity);
+            } else {
+                ModelRenderer renderer = resolveRenderer(type);
+                if (renderer == null) return false;
+                managed = new ManagedNPC(definition, renderer, location, skinProfile(definition));
+            }
+
             npcs.put(instanceKey(id, location.getWorld()), managed);
             definitions.put(id.toLowerCase(Locale.ROOT), definition);
             saveDefinition(definition);
