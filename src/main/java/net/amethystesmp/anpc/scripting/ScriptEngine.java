@@ -40,6 +40,7 @@ public final class ScriptEngine implements Listener {
     private final Map<String, NpcPair> activeNpcPairs = new HashMap<>();
     private final Map<String, String> mainStates = new ConcurrentHashMap<>();
     private final Map<String, Set<String>> secondaryStates = new ConcurrentHashMap<>();
+    private final Map<String, Long> cooldowns = new ConcurrentHashMap<>();
     public ScriptEngine(ANPCPlugin plugin,NPCManager npcs,VariableStore variables){this.plugin=plugin;this.npcs=npcs;this.variables=variables;}
     public void loadAll() {
         cancelTasks();
@@ -320,6 +321,24 @@ public final class ScriptEngine implements Listener {
                     state.skip();
                 }
                 index++;
+                continue;
+            }
+
+            if (line.startsWith("cooldown ") && line.endsWith(":")) {
+                int end = findEnd(code, index + 1, instruction.indent());
+                long ticks = parseDurationTicks(line.substring(9, line.length() - 1));
+                String cooldownKey = context.npc().id().toLowerCase(Locale.ROOT) + ":" + instruction.line();
+                long now = System.currentTimeMillis();
+                long availableAt = cooldowns.getOrDefault(cooldownKey, 0L);
+                if (now >= availableAt && index + 1 < end) {
+                    cooldowns.put(cooldownKey, now + ticks * 50L);
+                    int childIndent = code.get(index + 1).indent();
+                    int next = end;
+                    runBlock(context, code, index + 1, childIndent,
+                            () -> runBlock(context, code, next, indent, continuation));
+                    return;
+                }
+                index = end;
                 continue;
             }
 
@@ -1323,7 +1342,18 @@ public final class ScriptEngine implements Listener {
         npc.animate("walk");
     }
 
-    private long parseDurationTicks(String s){String[] a=s.trim().split("\\s+");try{long n=Long.parseLong(a[0]);return a.length>1&&a[1].startsWith("second")?n*20:n;}catch(Exception e){return 1;}}
+    private long parseDurationTicks(String input) {
+        String[] parts = input.trim().toLowerCase(Locale.ROOT).split("\\s+");
+        try {
+            long amount = Math.max(1L, Long.parseLong(parts[0]));
+            if (parts.length < 2) return amount;
+            if (parts[1].startsWith("minute")) return Math.min(2_000_000_000L, amount * 1200L);
+            if (parts[1].startsWith("second")) return Math.min(2_000_000_000L, amount * 20L);
+            return amount;
+        } catch (Exception exception) {
+            return 1L;
+        }
+    }
     @EventHandler public void onNpcRightClick(PlayerInteractAtEntityEvent e){
         String id=e.getRightClicked().getScoreboardTags().stream().filter(t->t.startsWith("anpc:")).map(t->t.substring(5)).findFirst().orElse(null);
         if(id!=null){e.setCancelled(true);fire(id,e.getPlayer().isSneaking()?"right click while sneaking":"right click",e.getPlayer());if(!e.getPlayer().getInventory().getItemInMainHand().getType().isAir())fire(id,"item click",e.getPlayer());}
