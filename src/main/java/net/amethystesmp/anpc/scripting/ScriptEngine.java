@@ -174,9 +174,19 @@ public final class ScriptEngine implements Listener {
         intervalTasks.put(id,task);tasks.add(task);
     }
 
+    public void clearNpcTracking(String requestedId){
+        String prefix=requestedId.toLowerCase(Locale.ROOT)+"@";
+        nearbyPlayers.keySet().removeIf(key->key.startsWith(prefix));
+        nearbyNpcs.keySet().removeIf(key->key.startsWith(prefix));
+        scriptLastRun.keySet().removeIf(key->key.startsWith(prefix));
+        scriptLastChange.keySet().removeIf(key->key.startsWith(prefix));
+        scriptLastWarning.keySet().removeIf(key->key.startsWith(prefix));
+    }
+
     public void unloadScript(String requestedId){
         String id=requestedId.toLowerCase(Locale.ROOT).replaceFirst("\\.aa$","");
         if(!id.matches("[a-z0-9_-]+"))return;
+        clearNpcTracking(id);
         scripts.remove(id);
         BukkitTask interval=intervalTasks.remove(id);
         if(interval!=null){interval.cancel();tasks.remove(interval);}
