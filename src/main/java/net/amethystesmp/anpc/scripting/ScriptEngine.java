@@ -357,17 +357,17 @@ public final class ScriptEngine implements Listener {
         if(s.startsWith("if ")&&s.endsWith(":")){int end=findEnd(code,index+1,in.indent());if(test(c,s.substring(3,s.length()-1))){int child=index+1<code.size()?code.get(index+1).indent():in.indent()+4;runBlock(c,code,index+1,child);}index=end;continue;}
         if(s.startsWith("set hostile ")){setHostile(c.npc(),s.substring(12).trim().equalsIgnoreCase("on"));index++;continue;}
         if(s.startsWith("set health of npc to ")){c.npc().setHealth(num(resolve(c,s.substring(21).trim())));markChanged(c);index++;continue;}
-        if(s.startsWith("set max health of npc to ")){c.npc().setMaxHealth(num(resolve(c,s.substring(25).trim())));c.markChanged();index++;continue;}
-        if(s.startsWith("set speed of npc to ")){c.npc().setSpeed(num(resolve(c,s.substring(20).trim())));c.markChanged();index++;continue;}
+        if(s.startsWith("set max health of npc to ")){c.npc().setMaxHealth(num(resolve(c,s.substring(25).trim())));markChanged(c);index++;continue;}
+        if(s.startsWith("set speed of npc to ")){c.npc().setSpeed(num(resolve(c,s.substring(20).trim())));markChanged(c);index++;continue;}
         if(s.startsWith("set target of npc to ")){setTargetSelector(c.npc(),s.substring(21).trim());index++;continue;}
         if(s.startsWith("set cooldown ")){
             String body=s.substring(13).trim();int forIndex=body.toLowerCase(Locale.ROOT).lastIndexOf(" for ");
-            if(forIndex>0){String name=unquote(body.substring(0,forIndex).trim());long duration=parseDurationMillis(body.substring(forIndex+5).trim());c.npc().setCooldown(name,duration);c.markChanged();}
+            if(forIndex>0){String name=unquote(body.substring(0,forIndex).trim());long duration=parseDurationMillis(body.substring(forIndex+5).trim());c.npc().setCooldown(name,duration);markChanged(c);}
             else plugin.getLogger().warning("Syntaxe attendue : set cooldown \"nom\" for 5 seconds.");
             index++;continue;
         }
-        if(s.startsWith("set ")){String body=s.substring(4).trim();int q=body.indexOf('"',1);if(body.startsWith("\"")&&q>0){String name=body.substring(1,q);String val=body.substring(q+1).trim();if(val.startsWith("(" )&&val.endsWith(")"))val=val.substring(1,val.length()-1);Object value=resolve(c,val);c.locals().put(name,value);if(!c.isTransientLocal(name))storeVariable(c,name,value);c.markChanged();}index++;continue;}
-        if(s.startsWith("create variable ")){createVariable(c,s.substring(15).trim());c.markChanged();index++;continue;}
+        if(s.startsWith("set ")){String body=s.substring(4).trim();int q=body.indexOf('"',1);if(body.startsWith("\"")&&q>0){String name=body.substring(1,q);String val=body.substring(q+1).trim();if(val.startsWith("(" )&&val.endsWith(")"))val=val.substring(1,val.length()-1);Object value=resolve(c,val);c.locals().put(name,value);if(!c.isTransientLocal(name))storeVariable(c,name,value);markChanged(c);}index++;continue;}
+        if(s.startsWith("create variable ")){createVariable(c,s.substring(15).trim());markChanged(c);index++;continue;}
         if(s.startsWith("say local ")||s.startsWith("say global ")){boolean global=s.startsWith("say global ");Object message=resolve(c,s.substring(global?11:10).trim());String rendered=ChatColor.translateAlternateColorCodes('&',c.npc().definition().displayName()+" » "+String.valueOf(message));if(global)Bukkit.broadcastMessage(rendered);else if(c.player()!=null)c.player().sendMessage(rendered);else for(Player p:c.npc().location().getWorld().getPlayers())if(p.getLocation().distanceSquared(c.npc().location())<32*32)p.sendMessage(rendered);index++;continue;}
         if(s.startsWith("send to ")){int pos=s.indexOf(' ',8);if(pos>0){String target=s.substring(8,pos);Object targetValue=resolve(c,target);String msg=String.valueOf(resolve(c,s.substring(pos+1).trim()));Player p=targetValue instanceof Player selected?selected:(target.equals("@p")?nearest(c.npc().location()):Bukkit.getPlayerExact(target));if(p!=null)p.sendMessage(ChatColor.translateAlternateColorCodes('&',msg));}index++;continue;}
         if(s.startsWith("simulate break block at ")){
@@ -389,7 +389,7 @@ public final class ScriptEngine implements Listener {
             if(at!=null){at.getWorld().spawnParticle(Particle.CRIT,at.clone().add(0.5,0.5,0.5),8,0.2,0.2,0.2,0.02);at.getWorld().playSound(at,Sound.UI_BUTTON_CLICK,0.8f,1.0f);}
             index++;continue;
         }
-        if(s.startsWith("set block ")){c.markChanged();
+        if(s.startsWith("set block ")){markChanged(c);
             int atIndex=s.toLowerCase(Locale.ROOT).indexOf(" at ");
             if(atIndex>10){
                 Material material=Material.matchMaterial(s.substring(10,atIndex).trim());
@@ -398,25 +398,25 @@ public final class ScriptEngine implements Listener {
             }
             index++;continue;
         }
-        if(s.startsWith("break block at ")){c.markChanged();
+        if(s.startsWith("break block at ")){markChanged(c);
             Location at=parseLocation(c,s.substring(15).trim());
             if(at!=null)at.getBlock().breakNaturally();
             index++;continue;
         }
         if(s.startsWith("play anime ")||s.startsWith("emote ")){
             int offset=s.startsWith("emote ")?6:11;
-            c.npc().animate(unquote(s.substring(offset)));c.markChanged();index++;continue;
+            c.npc().animate(unquote(s.substring(offset)));markChanged(c);index++;continue;
         }
-        if(s.equals("stop animation")){c.npc().animate("idle");c.markChanged();index++;continue;}
+        if(s.equals("stop animation")){c.npc().animate("idle");markChanged(c);index++;continue;}
         if(s.startsWith("play sound ")){playScriptSound(c,s.substring(11).trim());index++;continue;}
-        if(s.startsWith("reset cooldown ")){c.npc().resetCooldown(unquote(s.substring(15).trim()));c.markChanged();index++;continue;}
-        if(s.startsWith("set checkpoint ")){c.npc().setCheckpoint(unquote(s.substring(15).trim()),c.npc().location());c.markChanged();index++;continue;}
-        if(s.startsWith("remove checkpoint ")){c.npc().removeCheckpoint(unquote(s.substring(18).trim()));c.markChanged();index++;continue;}
-        if(s.startsWith("move to checkpoint ")){stopFollow(c.npc());Location checkpoint=c.npc().checkpoint(unquote(s.substring(19).trim()));if(checkpoint!=null)move(c.npc(),checkpoint);else plugin.getLogger().warning("Checkpoint introuvable pour "+c.npc().id()+" : "+s.substring(19));c.markChanged();index++;continue;}
-        if(s.startsWith("move to ")){stopFollow(c.npc());Location target=parseLocation(c,s.substring(8).trim());if(target!=null)move(c.npc(),target);c.markChanged();index++;continue;}
-        if(s.startsWith("fly to ")){stopFollow(c.npc());Location target=parseLocation(c,s.substring(7).trim());if(target!=null)moveFlying(c.npc(),target);c.markChanged();index++;continue;}
+        if(s.startsWith("reset cooldown ")){c.npc().resetCooldown(unquote(s.substring(15).trim()));markChanged(c);index++;continue;}
+        if(s.startsWith("set checkpoint ")){c.npc().setCheckpoint(unquote(s.substring(15).trim()),c.npc().location());markChanged(c);index++;continue;}
+        if(s.startsWith("remove checkpoint ")){c.npc().removeCheckpoint(unquote(s.substring(18).trim()));markChanged(c);index++;continue;}
+        if(s.startsWith("move to checkpoint ")){stopFollow(c.npc());Location checkpoint=c.npc().checkpoint(unquote(s.substring(19).trim()));if(checkpoint!=null)move(c.npc(),checkpoint);else plugin.getLogger().warning("Checkpoint introuvable pour "+c.npc().id()+" : "+s.substring(19));markChanged(c);index++;continue;}
+        if(s.startsWith("move to ")){stopFollow(c.npc());Location target=parseLocation(c,s.substring(8).trim());if(target!=null)move(c.npc(),target);markChanged(c);index++;continue;}
+        if(s.startsWith("fly to ")){stopFollow(c.npc());Location target=parseLocation(c,s.substring(7).trim());if(target!=null)moveFlying(c.npc(),target);markChanged(c);index++;continue;}
         if(s.startsWith("tp ")){stopFollow(c.npc());Location target=parseLocation(c,s.substring(3).trim());if(target!=null)move(c.npc(),target);index++;continue;}
-        if(s.startsWith("flag on ")||s.startsWith("flag off ")){boolean on=s.startsWith("flag on ");String name=s.substring(on?8:9).replace("(","").replace(")","").trim();variables.setLocal(c.npc().id(),c.npc().location().getWorld().getName(),"flag:"+name,on);c.markChanged();index++;continue;}
+        if(s.startsWith("flag on ")||s.startsWith("flag off ")){boolean on=s.startsWith("flag on ");String name=s.substring(on?8:9).replace("(","").replace(")","").trim();variables.setLocal(c.npc().id(),c.npc().location().getWorld().getName(),"flag:"+name,on);markChanged(c);index++;continue;}
         if(s.startsWith("wait ")){
             long ticks=parseDurationTicks(s.substring(5));
             List<Instruction> remaining=new ArrayList<>(code.subList(index+1,code.size()));
@@ -429,17 +429,17 @@ public final class ScriptEngine implements Listener {
             tasks.add(task);return code.size();
         }
         if(s.startsWith("run command ")){String cmd=unquote(s.substring(12));Bukkit.dispatchCommand(Bukkit.getConsoleSender(),cmd.replace("%player%",c.player()==null?"":c.player().getName()));index++;continue;}
-        if(s.startsWith("look at ")&&(c.player()!=null||c.eventNpc()!=null)){Location at=c.player()!=null?c.player().getLocation():c.eventNpc().location();Location from=c.npc().location();from.setDirection(at.toVector().subtract(from.toVector()));c.npc().move(from);c.markChanged();index++;continue;}
-        if(s.startsWith("follow ")){startFollow(c.npc(),s.substring(7).trim());c.markChanged();index++;continue;}
-        if(s.startsWith("keep distance ")){startKeepDistance(c.npc(),s.substring(14).trim());c.markChanged();index++;continue;}
-        if(s.equals("stop follow")){stopFollow(c.npc());c.markChanged();index++;continue;}
+        if(s.startsWith("look at ")&&(c.player()!=null||c.eventNpc()!=null)){Location at=c.player()!=null?c.player().getLocation():c.eventNpc().location();Location from=c.npc().location();from.setDirection(at.toVector().subtract(from.toVector()));c.npc().move(from);markChanged(c);index++;continue;}
+        if(s.startsWith("follow ")){startFollow(c.npc(),s.substring(7).trim());markChanged(c);index++;continue;}
+        if(s.startsWith("keep distance ")){startKeepDistance(c.npc(),s.substring(14).trim());markChanged(c);index++;continue;}
+        if(s.equals("stop follow")){stopFollow(c.npc());markChanged(c);index++;continue;}
         if(s.startsWith("target ")){setTargetSelector(c.npc(),s.substring(7).trim());index++;continue;}
         if(s.startsWith("attack ")){setTargetSelector(c.npc(),s.substring(7).trim());setHostile(c.npc(),true);index++;continue;}
         if(s.equals("stop attack")){setHostile(c.npc(),false);index++;continue;}
-        if(s.startsWith("set state ")){c.npc().setPrimaryState(unquote(s.substring(10)));c.markChanged();index++;continue;}
-        if(s.startsWith("add state ")){c.npc().addSecondaryState(unquote(s.substring(10)));c.markChanged();index++;continue;}
-        if(s.startsWith("remove state ")){c.npc().removeSecondaryState(unquote(s.substring(13)));c.markChanged();index++;continue;}
-        if(s.equals("clear states")){c.npc().setPrimaryState("idle");c.npc().clearSecondaryStates();c.markChanged();index++;continue;}
+        if(s.startsWith("set state ")){c.npc().setPrimaryState(unquote(s.substring(10)));markChanged(c);index++;continue;}
+        if(s.startsWith("add state ")){c.npc().addSecondaryState(unquote(s.substring(10)));markChanged(c);index++;continue;}
+        if(s.startsWith("remove state ")){c.npc().removeSecondaryState(unquote(s.substring(13)));markChanged(c);index++;continue;}
+        if(s.equals("clear states")){c.npc().setPrimaryState("idle");c.npc().clearSecondaryStates();markChanged(c);index++;continue;}
         warnUnknownInstruction(line,s);
         index++;
     }return index;}
@@ -449,7 +449,7 @@ public final class ScriptEngine implements Listener {
         BukkitTask task=Bukkit.getScheduler().runTaskTimer(plugin,()->{
             if(context.finished()||!context.hasPendingWaits()||!context.npc().scriptsEnabled()||context.npc().tracker().isClosed()){context.finish();stopWatchdog(context);return;}
             if(movementTasks.containsKey(context.npc())||followTasks.containsKey(context.npc())||combatTasks.containsKey(context.npc())){
-                context.markChanged();return;
+                markChanged(context);return;
             }
             if(context.shouldWarnNoChange()){
                 String permission=plugin.getConfig().getString("script-warning-permission","anpc.script.warning");
