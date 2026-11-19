@@ -78,7 +78,7 @@ on interval:
 ```
 
 Éléments pris en charge dans cette version :
-- événements de clic, de dégâts, d'approche des joueurs, de proximité et de départ entre NPC, d'intervalle et de spawn ;
+- événements de clic, de dégâts (joueurs, projectiles, mobs et environnement), d'approche/de départ des joueurs et des NPC, d'intervalle et de spawn ; les événements de spawn et d'intervalle suivent aussi les chargements/déchargements de mondes ;
 - blocs `if`, variables locales/partagées/globales et fonctions avec paramètres et `return` ;
 - boucles `loop all players`, `loop all npcs`, `loop all (liste)` et `loop N times`, avec `stop loop` et `skip loop` ;
 - sélecteurs `@p`, `@a`, `@n`, `@e[type=...]`, `player:<pseudo>` et `npc:<id>` pour les cibles compatibles ;
