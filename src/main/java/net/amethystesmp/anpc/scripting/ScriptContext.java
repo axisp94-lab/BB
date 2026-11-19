@@ -17,6 +17,8 @@ public final class ScriptContext {
     private int callDepth;
     public ScriptContext(ManagedNPC npc,Player player){this.npc=npc;this.player=player;}
     public ManagedNPC npc(){return npc;} public Player player(){return player;} public Map<String,Object> locals(){return locals;}
+    public void markTransientLocal(String name){transientLocals.add(name.toLowerCase(java.util.Locale.ROOT));}
+    public boolean isTransientLocal(String name){return transientLocals.contains(name.toLowerCase(java.util.Locale.ROOT));}
     public boolean returned() { return returned; }
     public Object returnValue() { return returnValue; }
     public void setReturnValue(Object value) { returned = true; returnValue = value; }
