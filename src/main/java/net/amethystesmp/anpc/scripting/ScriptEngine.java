@@ -396,7 +396,7 @@ public final class ScriptEngine implements Listener {
     private boolean isKnownEvent(String event){
         return Set.of("spawn","right click","left click","left click while sneaking","damage","entity approach","entity leave",
                 "npc approach","npc leave","interval","player join","player connect","player quit","player disconnect",
-                "player chat","player command","walk").contains(event);
+                "player chat","player command","chat","command","join","quit","connect","disconnect","click","interact","walk").contains(event);
     }
 
     private boolean isKnownInstruction(String instruction){
@@ -1097,13 +1097,14 @@ public final class ScriptEngine implements Listener {
     @EventHandler public void onNpcLeftClick(EntityDamageByEntityEvent e){
         if(!(e.getDamager() instanceof Player p))return;
         String id=e.getEntity().getScoreboardTags().stream().filter(t->t.startsWith("anpc:")).map(t->t.substring(5)).findFirst().orElse(null);
-        if(id!=null){e.setCancelled(true);ManagedNPC npc=npcs.get(id,p.getWorld());if(npc!=null)npc.setLastAttacker(p.getUniqueId());fire(id,p.isSneaking()?"left click while sneaking":"left click",p);fire(id,"damage",p);}
+        if(id!=null){e.setCancelled(true);ManagedNPC npc=npcs.get(id,p.getWorld());if(npc!=null)npc.setLastAttacker(p.getUniqueId());fire(id,p.isSneaking()?"left click while sneaking":"left click",p);fire(id,"click",p);fire(id,"damage",p);}
     }
     @EventHandler public void onPlayerCommand(PlayerCommandPreprocessEvent event){
         Player player=event.getPlayer();
         String commandText=event.getMessage();
         for(ManagedNPC npc:npcs.all())if(npc.location().getWorld().equals(player.getWorld()))
             fire(npc.id(),"player command",player,commandText);
+            fire(npc.id(),"command",player,commandText);
     }
     @EventHandler public void onPlayerChat(AsyncChatEvent event){
         Player player=event.getPlayer();
@@ -1111,6 +1112,7 @@ public final class ScriptEngine implements Listener {
         Bukkit.getScheduler().runTask(plugin,()->{
             for(ManagedNPC npc:npcs.all())if(npc.location().getWorld().equals(player.getWorld()))
                 fire(npc.id(),"player chat",player,message);
+                fire(npc.id(),"chat",player,message);
         });
     }
 
@@ -1120,6 +1122,8 @@ public final class ScriptEngine implements Listener {
             if(e.getPlayer().getWorld().equals(npc.location().getWorld())){
                 fire(npc.id(),"player join",e.getPlayer());
                 fire(npc.id(),"player connect",e.getPlayer());
+                fire(npc.id(),"join",e.getPlayer());
+                fire(npc.id(),"connect",e.getPlayer());
             }
         }
     }
@@ -1128,6 +1132,8 @@ public final class ScriptEngine implements Listener {
             if(e.getPlayer().getWorld().equals(npc.location().getWorld())){
                 fire(npc.id(),"player quit",e.getPlayer());
                 fire(npc.id(),"player disconnect",e.getPlayer());
+                fire(npc.id(),"quit",e.getPlayer());
+                fire(npc.id(),"disconnect",e.getPlayer());
             }
             npc.hide(e.getPlayer());
         }
