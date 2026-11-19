@@ -32,7 +32,11 @@ public final class FlyingPathfinder {
         Node startNode = findFlyable(world, start.getBlockX(), start.getBlockY(), start.getBlockZ());
         Node targetNode = findFlyable(world, target.getBlockX(), target.getBlockY(), target.getBlockZ());
         if (startNode == null || targetNode == null) return List.of();
-        if (startNode.equals(targetNode)) return List.of(target.clone());
+        if (startNode.equals(targetNode)) {
+            if (target.getBlockX() == targetNode.x() && target.getBlockY() == targetNode.y()
+                    && target.getBlockZ() == targetNode.z()) return List.of(target.clone());
+            return List.of(toLocation(world, targetNode));
+        }
 
         PriorityQueue<QueueEntry> open = new PriorityQueue<>(Comparator.comparingDouble(QueueEntry::estimate));
         Map<Node, Double> scores = new HashMap<>();
