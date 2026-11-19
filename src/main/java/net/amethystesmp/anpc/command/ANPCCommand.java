@@ -79,11 +79,13 @@ public final class ANPCCommand implements TabExecutor {
             }
             case "kill" -> {
                 if (args.length < 2) { msg(sender, "Usage : /anpc kill <id>"); return true; }
+                plugin.scripts().pauseNpc(args[1]);
                 if (plugin.npcs().kill(args[1])) msg(sender, "Instances retirées jusqu'au prochain reload.");
                 else msg(sender, "NPC introuvable.");
             }
             case "remove" -> {
                 if (args.length < 2) { msg(sender, "Usage : /anpc remove <id>"); return true; }
+                plugin.scripts().pauseNpc(args[1]);
                 if (plugin.npcs().remove(args[1]))
                     msg(sender, "NPC masqué. Sa définition et ses données sont conservées. Utilise /anpc restore " + args[1] + " pour le réactiver.");
                 else msg(sender, "NPC introuvable.");
@@ -100,8 +102,11 @@ public final class ANPCCommand implements TabExecutor {
                     return true;
                 }
                 boolean enabled = args[0].equalsIgnoreCase("enable");
-                if (plugin.npcs().setScriptsEnabled(args[1], enabled))
+                if (!enabled) plugin.scripts().pauseNpc(args[1]);
+                if (plugin.npcs().setScriptsEnabled(args[1], enabled)) {
+                    if (enabled) plugin.scripts().resumeNpc(args[1]);
                     msg(sender, enabled ? "Scripts réactivés. Le NPC reprend son fonctionnement." : "Scripts désactivés. Le NPC et son modèle restent présents.");
+                }
                 else msg(sender, "NPC introuvable ou retiré. Utilise /anpc restore <id> si nécessaire.");
             }
             case "reload" -> {
@@ -139,6 +144,7 @@ public final class ANPCCommand implements TabExecutor {
             msg(sender, "Confirmation expirée. Relance /anpc delete " + id + " pour recommencer.");
             return;
         }
+        plugin.scripts().pauseNpc(id);
         if (plugin.npcs().delete(id)) msg(sender, "NPC '" + id + "' définitivement supprimé. Récupération des variables locales possible pendant 24 h.");
         else msg(sender, "Suppression impossible : NPC introuvable.");
     }
