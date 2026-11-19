@@ -265,9 +265,9 @@ public final class ScriptEngine implements Listener {
         if(s.equals("skip loop")){c.skipLoop();return code.size();}
         if(s.startsWith("if ")&&s.endsWith(":")){int end=findEnd(code,index+1,in.indent());if(test(c,s.substring(3,s.length()-1))){int child=index+1<code.size()?code.get(index+1).indent():in.indent()+4;runBlock(c,code,index+1,child);}index=end;continue;}
         if(s.startsWith("set hostile ")){setHostile(c.npc(),s.substring(12).trim().equalsIgnoreCase("on"));index++;continue;}
-        if(s.startsWith("set health of npc to ")){c.npc().setHealth(num(resolve(c,s.substring(21).trim())));index++;continue;}
-        if(s.startsWith("set max health of npc to ")){c.npc().setMaxHealth(num(resolve(c,s.substring(25).trim())));index++;continue;}
-        if(s.startsWith("set speed of npc to ")){c.npc().setSpeed(num(resolve(c,s.substring(20).trim())));index++;continue;}
+        if(s.startsWith("set health of npc to ")){c.npc().setHealth(num(resolve(c,s.substring(21).trim())));c.markChanged();index++;continue;}
+        if(s.startsWith("set max health of npc to ")){c.npc().setMaxHealth(num(resolve(c,s.substring(25).trim())));c.markChanged();index++;continue;}
+        if(s.startsWith("set speed of npc to ")){c.npc().setSpeed(num(resolve(c,s.substring(20).trim())));c.markChanged();index++;continue;}
         if(s.startsWith("set target of npc to ")){setTargetSelector(c.npc(),s.substring(21).trim());index++;continue;}
         if(s.startsWith("set ")){String body=s.substring(4).trim();int q=body.indexOf('"',1);if(body.startsWith("\"")&&q>0){String name=body.substring(1,q);String val=body.substring(q+1).trim();if(val.startsWith("(" )&&val.endsWith(")"))val=val.substring(1,val.length()-1);Object value=resolve(c,val);c.locals().put(name,value);if(!c.isTransientLocal(name))storeVariable(c,name,value);c.markChanged();}index++;continue;}
         if(s.startsWith("create variable ")){createVariable(c,s.substring(15).trim());c.markChanged();index++;continue;}
@@ -306,7 +306,7 @@ public final class ScriptEngine implements Listener {
             if(at!=null)at.getBlock().breakNaturally();
             index++;continue;
         }
-        if(s.startsWith("play anime ")){c.npc().animate(unquote(s.substring(11)));index++;continue;}
+        if(s.startsWith("play anime ")){c.npc().animate(unquote(s.substring(11)));c.markChanged();index++;continue;}
         if(s.startsWith("play sound ")){playScriptSound(c,s.substring(11).trim());index++;continue;}
         if(s.startsWith("move to ")){stopFollow(c.npc());Location target=parseLocation(c,s.substring(8).trim());if(target!=null)move(c.npc(),target);c.markChanged();index++;continue;}
         if(s.startsWith("fly to ")){stopFollow(c.npc());Location target=parseLocation(c,s.substring(7).trim());if(target!=null)moveFlying(c.npc(),target);c.markChanged();index++;continue;}
@@ -324,10 +324,10 @@ public final class ScriptEngine implements Listener {
             tasks.add(task);return code.size();
         }
         if(s.startsWith("run command ")){String cmd=unquote(s.substring(12));Bukkit.dispatchCommand(Bukkit.getConsoleSender(),cmd.replace("%player%",c.player()==null?"":c.player().getName()));index++;continue;}
-        if(s.startsWith("look at ")&&(c.player()!=null||c.eventNpc()!=null)){Location at=c.player()!=null?c.player().getLocation():c.eventNpc().location();Location from=c.npc().location();from.setDirection(at.toVector().subtract(from.toVector()));c.npc().move(from);index++;continue;}
-        if(s.startsWith("follow ")){startFollow(c.npc(),s.substring(7).trim());index++;continue;}
-        if(s.startsWith("keep distance ")){startKeepDistance(c.npc(),s.substring(14).trim());index++;continue;}
-        if(s.equals("stop follow")){stopFollow(c.npc());index++;continue;}
+        if(s.startsWith("look at ")&&(c.player()!=null||c.eventNpc()!=null)){Location at=c.player()!=null?c.player().getLocation():c.eventNpc().location();Location from=c.npc().location();from.setDirection(at.toVector().subtract(from.toVector()));c.npc().move(from);c.markChanged();index++;continue;}
+        if(s.startsWith("follow ")){startFollow(c.npc(),s.substring(7).trim());c.markChanged();index++;continue;}
+        if(s.startsWith("keep distance ")){startKeepDistance(c.npc(),s.substring(14).trim());c.markChanged();index++;continue;}
+        if(s.equals("stop follow")){stopFollow(c.npc());c.markChanged();index++;continue;}
         if(s.startsWith("target ")){setTargetSelector(c.npc(),s.substring(7).trim());index++;continue;}
         if(s.startsWith("attack ")){setTargetSelector(c.npc(),s.substring(7).trim());setHostile(c.npc(),true);index++;continue;}
         if(s.equals("stop attack")){setHostile(c.npc(),false);index++;continue;}
@@ -341,7 +341,7 @@ public final class ScriptEngine implements Listener {
     private void startWatchdog(ScriptContext context){
         if(watchdogTasks.containsKey(context))return;
         BukkitTask task=Bukkit.getScheduler().runTaskTimer(plugin,()->{
-            if(context.finished()||!context.hasPendingWaits()){stopWatchdog(context);return;}
+            if(context.finished()||!context.hasPendingWaits()||!context.npc().scriptsEnabled()||context.npc().tracker().isClosed()){context.finish();stopWatchdog(context);return;}
             if(movementTasks.containsKey(context.npc())||followTasks.containsKey(context.npc())||combatTasks.containsKey(context.npc())){
                 context.markChanged();return;
             }
