@@ -84,15 +84,15 @@ on interval:
 - sélecteurs `@p`, `@a`, `@n`, `@e[type=...]`, `player:<pseudo>` et `npc:<id>` pour les cibles compatibles ;
 - actions de message, son vanilla ou identifiant custom `namespace:sound` (ItemsAdder), animation BetterModel, déplacement, téléportation, suivi, maintien de distance, déplacement aérien direct, états, simulation de blocs et commande console.
 
-Les états principaux et secondaires sont conservés en mémoire et réinitialisés au redémarrage du serveur. `setblock (position) (bloc)` ne modifie pas le monde : il joue seulement les particules et le son. Le préfixe explicite `setblock real` applique réellement le changement. Les fonctions sont synchrones : `wait` n'est pas accepté dans une fonction qui retourne une valeur. Les sélecteurs d'entités sont limités au rayon défini par `selector-range` (64 blocs par défaut). Les listes sauvegardées sont actuellement interprétées depuis une chaîne séparée par des virgules.
+Les états principaux et secondaires sont conservés en mémoire et réinitialisés au redémarrage du serveur. `setblock (position) (bloc)` ne modifie pas le monde : il joue seulement les particules et le son. Le préfixe explicite `setblock real` applique réellement le changement. Le bloc `cooldown 10 seconds:` limite la fréquence d'exécution de son contenu. Les fonctions sont synchrones : `wait` n'est pas accepté dans une fonction qui retourne une valeur. Les sélecteurs d'entités sont limités au rayon défini par `selector-range` (64 blocs par défaut). Les listes sauvegardées sont actuellement interprétées depuis une chaîne séparée par des virgules.
 
 ### Déplacements
 - `move to <cible>` utilise A* sur les blocs praticables et des checkpoints.
 - `tp <cible>` téléporte immédiatement le NPC.
-- `fly to <cible>` effectue un déplacement direct en trois dimensions.
-- `follow <cible>`, `keep distance <cible> <distance>` et `stop follow` contrôlent le suivi.
+`fly to <cible>` calcule un trajet tridimensionnel en évitant les blocs non passables.
+- `follow @p at 2` maintient environ deux blocs ; `follow @p min 2 max 5` maintient une plage ; `keep distance 4 from @p` conserve une distance minimale ; `stop follow` arrête le suivi.
 
-Le pathfinding est réglable dans `config.yml` : activation, nombre maximal de nœuds, distance maximale, vitesse et espacement des checkpoints. Il ne recherche que dans les chunks déjà chargés.
+Le pathfinding terrestre et aérien est réglable dans `config.yml` : activation terrestre, nombre maximal de nœuds, distance maximale, vitesse et espacement des checkpoints. Il ne recherche que dans les chunks déjà chargés.
 
 ## Commandes disponibles
 - `/anpc list`
