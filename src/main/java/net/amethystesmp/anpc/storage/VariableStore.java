@@ -10,7 +10,10 @@ public final class VariableStore implements AutoCloseable {
     private final Connection connection;
 
     public VariableStore(ANPCPlugin plugin) throws SQLException {
-        File db = new File(plugin.getDataFolder(), "variables.db");
+        this(new File(plugin.getDataFolder(), "variables.db"));
+    }
+
+    public VariableStore(File db) throws SQLException {
         File parent = db.getParentFile();
         if (parent != null && !parent.exists() && !parent.mkdirs()) {
             throw new SQLException("Impossible de créer le dossier de données.");
