@@ -3,7 +3,8 @@ version: 0.1.0
 main: net.amethystesmp.anpc.ANPCPlugin
 api-version: '1.21.11'
 authors: [Amethyy]
-softdepend: [BetterModel, MythicMobs, ItemsAdder, Multiverse-Core]
+depend: [BetterModel]
+softdepend: [MythicMobs, ItemsAdder, Multiverse-Core]
 commands:
   anpc:
     description: Gestion des NPC Amethyys
