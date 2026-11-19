@@ -24,6 +24,8 @@ public final class ScriptContext {
     private boolean finished;
     private long lastChangeAt=System.currentTimeMillis();
     private long lastWarningAt;
+    private String scriptId="";
+    private long scriptGeneration;
     public ScriptContext(ManagedNPC npc,Player player){this.npc=npc;this.player=player;}
     public ManagedNPC npc(){return npc;} public void setNpc(ManagedNPC npc){this.npc=npc;} public Player player(){return player;} public void setPlayer(Player player){this.player=player;} public Map<String,Object> locals(){return locals;}
     public void markTransientLocal(String name){transientLocals.add(name.toLowerCase(java.util.Locale.ROOT));}
@@ -47,6 +49,9 @@ public final class ScriptContext {
         lastWarningAt = now;
         return true;
     }
+    public void setScriptExecution(String id,long generation) { scriptId=id==null?"":id; scriptGeneration=generation; }
+    public String scriptId() { return scriptId; }
+    public long scriptGeneration() { return scriptGeneration; }
     public int callDepth() { return callDepth; }
     public void setCallDepth(int depth) { callDepth = depth; }
     public void pushLoop() { loops.push(new LoopFrame()); }
