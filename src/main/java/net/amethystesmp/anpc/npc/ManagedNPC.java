@@ -5,7 +5,6 @@ import kr.toxicity.model.api.bukkit.platform.BukkitAdapter;
 import kr.toxicity.model.api.data.renderer.ModelRenderer;
 import kr.toxicity.model.api.tracker.DummyTracker;
 import kr.toxicity.model.api.profile.ModelProfile;
-import org.bukkit.Bukkit;
 import org.bukkit.Location;
 import org.bukkit.entity.Player;
 import org.bukkit.entity.Interaction;
@@ -20,15 +19,22 @@ public final class ManagedNPC {
     private final Set<String> viewers = new HashSet<>();
     private Location current;
     private final Interaction hitbox;
+    private final Entity backingEntity;
     private String animation = "idle";
+    private boolean closed;
 
     public ManagedNPC(NPCDefinition definition, ModelRenderer renderer, Location location) {
         this(definition, renderer, location, null);
     }
-    public ManagedNPC(NPCDefinition definition, ModelRenderer renderer, Location location, ModelProfile.Uncompleted profile) {
+
+    public ManagedNPC(NPCDefinition definition, ModelRenderer renderer, Location location,
+                      ModelProfile.Uncompleted profile) {
         this.definition = definition;
         this.current = location.clone();
-        this.tracker = profile == null ? renderer.create(BukkitAdapter.adapt(location)) : renderer.create(BukkitAdapter.adapt(location), profile);
+        this.backingEntity = null;
+        this.tracker = profile == null
+                ? renderer.create(BukkitAdapter.adapt(location))
+                : renderer.create(BukkitAdapter.adapt(location), profile);
         this.hitbox = location.getWorld().spawn(location, Interaction.class, entity -> {
             entity.setInteractionWidth(0.8f);
             entity.setInteractionHeight(1.8f);
@@ -38,31 +44,64 @@ public final class ManagedNPC {
             entity.addScoreboardTag("anpc:" + definition.id().toLowerCase(java.util.Locale.ROOT));
         });
     }
+
+    public ManagedNPC(NPCDefinition definition, Entity backingEntity) {
+        this.definition = definition;
+        this.backingEntity = backingEntity;
+        this.current = backingEntity.getLocation();
+        this.tracker = null;
+        this.hitbox = null;
+        backingEntity.addScoreboardTag("anpc:" + definition.id().toLowerCase(java.util.Locale.ROOT));
+    }
+
     public String id() { return definition.id(); }
     public NPCDefinition definition() { return definition; }
-    public Location location() { return current.clone(); }
+    public Location location() {
+        if (backingEntity != null && backingEntity.isValid()) return backingEntity.getLocation();
+        return current.clone();
+    }
     public DummyTracker tracker() { return tracker; }
     public void updateDefinition(NPCDefinition next) { definition = next; }
+
     public void show(Player player) {
-        if (tracker.isClosed() || !player.getWorld().equals(current.getWorld())) return;
+        if (tracker == null || closed || tracker.isClosed() || !player.getWorld().equals(current.getWorld())) return;
         if (viewers.add(player.getUniqueId().toString())) tracker.spawn(BukkitAdapter.adapt(player));
     }
+
     public void hide(Player player) {
-        if (viewers.remove(player.getUniqueId().toString()) && !tracker.isClosed()) tracker.remove(BukkitAdapter.adapt(player));
+        if (tracker != null && viewers.remove(player.getUniqueId().toString()) && !tracker.isClosed()) {
+            tracker.remove(BukkitAdapter.adapt(player));
+        }
     }
+
     public void move(Location target) {
-        if (tracker.isClosed() || target.getWorld() == null) return;
+        if (closed || target == null || target.getWorld() == null) return;
+        if (backingEntity != null) {
+            if (backingEntity.isValid() && backingEntity.teleport(target)) current = backingEntity.getLocation();
+            return;
+        }
+        if (tracker == null || tracker.isClosed()) return;
         current = target.clone();
         tracker.location(BukkitAdapter.adapt(current));
-        hitbox.teleport(current);
+        if (hitbox != null && hitbox.isValid()) hitbox.teleport(current);
     }
+
     public boolean animate(String name) {
-        if (tracker.isClosed()) return false;
+        if (closed || tracker == null || tracker.isClosed()) return false;
         boolean ok = tracker.animate(name, AnimationModifier.DEFAULT);
         if (ok) animation = name;
         return ok;
     }
+
     public String animation() { return animation; }
-    public Entity hitbox() { return hitbox; }
-    public void close() { if (!tracker.isClosed()) tracker.close(); if (hitbox.isValid()) hitbox.remove(); viewers.clear(); }
+    public Entity hitbox() { return backingEntity != null ? backingEntity : hitbox; }
+
+    public void close() {
+        if (closed) return;
+        closed = true;
+        if (tracker != null && !tracker.isClosed()) tracker.close();
+        if (hitbox != null && hitbox.isValid()) hitbox.remove();
+        if (backingEntity != null && backingEntity.isValid()) backingEntity.remove();
+        viewers.clear();
+    }
 }
