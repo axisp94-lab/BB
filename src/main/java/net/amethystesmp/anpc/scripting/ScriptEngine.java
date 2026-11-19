@@ -385,7 +385,7 @@ public final class ScriptEngine implements Listener {
         if(s.startsWith("loop ")&&s.endsWith(":")){int end=findEnd(code,index+1,in.indent());int child=index+1<code.size()?code.get(index+1).indent():in.indent()+4;executeLoop(c,code,index+1,child,s.substring(5,s.length()-1).trim());index=end;continue;}
         if(s.equals("stop loop")){c.stopLoop();return code.size();}
         if(s.equals("skip loop")){c.skipLoop();return code.size();}
-        if(s.startsWith("if ")&&s.endsWith(":")){int end=findEnd(code,index+1,in.indent());if(test(c,s.substring(3,s.length()-1))){int child=index+1<code.size()?code.get(index+1).indent():in.indent()+4;runBlock(c,code,index+1,child);}index=end;continue;}
+        if(s.startsWith("if ")&&s.endsWith(":")){int end=findEnd(code,index+1,in.indent());if(test(c,s.substring(3,s.length()-1))){int child=index+1<code.size()?code.get(index+1).indent():in.indent()+4;runBlock(c,code,index+1,child);if(c.suspended()){int resumeAt=end;c.addContinuation(()->runBlock(c,code,resumeAt,indent));return code.size();}}index=end;continue;}
         if(s.startsWith("set hostile ")){setHostile(c.npc(),s.substring(12).trim().equalsIgnoreCase("on"));markChanged(c);index++;continue;}
         if(s.startsWith("set health of npc to ")){c.npc().setHealth(num(resolve(c,s.substring(21).trim())));markChanged(c);index++;continue;}
         if(s.startsWith("set max health of npc to ")){c.npc().setMaxHealth(num(resolve(c,s.substring(25).trim())));markChanged(c);index++;continue;}
@@ -453,6 +453,7 @@ public final class ScriptEngine implements Listener {
             long ticks=parseDurationTicks(s.substring(5));
             List<Instruction> remaining=new ArrayList<>(code.subList(index+1,code.size()));
             c.beginWait();startWatchdog(c);
+            c.suspend();
             final long expectedGeneration=c.scriptGeneration();
             BukkitTask[] scheduled=new BukkitTask[1];
             scheduled[0]=Bukkit.getScheduler().runTaskLater(plugin,()->{
@@ -464,8 +465,10 @@ public final class ScriptEngine implements Listener {
                     stopWatchdog(c);
                     return;
                 }
+                c.resume();
                 runBlock(c,remaining,0,indent);
-                if(!c.hasPendingWaits()){c.finish();stopWatchdog(c);}
+                drainContinuations(c);
+                if(!c.hasPendingWaits()&&!c.suspended()){c.finish();stopWatchdog(c);}
             },ticks);
             tasks.add(scheduled[0]);return code.size();
         }
@@ -484,6 +487,15 @@ public final class ScriptEngine implements Listener {
         warnUnknownInstruction(line,s);
         index++;
     }return index;}
+    private void drainContinuations(ScriptContext context){
+        while(!context.suspended()&&!context.returned()){
+            Runnable continuation=context.nextContinuation();
+            if(continuation==null)return;
+            continuation.run();
+        }
+        if(context.returned())context.clearContinuations();
+    }
+
     private void startWatchdog(ScriptContext context){
         if(watchdogTasks.containsKey(context))return;
         scriptLastRun.remove(npcInstanceKey(context.npc()));
