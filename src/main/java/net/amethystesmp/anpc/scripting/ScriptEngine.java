@@ -440,6 +440,33 @@ public final class ScriptEngine implements Listener {
                 continue;
             }
 
+            if (line.startsWith("climb to ")) {
+                Location target = parseLocation(context, line.substring(9).trim());
+                if (target != null) moveAdvanced(context.npc(), target,
+                        net.amethystesmp.anpc.npc.AdvancedPathfinder.Mode.CLIMB);
+                else warnInstruction(context, instruction, "cible d'escalade invalide");
+                index++;
+                continue;
+            }
+
+            if (line.startsWith("swim to ")) {
+                Location target = parseLocation(context, line.substring(8).trim());
+                if (target != null) moveAdvanced(context.npc(), target,
+                        net.amethystesmp.anpc.npc.AdvancedPathfinder.Mode.SWIM);
+                else warnInstruction(context, instruction, "cible de nage invalide");
+                index++;
+                continue;
+            }
+
+            if (line.startsWith("amphibious to ")) {
+                Location target = parseLocation(context, line.substring(14).trim());
+                if (target != null) moveAdvanced(context.npc(), target,
+                        net.amethystesmp.anpc.npc.AdvancedPathfinder.Mode.AMPHIBIOUS);
+                else warnInstruction(context, instruction, "cible amphibie invalide");
+                index++;
+                continue;
+            }
+
             if (line.startsWith("fly to ")) {
                 Location target = parseLocation(context, line.substring(7).trim());
                 if (target != null) flyTo(context.npc(), target);
@@ -1306,6 +1333,36 @@ public final class ScriptEngine implements Listener {
 
         if (checkpoints.isEmpty()) {
             plugin.getLogger().warning("Aucun chemin praticable trouvé pour le NPC " + npc.id() + ".");
+            return;
+        }
+        moveAlongCheckpoints(npc, target, checkpoints);
+    }
+
+    private void moveAdvanced(ManagedNPC npc, Location target,
+                              net.amethystesmp.anpc.npc.AdvancedPathfinder.Mode mode) {
+        if (target == null || target.getWorld() == null) return;
+        Location start = npc.location();
+        if (start.getWorld() == null || !start.getWorld().equals(target.getWorld())) {
+            plugin.getLogger().warning("Déplacement spécial impossible pour " + npc.id()
+                    + " : la cible est dans un autre monde.");
+            return;
+        }
+
+        String section = switch (mode) {
+            case CLIMB -> "climbing";
+            case SWIM -> "swimming";
+            case AMPHIBIOUS -> "amphibious";
+        };
+        List<Location> checkpoints = net.amethystesmp.anpc.npc.AdvancedPathfinder.findPath(
+                start,
+                target,
+                mode,
+                plugin.getConfig().getInt("movement." + section + ".max-nodes", 5000),
+                plugin.getConfig().getDouble("movement." + section + ".max-distance", 96.0),
+                plugin.getConfig().getDouble("movement.checkpoint-spacing", 2.0));
+        if (checkpoints.isEmpty()) {
+            plugin.getLogger().warning("Aucun chemin " + section + " praticable trouvé pour le NPC "
+                    + npc.id() + ". Vérifie la présence d'un mur continu ou d'eau selon le mode.");
             return;
         }
         moveAlongCheckpoints(npc, target, checkpoints);
