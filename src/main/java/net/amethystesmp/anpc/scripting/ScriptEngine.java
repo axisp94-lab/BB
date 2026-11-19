@@ -29,6 +29,7 @@ public final class ScriptEngine implements Listener {
     private record FunctionDefinition(List<String> parameters, List<Instruction> code) {}
     private record ScriptData(Map<String, List<Instruction>> events, Map<String, FunctionDefinition> functions) {}
     private record FunctionResult(boolean returned, Object value) {}
+    private record NpcPair(ManagedNPC first, ManagedNPC second) {}
     private final ANPCPlugin plugin; private final NPCManager npcs; private final VariableStore variables;
     private final Map<String, ScriptData> scripts = new ConcurrentHashMap<>();
     private final ThreadLocal<Integer> functionDepth = ThreadLocal.withInitial(() -> 0);
@@ -36,6 +37,7 @@ public final class ScriptEngine implements Listener {
     private final Map<String, BukkitTask> movementTasks = new ConcurrentHashMap<>();
     private final Map<String, BukkitTask> followTasks = new ConcurrentHashMap<>();
     private final Map<String, Set<UUID>> nearbyPlayers = new ConcurrentHashMap<>();
+    private final Map<String, NpcPair> activeNpcPairs = new HashMap<>();
     public ScriptEngine(ANPCPlugin plugin,NPCManager npcs,VariableStore variables){this.plugin=plugin;this.npcs=npcs;this.variables=variables;}
     public void loadAll() {
         cancelTasks();
@@ -58,6 +60,7 @@ public final class ScriptEngine implements Listener {
 
         scheduleIntervals();
         scheduleProximity();
+        scheduleNpcProximity();
         for (ManagedNPC npc : npcs.all()) {
             ScriptData script = scripts.get(npc.id().toLowerCase(Locale.ROOT));
             if (script != null) {
@@ -186,6 +189,59 @@ public final class ScriptEngine implements Listener {
         tasks.add(task);
     }
 
+    private void scheduleNpcProximity() {
+        BukkitTask task = Bukkit.getScheduler().runTaskTimer(plugin, () -> {
+            double radius = Math.max(0, plugin.getConfig().getDouble("script-npc-approach-radius", 3.0));
+            double radiusSquared = radius * radius;
+            List<ManagedNPC> loaded = new ArrayList<>(npcs.all());
+            Map<String, NpcPair> currentPairs = new HashMap<>();
+
+            for (int i = 0; i < loaded.size(); i++) {
+                ManagedNPC first = loaded.get(i);
+                Location firstLocation = first.location();
+                if (firstLocation.getWorld() == null) continue;
+
+                for (int j = i + 1; j < loaded.size(); j++) {
+                    ManagedNPC second = loaded.get(j);
+                    Location secondLocation = second.location();
+                    if (secondLocation.getWorld() == null
+                            || !firstLocation.getWorld().equals(secondLocation.getWorld())
+                            || firstLocation.distanceSquared(secondLocation) > radiusSquared) continue;
+
+                    String firstKey = npcKey(first);
+                    String secondKey = npcKey(second);
+                    String pairKey = firstKey.compareTo(secondKey) <= 0
+                            ? firstKey + "|" + secondKey : secondKey + "|" + firstKey;
+                    NpcPair pair = new NpcPair(first, second);
+                    currentPairs.put(pairKey, pair);
+
+                    if (!activeNpcPairs.containsKey(pairKey)) {
+                        fire(first, "npc approach", second);
+                        fire(second, "npc approach", first);
+                    }
+                }
+            }
+
+            for (Map.Entry<String, NpcPair> previous : new HashMap<>(activeNpcPairs).entrySet()) {
+                if (currentPairs.containsKey(previous.getKey())) continue;
+                NpcPair pair = previous.getValue();
+                if (loaded.contains(pair.first())) fire(pair.first(), "npc leave", pair.second());
+                if (loaded.contains(pair.second())) fire(pair.second(), "npc leave", pair.first());
+            }
+
+            activeNpcPairs.clear();
+            activeNpcPairs.putAll(currentPairs);
+        }, 10L, 10L);
+        tasks.add(task);
+    }
+
+    private void fire(ManagedNPC npc, String event, ManagedNPC eventNpc) {
+        ScriptData script = scripts.get(npc.id().toLowerCase(Locale.ROOT));
+        if (script == null) return;
+        List<Instruction> code = script.events().get(event.toLowerCase(Locale.ROOT));
+        if (code != null) execute(npc, null, eventNpc, code, 0);
+    }
+
     private String npcKey(ManagedNPC npc) {
         Location location = npc.location();
         String world = location.getWorld() == null ? "unknown" : location.getWorld().getName().toLowerCase(Locale.ROOT);
@@ -199,7 +255,12 @@ public final class ScriptEngine implements Listener {
         if (code != null && managed != null) execute(managed, player, code, 0);
     }
     private void execute(ManagedNPC npc, Player player, List<Instruction> code, int baseIndent) {
-        ScriptContext context = new ScriptContext(npc, player);
+        execute(npc, player, null, code, baseIndent);
+    }
+
+    private void execute(ManagedNPC npc, Player player, ManagedNPC eventNpc,
+                         List<Instruction> code, int baseIndent) {
+        ScriptContext context = new ScriptContext(npc, player, eventNpc);
         runBlock(context, code, 0, baseIndent, () -> { });
     }
     private void runBlock(ScriptContext context, List<Instruction> code, int start, int indent, Runnable continuation) {
@@ -576,7 +637,9 @@ public final class ScriptEngine implements Listener {
             return selected;
         }
         if (value.regionMatches(true, 0, "player:", 0, 7)) return Bukkit.getPlayerExact(value.substring(7));
-        if (value.regionMatches(true, 0, "npc:", 0, 4)) return npcs.get(value.substring(4));
+        if (value.regionMatches(true, 0, "npc:", 0, 4)) {
+            return npcs.get(value.substring(4), context.npc().location().getWorld());
+        }
 
         FunctionResult functionResult = invokeFunction(context, value);
         if (functionResult != null) return functionResult.value();
@@ -912,8 +975,11 @@ public final class ScriptEngine implements Listener {
         String target = selector.trim();
         if (target.equalsIgnoreCase("location of npc")) return context.npc().location();
 
+        if (target.equalsIgnoreCase("event npc") && context.eventNpc() != null) {
+            return context.eventNpc().location();
+        }
         if (target.regionMatches(true, 0, "npc:", 0, 4)) {
-            ManagedNPC npc = npcs.get(target.substring(4));
+            ManagedNPC npc = npcs.get(target.substring(4), context.npc().location().getWorld());
             return npc == null ? null : npc.location();
         }
         if (target.startsWith("@")) {
@@ -1130,6 +1196,7 @@ public final class ScriptEngine implements Listener {
         tasks.clear();
         movementTasks.clear();
         followTasks.clear();
+        activeNpcPairs.clear();
     }
 
     public void shutdown() {
