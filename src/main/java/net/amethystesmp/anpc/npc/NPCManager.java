@@ -215,6 +215,7 @@ public final class NPCManager {
 
     /** Recreates a soft-removed NPC from its unchanged definition. */
     public boolean restore(String id) {
+        if (!isValidId(id)) return false;
         if (exists(id)) {
             plugin.variables().set("npc-lifecycle", id, "removed", false);
             yaml.set("npcs." + id + ".removed", null);
