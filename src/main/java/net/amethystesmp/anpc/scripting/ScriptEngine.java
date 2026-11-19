@@ -340,6 +340,8 @@ public final class ScriptEngine implements Listener {
         ScriptContext ctx=new ScriptContext(npc,player);
         ctx.setEventData(eventData);
         ctx.setEventNpc(eventNpc);
+        ctx.setEventEntity(player!=null?player:(eventNpc==null?null:eventNpc.hitbox()));
+        ctx.setEventItem(player==null?null:player.getInventory().getItemInMainHand());
         ctx.setScriptExecution(npc.id().toLowerCase(Locale.ROOT),scriptGenerations.getOrDefault(npc.id().toLowerCase(Locale.ROOT),0L));
         int indent=code.isEmpty()?baseIndent:code.get(0).indent();
         runBlock(ctx,code,0,indent);
@@ -1148,7 +1150,7 @@ public final class ScriptEngine implements Listener {
         }
         if(expression.equalsIgnoreCase("event npc")||expression.equalsIgnoreCase("location of event npc"))
             return context.eventNpc()==null?null:context.eventNpc().location();
-        if(expression.equalsIgnoreCase("event entity")&&context.player()!=null)return context.player().getLocation();
+        if(expression.equalsIgnoreCase("event entity")){Entity entity=context.eventEntity();return entity==null?null:entity.getLocation();}
         if(expression.equalsIgnoreCase("location of npc"))return context.npc().location();
         Object target=resolve(context,expression);
         if(target instanceof Location location)return location.clone();
