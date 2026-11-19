@@ -25,13 +25,78 @@ import java.util.concurrent.ConcurrentHashMap;
 
 public final class ScriptEngine implements Listener {
     private record Instruction(int indent,String text,int line){}
+    private record FunctionDefinition(List<String> parameters,List<Instruction> code){}
     private final ANPCPlugin plugin; private final NPCManager npcs; private final VariableStore variables;
     private final Map<String,Map<String,List<Instruction>>> scripts=new ConcurrentHashMap<>();
+    private final Map<String,FunctionDefinition> functions=new ConcurrentHashMap<>();
     private final Set<BukkitTask> tasks=ConcurrentHashMap.newKeySet();
     private final Map<String,Set<UUID>> nearbyPlayers=new ConcurrentHashMap<>();
     public ScriptEngine(ANPCPlugin plugin,NPCManager npcs,VariableStore variables){this.plugin=plugin;this.npcs=npcs;this.variables=variables;}
-    public void loadAll(){scripts.clear();File dir=new File(plugin.getDataFolder(),"scripts");File[] fs=dir.listFiles((d,n)->n.endsWith(".aa"));if(fs==null)return;for(File f:fs){String id=f.getName().substring(0,f.getName().length()-3).toLowerCase(Locale.ROOT);try{scripts.put(id,parse(Files.readAllLines(f.toPath())));}catch(Exception e){plugin.getLogger().warning("Erreur script "+f.getName()+" : "+e.getMessage());}} scheduleIntervals(); scheduleProximity(); for(ManagedNPC npc:npcs.all()){Map<String,List<Instruction>> map=scripts.get(npc.id().toLowerCase(Locale.ROOT));if(map!=null&&map.get("spawn")!=null&&npc.scriptsEnabled())execute(npc,null,map.get("spawn"),0);}}
-    private Map<String,List<Instruction>> parse(List<String> lines){Map<String,List<Instruction>> result=new LinkedHashMap<>();String event=null;for(int i=0;i<lines.size();i++){String raw=lines.get(i);if(raw.isBlank()||raw.stripLeading().startsWith("#"))continue;int indent=raw.length()-raw.stripLeading().length();String t=raw.trim();if(indent==0&&t.toLowerCase(Locale.ROOT).startsWith("on ")&&t.endsWith(":")){event=t.substring(3,t.length()-1).trim().toLowerCase(Locale.ROOT);result.put(event,new ArrayList<>());}else if(event!=null)result.get(event).add(new Instruction(indent,t,i+1));}return result;}
+    public void loadAll(){
+        scripts.clear(); functions.clear();
+        File dir=new File(plugin.getDataFolder(),"scripts");
+        File[] fs=dir.listFiles((d,n)->n.endsWith(".aa"));
+        if(fs==null)return;
+        for(File file:fs){
+            String id=file.getName().substring(0,file.getName().length()-3).toLowerCase(Locale.ROOT);
+            try{
+                List<String> lines=Files.readAllLines(file.toPath());
+                Map<String,FunctionDefinition> declared=parseFunctions(lines);
+                for(var function:declared.entrySet()){
+                    if(functions.putIfAbsent(function.getKey(),function.getValue())!=null)
+                        plugin.getLogger().warning("Fonction globale dupliquée '"+function.getKey()+"' dans "+file.getName()+" (déclaration ignorée).");
+                }
+                scripts.put(id,parse(lines));
+            }catch(Exception exception){plugin.getLogger().warning("Erreur script "+file.getName()+" : "+exception.getMessage());}
+        }
+        scheduleIntervals(); scheduleProximity();
+        for(ManagedNPC npc:npcs.all()){
+            Map<String,List<Instruction>> map=scripts.get(npc.id().toLowerCase(Locale.ROOT));
+            if(map!=null&&map.get("spawn")!=null&&npc.scriptsEnabled())execute(npc,null,map.get("spawn"),0);
+        }
+    }
+    private Map<String,List<Instruction>> parse(List<String> lines){
+        Map<String,List<Instruction>> result=new LinkedHashMap<>(); String event=null;
+        for(int i=0;i<lines.size();i++){
+            String raw=lines.get(i);
+            if(raw.isBlank()||raw.stripLeading().startsWith("#"))continue;
+            int indent=raw.length()-raw.stripLeading().length(); String text=raw.trim();
+            if(indent==0&&text.toLowerCase(Locale.ROOT).startsWith("function ")){event=null;continue;}
+            if(indent==0&&text.toLowerCase(Locale.ROOT).startsWith("on ")&&text.endsWith(":")){
+                event=text.substring(3,text.length()-1).trim().toLowerCase(Locale.ROOT);
+                result.put(event,new ArrayList<>());
+            }else if(event!=null)result.get(event).add(new Instruction(indent,text,i+1));
+        }
+        return result;
+    }
+    private Map<String,FunctionDefinition> parseFunctions(List<String> lines){
+        Map<String,FunctionDefinition> result=new LinkedHashMap<>();
+        for(int i=0;i<lines.size();i++){
+            String raw=lines.get(i);
+            if(raw.isBlank()||raw.stripLeading().startsWith("#")||!raw.equals(raw.stripLeading()))continue;
+            String header=raw.trim();
+            if(!header.toLowerCase(Locale.ROOT).startsWith("function ")||!header.endsWith(":"))continue;
+            int open=header.indexOf('('),close=header.lastIndexOf(')');
+            if(open<10||close<open){plugin.getLogger().warning("Déclaration de fonction invalide ligne "+(i+1)+" : "+header);continue;}
+            String name=header.substring(9,open).trim().toLowerCase(Locale.ROOT);
+            if(name.isBlank())continue;
+            List<String> parameters=new ArrayList<>();
+            String rawParameters=header.substring(open+1,close).trim();
+            if(!rawParameters.isBlank())for(String parameter:splitArguments(rawParameters))parameters.add(parameter.trim().toLowerCase(Locale.ROOT));
+            List<Instruction> body=new ArrayList<>();
+            int j=i+1;
+            for(;j<lines.size();j++){
+                String line=lines.get(j);
+                if(line.isBlank()||line.stripLeading().startsWith("#"))continue;
+                int indent=line.length()-line.stripLeading().length();
+                if(indent==0)break;
+                body.add(new Instruction(indent,line.trim(),j+1));
+            }
+            result.put(name,new FunctionDefinition(List.copyOf(parameters),List.copyOf(body)));
+            i=j-1;
+        }
+        return result;
+    }
     private void scheduleIntervals(){for(var entry:scripts.entrySet()){List<Instruction> code=entry.getValue().get("interval");if(code==null)continue;long period=plugin.getConfig().getLong("script-default-interval",20);BukkitTask task=Bukkit.getScheduler().runTaskTimer(plugin,()->{for(ManagedNPC npc:npcs.instances(entry.getKey()))if(npc.scriptsEnabled())execute(npc,null,code,0);},period,period);tasks.add(task);}}
     private void scheduleProximity(){BukkitTask task=Bukkit.getScheduler().runTaskTimer(plugin,()->{double radius=plugin.getConfig().getDouble("script-approach-radius",3.0);double r2=radius*radius;for(ManagedNPC npc:npcs.all()){String id=npc.id().toLowerCase(Locale.ROOT)+"@"+npc.location().getWorld().getName().toLowerCase(Locale.ROOT);Set<UUID> current=new HashSet<>();for(Player p:npc.location().getWorld().getPlayers())if(p.getLocation().distanceSquared(npc.location())<=r2){current.add(p.getUniqueId());if(nearbyPlayers.computeIfAbsent(id,k->ConcurrentHashMap.newKeySet()).add(p.getUniqueId()))fire(npc.id(),"entity approach",p);}Set<UUID> previous=nearbyPlayers.computeIfAbsent(id,k->ConcurrentHashMap.newKeySet());for(UUID uuid:new HashSet<>(previous))if(!current.contains(uuid)){Player p=Bukkit.getPlayer(uuid);previous.remove(uuid);if(p!=null)fire(npc.id(),"entity leave",p);}}},10L,10L);tasks.add(task);}
     public void fire(String npc,String event,Player player){
@@ -42,8 +107,11 @@ public final class ScriptEngine implements Listener {
         Collection<ManagedNPC> targets=player==null?npcs.instances(npc):Optional.ofNullable(npcs.get(npc,player.getWorld())).map(List::of).orElse(List.of());
         for(ManagedNPC managed:targets)if(managed.scriptsEnabled())execute(managed,player,code,0);
     }
-    private void execute(ManagedNPC npc,Player player,List<Instruction> code,int baseIndent){ScriptContext ctx=new ScriptContext(npc,player);runBlock(ctx,code,0,baseIndent);}
-    private int runBlock(ScriptContext c,List<Instruction> code,int index,int indent){if(!c.npc().scriptsEnabled())return code.size();while(index<code.size()){if(!c.npc().scriptsEnabled())return code.size();if(c.loopControlRequested())return code.size();Instruction in=code.get(index);if(in.indent()<indent)break;if(in.indent()>indent){index++;continue;}String s=in.text();int line=in.line();
+    private void execute(ManagedNPC npc,Player player,List<Instruction> code,int baseIndent){ScriptContext ctx=new ScriptContext(npc,player);int indent=code.isEmpty()?baseIndent:code.get(0).indent();runBlock(ctx,code,0,indent);}
+    private int runBlock(ScriptContext c,List<Instruction> code,int index,int indent){if(!c.npc().scriptsEnabled())return code.size();while(index<code.size()){if(!c.npc().scriptsEnabled()||c.returned())return code.size();if(c.loopControlRequested())return code.size();Instruction in=code.get(index);if(in.indent()<indent)break;if(in.indent()>indent){index++;continue;}String s=in.text();int line=in.line();
+        if(s.equals("return")){c.setReturnValue(null);return code.size();}
+        if(s.startsWith("return ")){c.setReturnValue(resolve(c,s.substring(7).trim()));return code.size();}
+        if(s.startsWith("call ")){callFunction(c,s.substring(5).trim());index++;continue;}
         if(s.startsWith("loop ")&&s.endsWith(":")){int end=findEnd(code,index+1,in.indent());int child=index+1<code.size()?code.get(index+1).indent():in.indent()+4;executeLoop(c,code,index+1,child,s.substring(5,s.length()-1).trim());index=end;continue;}
         if(s.equals("stop loop")){c.stopLoop();return code.size();}
         if(s.equals("skip loop")){c.skipLoop();return code.size();}
@@ -115,6 +183,7 @@ public final class ScriptEngine implements Listener {
         if(e.toLowerCase(Locale.ROOT).startsWith("npc has state "))return c.npc().secondaryStates().contains(unquote(e.substring(14).trim()).toLowerCase(Locale.ROOT));return false;}
     private Object resolve(ScriptContext c,String raw){
         String value=raw.trim();
+        if(value.toLowerCase(Locale.ROOT).startsWith("call "))return callFunction(c,value.substring(5).trim());
         if(value.startsWith("\"")&&value.endsWith("\""))return unquote(value);
         if(value.equalsIgnoreCase("true")||value.equalsIgnoreCase("false"))return Boolean.parseBoolean(value);
         try{return Double.parseDouble(value);}catch(NumberFormatException ignored){}
@@ -186,6 +255,44 @@ public final class ScriptEngine implements Listener {
             variables.setLocal(c.npc().id(),c.npc().location().getWorld().getName(),name,value);
         }
     }
+    private Object callFunction(ScriptContext caller,String invocation){
+        int open=invocation.indexOf('('),close=invocation.lastIndexOf(')');
+        if(open<=0||close<open){plugin.getLogger().warning("Appel de fonction invalide : "+invocation);return null;}
+        String name=invocation.substring(0,open).trim().toLowerCase(Locale.ROOT);
+        FunctionDefinition function=functions.get(name);
+        if(function==null){plugin.getLogger().warning("Fonction inconnue : "+name);return null;}
+        if(caller.callDepth()>=32){plugin.getLogger().warning("Profondeur maximale d'appel atteinte dans la fonction "+name);return null;}
+        List<String> arguments=splitArguments(invocation.substring(open+1,close));
+        if(arguments.size()!=function.parameters().size()){
+            plugin.getLogger().warning("La fonction "+name+" attend "+function.parameters().size()+" paramètre(s), reçu "+arguments.size()+".");
+            return null;
+        }
+        ScriptContext child=new ScriptContext(caller.npc(),caller.player());
+        child.setCallDepth(caller.callDepth()+1);
+        for(int i=0;i<arguments.size();i++)child.locals().put(function.parameters().get(i),resolve(caller,arguments.get(i)));
+        if(!function.code().isEmpty())runBlock(child,function.code(),0,function.code().get(0).indent());
+        return child.returnValue();
+    }
+
+    private List<String> splitArguments(String input){
+        List<String> result=new ArrayList<>();
+        if(input==null||input.isBlank())return result;
+        StringBuilder current=new StringBuilder();
+        boolean quoted=false; int depth=0;
+        for(int i=0;i<input.length();i++){
+            char ch=input.charAt(i);
+            if(ch=='"'&&(i==0||input.charAt(i-1)!='\\'))quoted=!quoted;
+            if(!quoted){
+                if(ch=='(')depth++;
+                else if(ch==')')depth--;
+                else if(ch==','&&depth==0){result.add(current.toString().trim());current.setLength(0);continue;}
+            }
+            current.append(ch);
+        }
+        if(!current.isEmpty())result.add(current.toString().trim());
+        return result;
+    }
+
     private Object parseStored(String value){
         if(value==null)return null;
         if(value.equalsIgnoreCase("true")||value.equalsIgnoreCase("false"))return Boolean.parseBoolean(value);
@@ -208,5 +315,5 @@ public final class ScriptEngine implements Listener {
     }
     @EventHandler public void onJoin(PlayerJoinEvent e){for(ManagedNPC npc:npcs.all())if(e.getPlayer().getWorld().equals(npc.location().getWorld())&&e.getPlayer().getLocation().distanceSquared(npc.location())<64*64)npc.show(e.getPlayer());}
     @EventHandler public void onQuit(PlayerQuitEvent e){for(ManagedNPC npc:npcs.all())npc.hide(e.getPlayer());}
-    public void shutdown(){tasks.forEach(BukkitTask::cancel);tasks.clear();scripts.clear();nearbyPlayers.clear();}
+    public void shutdown(){tasks.forEach(BukkitTask::cancel);tasks.clear();scripts.clear();functions.clear();nearbyPlayers.clear();}
 }
