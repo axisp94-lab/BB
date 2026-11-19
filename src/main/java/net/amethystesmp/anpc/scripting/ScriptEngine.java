@@ -351,6 +351,14 @@ public final class ScriptEngine implements Listener {
                 continue;
             }
 
+            if (line.startsWith("fly to ")) {
+                Location target = parseLocation(context, line.substring(7).trim());
+                if (target != null) flyTo(context.npc(), target);
+                else warnInstruction(context, instruction, "cible de vol invalide");
+                index++;
+                continue;
+            }
+
             if (line.startsWith("move to ")) {
                 Location target = parseLocation(context, line.substring(8).trim());
                 if (target != null) move(context.npc(), target);
@@ -1032,6 +1040,21 @@ public final class ScriptEngine implements Listener {
             plugin.getLogger().warning("Aucun chemin praticable trouvé pour le NPC " + npc.id() + ".");
             return;
         }
+        moveAlongCheckpoints(npc, target, checkpoints);
+    }
+
+    private void flyTo(ManagedNPC npc, Location target) {
+        if (target == null || target.getWorld() == null) return;
+        Location start = npc.location();
+        if (start.getWorld() == null || !start.getWorld().equals(target.getWorld())) {
+            plugin.getLogger().warning("Vol impossible pour " + npc.id() + " : la cible est dans un autre monde.");
+            return;
+        }
+        moveAlongCheckpoints(npc, target, List.of(target.clone()));
+    }
+
+    private void moveAlongCheckpoints(ManagedNPC npc, Location target, List<Location> checkpoints) {
+        if (checkpoints.isEmpty()) return;
 
         String movementKey = movementKey(npc);
         BukkitTask previousTask = movementTasks.remove(movementKey);
@@ -1040,6 +1063,7 @@ public final class ScriptEngine implements Listener {
             tasks.remove(previousTask);
         }
 
+        Location start = npc.location();
         long updateTicks = Math.max(1L, plugin.getConfig().getLong("movement.update-ticks", 1L));
         double speed = Math.max(0.1, plugin.getConfig().getDouble("movement.default-speed", 4.0));
         double distancePerUpdate = speed * updateTicks / 20.0;
@@ -1088,6 +1112,7 @@ public final class ScriptEngine implements Listener {
         movementTasks.put(movementKey, holder[0]);
         npc.animate("walk");
     }
+
     private long parseDurationTicks(String s){String[] a=s.trim().split("\\s+");try{long n=Long.parseLong(a[0]);return a.length>1&&a[1].startsWith("second")?n*20:n;}catch(Exception e){return 1;}}
     @EventHandler public void onNpcRightClick(PlayerInteractAtEntityEvent e){
         String id=e.getRightClicked().getScoreboardTags().stream().filter(t->t.startsWith("anpc:")).map(t->t.substring(5)).findFirst().orElse(null);
