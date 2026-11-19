@@ -49,6 +49,6 @@ class ScriptEngineExpressionTest {
 
         assertTrue(test(engine, context, "amount + 2 == 5"));
         assertTrue(test(engine, context, "(items) contains (apple) more than 1 times"));
-        assertFalse(test(engine, context, "(items) contains (pear) more than 1 times"));
+        assertFalse(test(engine, context, "(items) contains ("pear") more than 1 times"));
     }
 }
