@@ -622,7 +622,7 @@ public final class ScriptEngine implements Listener {
         UUID attacker=npc.lastAttacker();
         if(attacker!=null){
             org.bukkit.entity.Entity entity=Bukkit.getEntity(attacker);
-            if(entity instanceof LivingEntity living&&isEligibleTarget(npc,living)
+            if(entity instanceof LivingEntity living&&living.getWorld().equals(npc.location().getWorld())&&isEligibleTarget(npc,living)
                     &&living.getLocation().distanceSquared(npc.location())<=maxRange*maxRange)return living;
         }
         return npc.location().getWorld().getLivingEntities().stream()
@@ -637,7 +637,7 @@ public final class ScriptEngine implements Listener {
         if(entity.getUniqueId().equals(npc.hitbox().getUniqueId()))return false;
         for(String raw:npc.targetSelector().split(",")){
             String selector=raw.trim().toLowerCase(Locale.ROOT);
-            if(selector.equals("all players")||selector.equals("players")){if(entity instanceof Player)return true;}
+            if(selector.equals("all players")||selector.equals("players")||selector.equals("@p")){if(entity instanceof Player)return true;}
             else if(selector.startsWith("player:")||selector.startsWith("player ")){
                 String name=raw.substring(7).trim();if(entity instanceof Player player&&player.getName().equalsIgnoreCase(name))return true;
             }else if(selector.equals("all mobs")||selector.equals("mobs")){
@@ -656,6 +656,7 @@ public final class ScriptEngine implements Listener {
                 if(entity.getType().name().equals(type))return true;
             }else if(selector.startsWith("mythic:")){
                 if(isMythicMob(entity,raw.substring(7).trim()))return true;
+            }else if(entity instanceof Player player&&!selector.contains(" ")&&!selector.contains(":")&&player.getName().equalsIgnoreCase(raw.trim())){return true;
             }else if(selector.startsWith("category:")){
                 String category=selector.substring(9);
                 if(category.equals("players")&&entity instanceof Player)return true;
