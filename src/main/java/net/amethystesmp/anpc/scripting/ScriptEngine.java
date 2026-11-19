@@ -619,33 +619,76 @@ public final class ScriptEngine implements Listener {
         return Arrays.stream(members.split(",")).map(String::trim).anyMatch(member->member.equalsIgnoreCase(npcId));
     }
     private void createVariable(ScriptContext c,String declaration){
-        String d=declaration.replace("(","").replace(")","").trim();
-        String[] a=d.split("\\s+");
-        if(a.length<2)return;
-        String name=a[0],value=a[1];
-        String scope=a.length>2?a[2].toLowerCase(Locale.ROOT):"local";
+        String input=declaration.trim();
+        int separator=input.indexOf(' ');
+        if(separator<=0){
+            plugin.getLogger().warning("Déclaration de variable invalide : "+declaration);
+            return;
+        }
+        String name=input.substring(0,separator).trim();
+        if(!name.matches("[A-Za-z_][A-Za-z0-9_-]*")){
+            plugin.getLogger().warning("Nom de variable invalide : "+name);
+            return;
+        }
+        String remainder=input.substring(separator+1).trim();
+        String rawValue;
+        if(remainder.startsWith("(")){
+            int depth=0;boolean quoted=false;int closing=-1;
+            for(int i=0;i<remainder.length();i++){
+                char ch=remainder.charAt(i);
+                if(ch=='"'&&(i==0||remainder.charAt(i-1)!='\\'))quoted=!quoted;
+                if(quoted)continue;
+                if(ch=='(')depth++;
+                else if(ch==')'&&--depth==0){closing=i;break;}
+            }
+            if(closing<0){
+                plugin.getLogger().warning("Valeur entre parenthèses non terminée pour la variable '"+name+"'.");
+                return;
+            }
+            rawValue=remainder.substring(1,closing).trim();
+            remainder=remainder.substring(closing+1).trim();
+        }else{
+            int next=remainder.indexOf(' ');
+            rawValue=next<0?remainder:remainder.substring(0,next);
+            remainder=next<0?"":remainder.substring(next+1).trim();
+        }
+        if(rawValue.isBlank()){
+            plugin.getLogger().warning("Valeur manquante pour la variable '"+name+"'.");
+            return;
+        }
+        String scope="local";
+        if(!remainder.isBlank()){
+            int next=remainder.indexOf(' ');
+            scope=(next<0?remainder:remainder.substring(0,next)).toLowerCase(Locale.ROOT);
+            remainder=next<0?"":remainder.substring(next+1).trim();
+        }
+        Object value=resolve(c,rawValue);
         if(scope.equals("global")){
             variables.set("meta","",name,"global|@");
             variables.setGlobal(name,value);
         }else if(scope.equals("shared")){
-            if(a.length<4){
-                plugin.getLogger().warning("Déclaration shared invalide pour '"+name+"' : liste de NPC autorisés manquante.");
+            if(!remainder.startsWith("[")||!remainder.endsWith("]")){
+                plugin.getLogger().warning("Déclaration shared invalide pour '"+name+"' : utilise shared [npc1, npc2].");
                 return;
             }
-            String members=a[3].replace("[","").replace("]","").trim();
-            if(!isSharedMember(members,c.npc().id())){
-                plugin.getLogger().warning("Le NPC "+c.npc().id()+" doit faire partie des membres autorisés pour créer la variable shared '"+name+"'.");
+            String members=Arrays.stream(remainder.substring(1,remainder.length()-1).split(","))
+                    .map(String::trim).filter(member->!member.isBlank()).distinct()
+                    .collect(java.util.stream.Collectors.joining(","));
+            if(members.isBlank()||!isSharedMember(members,c.npc().id())){
+                plugin.getLogger().warning("Le NPC "+c.npc().id()+" doit figurer dans la liste des membres autorisés de la variable shared '"+name+"'.");
                 return;
             }
             variables.set("meta","",name,"shared|"+members);
-            variables.set("meta",c.npc().id(),name,"shared|"+members);
             for(String member:members.split(","))variables.set("meta",member.trim(),name,"shared|"+members);
             variables.set("shared",members,name,value);
-        }else{
+        }else if(scope.equals("local")){
             variables.set("meta",c.npc().id(),name,"local|"+c.npc().id());
             variables.setLocal(c.npc().id(),c.npc().location().getWorld().getName(),name,value);
+        }else{
+            plugin.getLogger().warning("Portée inconnue '"+scope+"' pour la variable '"+name+"'. Utilise local, global ou shared.");
+            return;
         }
-        c.locals().put(name,parseStored(value));
+        c.locals().put(name,value);
     }
     private void storeVariable(ScriptContext c,String name,Object value){
         String meta=variables.get("meta",c.npc().id(),name,null);
