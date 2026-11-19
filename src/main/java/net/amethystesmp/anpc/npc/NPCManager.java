@@ -54,7 +54,9 @@ public final class NPCManager {
                 continue;
             }
             ManagedNPC managed = new ManagedNPC(def, renderer, def.location(world), skinProfile(def));
-            managed.setScriptsEnabled(yaml.getBoolean("npcs." + def.id() + ".scripts-enabled", true));
+            boolean scriptsEnabled = yaml.getBoolean("npcs." + def.id() + ".scripts-enabled", true);
+            managed.setScriptsEnabled(scriptsEnabled);
+            if (!scriptsEnabled) restoreRuntimeState(managed);
             String key = key(def.id(), world.getName());
             ManagedNPC previous = npcs.put(key, managed);
             if (previous != null) previous.close();
@@ -180,6 +182,9 @@ public final class NPCManager {
                 : definition.worlds();
         for (String worldName : worldNames) {
             plugin.variables().archiveLocalVariables(id, worldName);
+            String owner = net.amethystesmp.anpc.storage.VariableStore.localOwner(id, worldName);
+            plugin.variables().delete("npc-runtime", owner, "primary-state");
+            plugin.variables().delete("npc-runtime", owner, "secondary-states");
         }
         for (String mapKey : matchingKeys(id)) {
             ManagedNPC npc = npcs.remove(mapKey);
@@ -202,10 +207,40 @@ public final class NPCManager {
 
     public boolean setScriptsEnabled(String id, boolean enabled) {
         if (!exists(id) || yaml.getBoolean("npcs." + id + ".removed", false)) return false;
-        for (ManagedNPC npc : instances(id)) npc.setScriptsEnabled(enabled);
+        for (ManagedNPC npc : instances(id)) {
+            if (!enabled) saveRuntimeState(npc);
+            else restoreRuntimeState(npc);
+            npc.setScriptsEnabled(enabled);
+            if (enabled) clearRuntimeState(npc);
+        }
         yaml.set("npcs." + id + ".scripts-enabled", enabled);
         save();
         return true;
+    }
+
+    private void saveRuntimeState(ManagedNPC npc) {
+        String owner = net.amethystesmp.anpc.storage.VariableStore.localOwner(
+                npc.id(), npc.location().getWorld().getName());
+        plugin.variables().set("npc-runtime", owner, "primary-state", npc.primaryState());
+        plugin.variables().set("npc-runtime", owner, "secondary-states",
+                String.join(",", npc.secondaryStates()));
+    }
+
+    private void restoreRuntimeState(ManagedNPC npc) {
+        String owner = net.amethystesmp.anpc.storage.VariableStore.localOwner(
+                npc.id(), npc.location().getWorld().getName());
+        String primary = plugin.variables().get("npc-runtime", owner, "primary-state", "idle");
+        String secondary = plugin.variables().get("npc-runtime", owner, "secondary-states", "");
+        npc.setPrimaryState(primary);
+        npc.clearSecondaryStates();
+        if (!secondary.isBlank()) for (String state : secondary.split(",")) npc.addSecondaryState(state);
+    }
+
+    private void clearRuntimeState(ManagedNPC npc) {
+        String owner = net.amethystesmp.anpc.storage.VariableStore.localOwner(
+                npc.id(), npc.location().getWorld().getName());
+        plugin.variables().delete("npc-runtime", owner, "primary-state");
+        plugin.variables().delete("npc-runtime", owner, "secondary-states");
     }
 
     public void rename(String id, String display) {
