@@ -472,13 +472,7 @@ public final class NPCManager {
         File source = scriptFile(id);
         File backup = deletedScriptFile(id);
         if (source == null || backup == null) return false;
-        if (!source.isFile()) {
-            try { Files.deleteIfExists(backup.toPath()); return true; }
-            catch (IOException exception) {
-                plugin.getLogger().warning("Nettoyage du script archivé de " + id + " impossible : " + exception.getMessage());
-                return false;
-            }
-        }
+        if (!source.isFile()) return true;
         try {
             File folder = backup.getParentFile();
             if (!folder.exists() && !folder.mkdirs()) throw new IOException("Dossier deleted-scripts impossible à créer.");
