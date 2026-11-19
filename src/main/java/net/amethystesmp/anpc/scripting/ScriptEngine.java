@@ -286,7 +286,7 @@ public final class ScriptEngine implements Listener {
                 String sourceKey=npc.id().toLowerCase(Locale.ROOT)+"@"+npc.location().getWorld().getName().toLowerCase(Locale.ROOT);
                 Set<UUID> currentEntities=new HashSet<>();
                 for(Entity entity:npc.location().getWorld().getEntities()){
-                    if(!entity.isValid()||entity==npc.hitbox()||entity.getScoreboardTags().stream().anyMatch(tag->tag.startsWith("anpc:")))continue;
+                    if(!(entity instanceof LivingEntity)||!entity.isValid()||entity==npc.hitbox()||entity.getScoreboardTags().stream().anyMatch(tag->tag.startsWith("anpc:")))continue;
                     if(entity.getLocation().distanceSquared(npc.location())>r2)continue;
                     currentEntities.add(entity.getUniqueId());
                     if(nearbyEntities.computeIfAbsent(sourceKey,key->ConcurrentHashMap.newKeySet()).add(entity.getUniqueId()))
@@ -859,9 +859,9 @@ public final class ScriptEngine implements Listener {
             EntityType type;
             try{type=EntityType.valueOf(selector.group(2).toUpperCase(Locale.ROOT));}catch(IllegalArgumentException exception){return null;}
             if(selector.group(1).equalsIgnoreCase("n"))return nearestEntity(c.npc().location(),type);
-            return c.npc().location().getWorld().getEntities().stream().filter(entity->entity.getType()==type&&entity!=c.npc().hitbox()).toList();
+            return c.npc().location().getWorld().getEntities().stream().filter(entity->entity.getType()==type&&entity!=c.npc().hitbox()&&entity.getScoreboardTags().stream().noneMatch(tag->tag.startsWith("anpc:"))).toList();
         }
-        if(value.equalsIgnoreCase("@e"))return c.npc().location().getWorld().getEntities().stream().filter(entity->entity!=c.npc().hitbox()).toList();
+        if(value.equalsIgnoreCase("@e"))return c.npc().location().getWorld().getEntities().stream().filter(entity->entity!=c.npc().hitbox()&&entity.getScoreboardTags().stream().noneMatch(tag->tag.startsWith("anpc:"))).toList();
         if(value.toLowerCase(Locale.ROOT).startsWith("call "))return callFunction(c,value.substring(5).trim(),false);
         java.util.regex.Matcher blockCount=java.util.regex.Pattern.compile("^number of ([a-z0-9_:-]+) in (range|sphere)\\s+(\\d+)$",java.util.regex.Pattern.CASE_INSENSITIVE).matcher(value);
         if(blockCount.matches()){
@@ -932,7 +932,7 @@ public final class ScriptEngine implements Listener {
 
     private Entity nearestEntity(Location location,EntityType requiredType){
         return location.getWorld().getEntities().stream()
-                .filter(entity->entity.isValid())
+                .filter(entity->entity.isValid()&&entity.getScoreboardTags().stream().noneMatch(tag->tag.startsWith("anpc:")))
                 .filter(entity->requiredType==null||entity.getType()==requiredType)
                 .min(Comparator.comparingDouble(entity->entity.getLocation().distanceSquared(location)))
                 .orElse(null);
