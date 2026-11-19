@@ -93,6 +93,10 @@ public final class ScriptEngine implements Listener {
                     continue;
                 }
                 String eventName=text.substring(3,text.length()-1).trim().toLowerCase(Locale.ROOT);
+                if(!isKnownEvent(eventName)){
+                    plugin.getLogger().warning("Événement .aa inconnu ligne "+(i+1)+" : '"+eventName+"'. Bloc ignoré.");
+                    event=null;continue;
+                }
                 if(result.containsKey(eventName)){
                     plugin.getLogger().warning("Événement dupliqué '"+eventName+"' ligne "+(i+1)+" : bloc ignoré.");
                     event=null;
@@ -100,7 +104,14 @@ public final class ScriptEngine implements Listener {
                     event=eventName;
                     result.put(event,new ArrayList<>());
                 }
-            }else if(event!=null)result.get(event).add(new Instruction(indent,text,i+1));
+            }else if(event!=null){
+                if(!isKnownInstruction(text)){
+                    warnUnknownInstruction(i+1,text);
+                    plugin.getLogger().warning("Bloc de l'événement '"+event+"' ignoré à cause de cette instruction.");
+                    result.remove(event);event=null;continue;
+                }
+                result.get(event).add(new Instruction(indent,text,i+1));
+            }
         }
         return result;
     }
@@ -129,7 +140,12 @@ public final class ScriptEngine implements Listener {
                 if(indent%4!=0){plugin.getLogger().warning("Indentation invalide dans la fonction '"+name+"' ligne "+(j+1)+" : fonction ignorée.");invalidIndent=true;}
                 body.add(new Instruction(indent,line.trim(),j+1));
             }
-            if(!invalidIndent&&result.putIfAbsent(name,new FunctionDefinition(List.copyOf(parameters),List.copyOf(body)))!=null)
+            boolean invalidBody=invalidIndent;
+            for(Instruction instruction:body)if(!isKnownInstruction(instruction.text())){
+                warnUnknownInstruction(instruction.line(),instruction.text());
+                invalidBody=true;break;
+            }
+            if(!invalidBody&&result.putIfAbsent(name,new FunctionDefinition(List.copyOf(parameters),List.copyOf(body)))!=null)
                 plugin.getLogger().warning("Fonction dupliquée '"+name+"' dans le même fichier, déclaration ignorée (ligne "+(i+1)+").");
             i=j-1;
         }
@@ -360,6 +376,31 @@ public final class ScriptEngine implements Listener {
     private void stopWatchdog(ScriptContext context){
         BukkitTask task=watchdogTasks.remove(context);
         if(task!=null){task.cancel();tasks.remove(task);}
+    }
+
+    private boolean isKnownEvent(String event){
+        return Set.of("spawn","right click","left click","left click while sneaking","damage","entity approach","entity leave",
+                "npc approach","npc leave","interval","player join","player connect","player quit","player disconnect",
+                "player chat","player command","walk").contains(event);
+    }
+
+    private boolean isKnownInstruction(String instruction){
+        String text=instruction.trim().toLowerCase(Locale.ROOT);
+        if(text.startsWith("if ")&&text.endsWith(":"))return true;
+        if(text.startsWith("loop ")&&text.endsWith(":"))return true;
+        return text.startsWith("say local ")||text.startsWith("say global ")||text.startsWith("send to ")
+                ||text.startsWith("create variable ")||text.startsWith("set ")||text.startsWith("add state ")
+                ||text.startsWith("remove state ")||text.equals("clear states")||text.startsWith("flag on ")
+                ||text.startsWith("flag off ")||text.startsWith("play sound ")||text.startsWith("play anime ")
+                ||text.startsWith("move to ")||text.startsWith("fly to ")||text.startsWith("follow ")
+                ||text.startsWith("keep distance ")||text.equals("stop follow")||text.startsWith("target ")
+                ||text.startsWith("attack ")||text.equals("stop attack")||text.startsWith("look at ")
+                ||text.startsWith("set checkpoint ")||text.startsWith("remove checkpoint ")
+                ||text.startsWith("move to checkpoint ")||text.startsWith("simulate break block at ")
+                ||text.startsWith("simulate place ")||text.startsWith("simulate interact with block at ")
+                ||text.startsWith("set block ")||text.startsWith("break block at ")||text.startsWith("wait ")
+                ||text.startsWith("run command ")||text.equals("stop loop")||text.equals("skip loop")
+                ||text.equals("return")||text.startsWith("return ")||text.startsWith("call ");
     }
 
     private void warnUnknownInstruction(int line,String text){
