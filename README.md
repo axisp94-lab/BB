@@ -90,9 +90,12 @@ Les états principaux et secondaires sont conservés en mémoire et réinitialis
 - `move to <cible>` utilise A* sur les blocs praticables et des checkpoints.
 - `tp <cible>` téléporte immédiatement le NPC.
 - `fly to <cible>` calcule un trajet tridimensionnel en évitant les blocs non passables.
+- `climb to <cible>` suit une paroi solide continue en montant ou descendant.
+- `swim to <cible>` calcule un trajet dans un volume d'eau.
+- `amphibious to <cible>` combine sol praticable, parois escaladables et eau.
 - `follow @p at 2` maintient environ deux blocs ; `follow @p min 2 max 5` maintient une plage ; `keep distance 4 from @p` conserve une distance minimale ; `stop follow` arrête le suivi.
 
-Le pathfinding terrestre et aérien est réglable dans `config.yml` : activation terrestre, nombre maximal de nœuds, distance maximale, vitesse et espacement des checkpoints. Il ne recherche que dans les chunks déjà chargés.
+Le pathfinding terrestre, aérien et spécial est réglable dans `config.yml` : activation terrestre, nombre maximal de nœuds, distance maximale, vitesse et espacement des checkpoints. Les modes d'escalade et de nage exigent respectivement une paroi solide contiguë et deux blocs d'eau libres en hauteur. Le mode amphibie combine ces surfaces et les sols praticables. Le calcul ne recherche que dans les chunks déjà chargés.
 
 ## Commandes disponibles
 - `/anpc list`
