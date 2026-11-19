@@ -196,7 +196,6 @@ public final class ScriptEngine implements Listener {
         if(s.equals("stop loop")){c.stopLoop();return code.size();}
         if(s.equals("skip loop")){c.skipLoop();return code.size();}
         if(s.startsWith("if ")&&s.endsWith(":")){int end=findEnd(code,index+1,in.indent());if(test(c,s.substring(3,s.length()-1))){int child=index+1<code.size()?code.get(index+1).indent():in.indent()+4;runBlock(c,code,index+1,child);}index=end;continue;}
-        if(s.startsWith("set state ")){c.npc().setPrimaryState(unquote(s.substring(10)));index++;continue;}
         if(s.startsWith("set hostile ")){setHostile(c.npc(),s.substring(12).trim().equalsIgnoreCase("on"));index++;continue;}
         if(s.startsWith("set health of npc to ")){c.npc().setHealth(num(resolve(c,s.substring(21).trim())));index++;continue;}
         if(s.startsWith("set max health of npc to ")){c.npc().setMaxHealth(num(resolve(c,s.substring(25).trim())));index++;continue;}
@@ -251,7 +250,6 @@ public final class ScriptEngine implements Listener {
         if(s.startsWith("follow ")){startFollow(c.npc(),s.substring(7).trim());index++;continue;}
         if(s.startsWith("keep distance ")){startKeepDistance(c.npc(),s.substring(14).trim());index++;continue;}
         if(s.equals("stop follow")){stopFollow(c.npc());index++;continue;}
-        if(s.startsWith("set hostile ")){boolean hostile=s.substring(12).trim().equalsIgnoreCase("on");setHostile(c.npc(),hostile);index++;continue;}
         if(s.startsWith("target ")){setTargetSelector(c.npc(),s.substring(7).trim());index++;continue;}
         if(s.startsWith("attack ")){setTargetSelector(c.npc(),s.substring(7).trim());setHostile(c.npc(),true);index++;continue;}
         if(s.equals("stop attack")){setHostile(c.npc(),false);index++;continue;}
