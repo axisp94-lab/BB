@@ -48,6 +48,7 @@ public final class ScriptEngine implements Listener {
     private final Map<ManagedNPC,BukkitTask> combatTasks=new ConcurrentHashMap<>();
     private final Map<ManagedNPC,Long> lastAttackTimes=new ConcurrentHashMap<>();
     private final Map<String,BukkitTask> intervalTasks=new ConcurrentHashMap<>();
+    private final Map<ScriptContext,BukkitTask> watchdogTasks=new ConcurrentHashMap<>();
     private final Map<String,Set<UUID>> nearbyPlayers=new ConcurrentHashMap<>();
     private final Map<String,Set<String>> nearbyNpcs=new ConcurrentHashMap<>();
     public ScriptEngine(ANPCPlugin plugin,NPCManager npcs,VariableStore variables){this.plugin=plugin;this.npcs=npcs;this.variables=variables;}
@@ -311,7 +312,17 @@ public final class ScriptEngine implements Listener {
         if(s.startsWith("fly to ")){stopFollow(c.npc());Location target=parseLocation(c,s.substring(7).trim());if(target!=null)moveFlying(c.npc(),target);index++;continue;}
         if(s.startsWith("tp ")){stopFollow(c.npc());Location target=parseLocation(c,s.substring(3).trim());if(target!=null)move(c.npc(),target);index++;continue;}
         if(s.startsWith("flag on ")||s.startsWith("flag off ")){boolean on=s.startsWith("flag on ");String name=s.substring(on?8:9).replace("(","").replace(")","").trim();variables.setLocal(c.npc().id(),c.npc().location().getWorld().getName(),"flag:"+name,on);index++;continue;}
-        if(s.startsWith("wait ")){long ticks=parseDurationTicks(s.substring(5));List<Instruction> remaining=new ArrayList<>(code.subList(index+1,code.size()));BukkitTask task=Bukkit.getScheduler().runTaskLater(plugin,()->runBlock(c,remaining,0,indent),ticks);tasks.add(task);return code.size();}
+        if(s.startsWith("wait ")){
+            long ticks=parseDurationTicks(s.substring(5));
+            List<Instruction> remaining=new ArrayList<>(code.subList(index+1,code.size()));
+            c.beginWait();startWatchdog(c);
+            BukkitTask task=Bukkit.getScheduler().runTaskLater(plugin,()->{
+                c.endWait();
+                runBlock(c,remaining,0,indent);
+                if(!c.hasPendingWaits()){c.finish();stopWatchdog(c);}
+            },ticks);
+            tasks.add(task);return code.size();
+        }
         if(s.startsWith("run command ")){String cmd=unquote(s.substring(12));Bukkit.dispatchCommand(Bukkit.getConsoleSender(),cmd.replace("%player%",c.player()==null?"":c.player().getName()));index++;continue;}
         if(s.startsWith("look at ")&&(c.player()!=null||c.eventNpc()!=null)){Location at=c.player()!=null?c.player().getLocation():c.eventNpc().location();Location from=c.npc().location();from.setDirection(at.toVector().subtract(from.toVector()));c.npc().move(from);index++;continue;}
         if(s.startsWith("follow ")){startFollow(c.npc(),s.substring(7).trim());index++;continue;}
@@ -327,6 +338,27 @@ public final class ScriptEngine implements Listener {
         warnUnknownInstruction(line,s);
         index++;
     }return index;}
+    private void startWatchdog(ScriptContext context){
+        if(watchdogTasks.containsKey(context))return;
+        BukkitTask task=Bukkit.getScheduler().runTaskTimer(plugin,()->{
+            if(context.finished()||!context.hasPendingWaits()){stopWatchdog(context);return;}
+            if(movementTasks.containsKey(context.npc())||followTasks.containsKey(context.npc())||combatTasks.containsKey(context.npc())){
+                context.markChanged();return;
+            }
+            if(context.shouldWarnNoChange()){
+                String permission=plugin.getConfig().getString("script-warning-permission","anpc.script.warning");
+                for(Player player:Bukkit.getOnlinePlayers())if(player.hasPermission(permission))
+                    player.sendMessage(ChatColor.YELLOW+"[AmethyysNPCs] Le script du NPC "+context.npc().id()+" n'a rien modifié depuis 100 ticks.");
+            }
+        },100L,100L);
+        watchdogTasks.put(context,task);tasks.add(task);
+    }
+
+    private void stopWatchdog(ScriptContext context){
+        BukkitTask task=watchdogTasks.remove(context);
+        if(task!=null){task.cancel();tasks.remove(task);}
+    }
+
     private void warnUnknownInstruction(int line,String text){
         List<String> keywords=List.of("say local","say global","send to","set","create variable","flag on","flag off",
                 "play sound","play anime","move to","fly to","follow","keep distance","stop follow","target","attack",
@@ -1013,5 +1045,5 @@ public final class ScriptEngine implements Listener {
             npc.hide(e.getPlayer());
         }
     }
-    public void shutdown(){tasks.forEach(BukkitTask::cancel);tasks.clear();movementTasks.clear();followTasks.clear();combatTasks.clear();lastAttackTimes.clear();intervalTasks.clear();scripts.clear();functions.clear();nearbyPlayers.clear();nearbyNpcs.clear();}
+    public void shutdown(){tasks.forEach(BukkitTask::cancel);tasks.clear();movementTasks.clear();followTasks.clear();combatTasks.clear();lastAttackTimes.clear();intervalTasks.clear();watchdogTasks.clear();scripts.clear();functions.clear();nearbyPlayers.clear();nearbyNpcs.clear();}
 }
