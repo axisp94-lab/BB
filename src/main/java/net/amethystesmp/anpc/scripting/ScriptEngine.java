@@ -518,6 +518,9 @@ public final class ScriptEngine implements Listener {
             return Double.parseDouble(value);
         } catch (NumberFormatException ignored) {
         }
+        for (Map.Entry<String, Object> local : context.locals().entrySet()) {
+            if (local.getKey().equalsIgnoreCase(value)) return local.getValue();
+        }
 
         if (value.startsWith("@")) {
             List<Entity> selected = selectEntities(context, value);
@@ -802,7 +805,12 @@ public final class ScriptEngine implements Listener {
             Player player = nearest(origin);
             return player == null ? List.of() : List.of(player);
         }
-        if (target.equalsIgnoreCase("@a")) return new ArrayList<>(origin.getWorld().getPlayers());
+        if (target.equalsIgnoreCase("@a")) {
+            return origin.getWorld().getPlayers().stream()
+                    .sorted(Comparator.comparingDouble(player -> player.getLocation().distanceSquared(origin)))
+                    .map(player -> (Entity) player)
+                    .toList();
+        }
         if (target.equalsIgnoreCase("event entity") && context.player() != null) return List.of(context.player());
         if (target.regionMatches(true, 0, "player:", 0, 7)) {
             Player player = Bukkit.getPlayerExact(target.substring(7));
@@ -864,6 +872,10 @@ public final class ScriptEngine implements Listener {
         }
         if (target.startsWith("@")) {
             return selectEntities(context, target).stream().findFirst().map(Entity::getLocation).orElse(null);
+        }
+        if (target.regionMatches(true, 0, "player:", 0, 7)) {
+            Player player = Bukkit.getPlayerExact(target.substring(7));
+            return player == null ? null : player.getLocation();
         }
         if (target.equalsIgnoreCase("event entity") && context.player() != null) return context.player().getLocation();
 
