@@ -1,6 +1,6 @@
 # AmethyysNPCs
 
-Plugin Paper 1.21.11 / Java 21. BetterModel 2.2.0 est requis pour afficher les modèles. MythicMobs, ItemsAdder et Multiverse sont prévus comme intégrations optionnelles.
+Plugin Paper 1.21.11 / Java 21. BetterModel 2.2.0 est requis pour afficher les modèles. MythicMobs, ItemsAdder et Multiverse sont pris en charge comme intégrations optionnelles.
 
 ## Compilation
 `mvn clean package` — le JAR est produit dans `target/AmethyysNPCs-0.1.0.jar`. Le workflow GitHub Actions compile le projet avec Java 21.
@@ -89,14 +89,14 @@ Les états principaux et secondaires sont conservés en mémoire et réinitialis
 ### Déplacements
 - `move to <cible>` utilise A* sur les blocs praticables et des checkpoints.
 - `tp <cible>` téléporte immédiatement le NPC.
-`fly to <cible>` calcule un trajet tridimensionnel en évitant les blocs non passables.
+- `fly to <cible>` calcule un trajet tridimensionnel en évitant les blocs non passables.
 - `follow @p at 2` maintient environ deux blocs ; `follow @p min 2 max 5` maintient une plage ; `keep distance 4 from @p` conserve une distance minimale ; `stop follow` arrête le suivi.
 
 Le pathfinding terrestre et aérien est réglable dans `config.yml` : activation terrestre, nombre maximal de nœuds, distance maximale, vitesse et espacement des checkpoints. Il ne recherche que dans les chunks déjà chargés.
 
 ## Commandes disponibles
 - `/anpc list`
-- `/anpc create <id> <modele|limb:nom>`
+- `/anpc create <id> <modele|limb:nom|mythicmob:id>`
 - `/anpc tp <id>`
 - `/anpc center <id>`
 - `/anpc rename <id> <nom>`
@@ -106,6 +106,6 @@ Le pathfinding terrestre et aérien est réglable dans `config.yml` : activation
 ## État de cette livraison (0.1.0)
 Le socle comprend le chargement de `npc.yml`, les NPC BetterModel basés sur `DummyTracker`, les hitboxes d'interaction, le suivi des joueurs visibles, les commandes de base, les événements/conditions/actions de première tranche et le stockage SQLite.
 
-La stabilisation du cycle de vie, des commandes et du rechargement a été compilée avec succès par GitHub Actions. La prise en charge des skins PNG locaux, la correction du parseur, les variables, fonctions, boucles, sélecteurs, le pathfinding, les déplacements aériens directs et le suivi ont également été compilés. Les essais en jeu avec Paper 1.21.11 et BetterModel 2.2.0 restent à effectuer.
+La stabilisation du cycle de vie, des commandes et du rechargement a été compilée avec succès par GitHub Actions. La prise en charge des skins PNG locaux, la correction du parseur, les variables, fonctions, boucles, sélecteurs, le pathfinding terrestre et aérien, les déplacements de suivi et le maintien de distance ont également été compilés. Les essais en jeu avec Paper 1.21.11 et BetterModel 2.2.0 restent à effectuer.
 
 Les interactions NPC-NPC de proximité et les événements `on npc approach` / `on npc leave` sont disponibles sans mécanisme de combat. Les types `mythicmob:<id>`, les sons custom namespacés et le chargement dynamique des mondes sont ajoutés ; leur validation en jeu reste nécessaire.
