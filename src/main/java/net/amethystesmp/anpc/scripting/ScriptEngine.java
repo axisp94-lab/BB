@@ -328,6 +328,13 @@ public final class ScriptEngine implements Listener {
         }
         if(s.startsWith("play anime ")){c.npc().animate(unquote(s.substring(11)));c.markChanged();index++;continue;}
         if(s.startsWith("play sound ")){playScriptSound(c,s.substring(11).trim());index++;continue;}
+        if(s.startsWith("set cooldown ")){
+            String body=s.substring(13).trim();int forIndex=body.toLowerCase(Locale.ROOT).lastIndexOf(" for ");
+            if(forIndex>0){String name=unquote(body.substring(0,forIndex).trim());long duration=parseDurationMillis(body.substring(forIndex+5).trim());c.npc().setCooldown(name,duration);c.markChanged();}
+            else plugin.getLogger().warning("Syntaxe attendue : set cooldown \"nom\" for 5 seconds.");
+            index++;continue;
+        }
+        if(s.startsWith("reset cooldown ")){c.npc().resetCooldown(unquote(s.substring(15).trim()));c.markChanged();index++;continue;}
         if(s.startsWith("set checkpoint ")){c.npc().setCheckpoint(unquote(s.substring(15).trim()),c.npc().location());c.markChanged();index++;continue;}
         if(s.startsWith("remove checkpoint ")){c.npc().removeCheckpoint(unquote(s.substring(18).trim()));c.markChanged();index++;continue;}
         if(s.startsWith("move to checkpoint ")){stopFollow(c.npc());Location checkpoint=c.npc().checkpoint(unquote(s.substring(19).trim()));if(checkpoint!=null)move(c.npc(),checkpoint);else plugin.getLogger().warning("Checkpoint introuvable pour "+c.npc().id()+" : "+s.substring(19));c.markChanged();index++;continue;}
@@ -395,7 +402,7 @@ public final class ScriptEngine implements Listener {
         if(text.startsWith("set state ")||text.startsWith("set hostile ")
                 ||text.startsWith("set health of npc to ")||text.startsWith("set max health of npc to ")
                 ||text.startsWith("set speed of npc to ")||text.startsWith("set target of npc to ")
-                ||text.startsWith("set checkpoint ")||text.startsWith("set block "))return true;
+                ||text.startsWith("set checkpoint ")||text.startsWith("set cooldown ")||text.startsWith("set block "))return true;
         if(text.startsWith("set "))return text.matches("^set\\s+\"[^\"]+\"\\s+.+$");
         return text.startsWith("say local ")||text.startsWith("say global ")||text.startsWith("send to ")
                 ||text.startsWith("create variable ")||text.startsWith("add state ")
@@ -405,7 +412,7 @@ public final class ScriptEngine implements Listener {
                 ||text.startsWith("keep distance ")||text.equals("stop follow")||text.startsWith("target ")
                 ||text.startsWith("attack ")||text.equals("stop attack")||text.startsWith("look at ")
                 ||text.startsWith("set checkpoint ")||text.startsWith("remove checkpoint ")
-                ||text.startsWith("move to checkpoint ")||text.startsWith("simulate break block at ")
+                ||text.startsWith("move to checkpoint ")||text.startsWith("reset cooldown ")||text.startsWith("simulate break block at ")
                 ||text.startsWith("simulate place ")||text.startsWith("simulate interact with block at ")
                 ||text.startsWith("set block ")||text.startsWith("break block at ")||text.startsWith("wait ")
                 ||text.startsWith("run command ")||text.equals("stop loop")||text.equals("skip loop")
@@ -481,7 +488,14 @@ public final class ScriptEngine implements Listener {
         }
     }
     private int findEnd(List<Instruction> c,int from,int parent){int i=from;while(i<c.size()&&c.get(i).indent()>parent)i++;return i;}
-    private boolean test(ScriptContext c,String expression){String e=expression.trim();if(e.startsWith("flag (")&&e.contains(") is ")){String name=e.substring(6,e.indexOf(')'));boolean v=Boolean.parseBoolean(variables.getLocal(c.npc().id(),c.npc().location().getWorld().getName(),"flag:"+name,"false"));return e.endsWith("on")?v:!v;}String[] ops={" >= "," <= "," != "," == "," > "," < "," contains "};for(String op:ops){int p=e.indexOf(op);if(p>0){Object a=resolve(c,e.substring(0,p)),b=resolve(c,e.substring(p+op.length()));if(op.equals(" contains "))return String.valueOf(a).contains(String.valueOf(b));double x=num(a),y=num(b);return switch(op.trim()){case ">"->x>y;case "<"->x<y;case ">="->x>=y;case "<="->x<=y;case "!="->!Objects.equals(String.valueOf(a),String.valueOf(b));default->Objects.equals(String.valueOf(a),String.valueOf(b))||x==y;};}}if(e.equalsIgnoreCase("player is sneaking"))return c.player()!=null&&c.player().isSneaking();if(e.toLowerCase(Locale.ROOT).startsWith("player has permission "))return c.player()!=null&&c.player().hasPermission(unquote(e.substring(22).trim()));if(e.toLowerCase(Locale.ROOT).startsWith("player has item ")){if(c.player()==null)return false;try{return c.player().getInventory().contains(org.bukkit.Material.valueOf(e.substring(16).trim().toUpperCase(Locale.ROOT)));}catch(IllegalArgumentException ex){return false;}}if(e.toLowerCase(Locale.ROOT).startsWith("block below is ")){
+    private boolean test(ScriptContext c,String expression){String e=expression.trim();if(e.startsWith("flag (")&&e.contains(") is ")){String name=e.substring(6,e.indexOf(')'));boolean v=Boolean.parseBoolean(variables.getLocal(c.npc().id(),c.npc().location().getWorld().getName(),"flag:"+name,"false"));return e.endsWith("on")?v:!v;}String[] ops={" >= "," <= "," != "," == "," > "," < "," contains "};for(String op:ops){int p=e.indexOf(op);if(p>0){Object a=resolve(c,e.substring(0,p)),b=resolve(c,e.substring(p+op.length()));if(op.equals(" contains "))return String.valueOf(a).contains(String.valueOf(b));double x=num(a),y=num(b);return switch(op.trim()){case ">"->x>y;case "<"->x<y;case ">="->x>=y;case "<="->x<=y;case "!="->!Objects.equals(String.valueOf(a),String.valueOf(b));default->Objects.equals(String.valueOf(a),String.valueOf(b))||x==y;};}}if(e.equalsIgnoreCase("player is sneaking"))return c.player()!=null&&c.player().isSneaking();if(e.toLowerCase(Locale.ROOT).startsWith("player has permission "))return c.player()!=null&&c.player().hasPermission(unquote(e.substring(22).trim()));if(e.toLowerCase(Locale.ROOT).startsWith("player has item ")){if(c.player()==null)return false;try{return c.player().getInventory().contains(org.bukkit.Material.valueOf(e.substring(16).trim().toUpperCase(Locale.ROOT)));}catch(IllegalArgumentException ex){return false;}}String lower=e.toLowerCase(Locale.ROOT);
+        if(lower.startsWith("cooldown ")&&lower.endsWith(" is ready")){
+            String name=unquote(e.substring(9,e.length()-9).trim());return !c.npc().hasCooldown(name);
+        }
+        if(lower.startsWith("cooldown ")&&lower.endsWith(" is active")){
+            String name=unquote(e.substring(9,e.length()-10).trim());return c.npc().hasCooldown(name);
+        }
+        if(e.toLowerCase(Locale.ROOT).startsWith("block below is ")){
             Material expected=Material.matchMaterial(e.substring(15).trim());
             Location location=c.npc().location();
             return expected!=null&&location.getWorld().getBlockAt(location.getBlockX(),location.getBlockY()-1,location.getBlockZ()).getType()==expected;
@@ -1054,6 +1068,22 @@ public final class ScriptEngine implements Listener {
     }
 
     private String pathKey(int x,int y,int z){return x+":"+y+":"+z;}
+
+    private long parseDurationMillis(String raw){
+        String value=raw.trim().toLowerCase(Locale.ROOT);
+        try{
+            if(value.endsWith("ticks"))return Math.max(0L,Long.parseLong(value.substring(0,value.length()-5).trim())*50L);
+            if(value.endsWith("tick"))return Math.max(0L,Long.parseLong(value.substring(0,value.length()-4).trim())*50L);
+            if(value.endsWith("ms"))return Math.max(0L,Long.parseLong(value.substring(0,value.length()-2).trim()));
+            if(value.endsWith("minutes"))return Math.max(0L,Long.parseLong(value.substring(0,value.length()-7).trim())*60_000L);
+            if(value.endsWith("minute"))return Math.max(0L,Long.parseLong(value.substring(0,value.length()-6).trim())*60_000L);
+            if(value.endsWith("m"))return Math.max(0L,Long.parseLong(value.substring(0,value.length()-1).trim())*60_000L);
+            if(value.endsWith("seconds"))return Math.max(0L,Long.parseLong(value.substring(0,value.length()-7).trim())*1_000L);
+            if(value.endsWith("second"))return Math.max(0L,Long.parseLong(value.substring(0,value.length()-6).trim())*1_000L);
+            if(value.endsWith("s"))return Math.max(0L,Long.parseLong(value.substring(0,value.length()-1).trim())*1_000L);
+            return Math.max(0L,Long.parseLong(value)*50L);
+        }catch(NumberFormatException exception){return 0L;}
+    }
 
     private long parseDurationTicks(String s){String[] a=s.trim().split("\\s+");try{long n=Long.parseLong(a[0]);return a.length>1&&a[1].startsWith("second")?n*20:n;}catch(Exception e){return 1;}}
     @EventHandler public void onNpcRightClick(PlayerInteractAtEntityEvent e){
