@@ -22,16 +22,23 @@ public final class ScriptContext {
 
     private final ManagedNPC npc;
     private final Player player;
+    private final ManagedNPC eventNpc;
     private final Map<String, Object> locals = new HashMap<>();
     private final Deque<LoopState> loops = new ArrayDeque<>();
 
     public ScriptContext(ManagedNPC npc, Player player) {
+        this(npc, player, null);
+    }
+
+    public ScriptContext(ManagedNPC npc, Player player, ManagedNPC eventNpc) {
         this.npc = npc;
         this.player = player;
+        this.eventNpc = eventNpc;
     }
 
     public ManagedNPC npc() { return npc; }
     public Player player() { return player; }
+    public ManagedNPC eventNpc() { return eventNpc; }
     public Map<String, Object> locals() { return locals; }
 
     public LoopState pushLoop() {
@@ -56,6 +63,9 @@ public final class ScriptContext {
     public Object value(String key) {
         String normalized = key.trim();
         if (normalized.equalsIgnoreCase("event entity") || normalized.equalsIgnoreCase("player")) return player;
+        if (normalized.equalsIgnoreCase("event npc") || normalized.equalsIgnoreCase("other npc")) return eventNpc;
+        if (normalized.equalsIgnoreCase("name of event npc") && eventNpc != null) return eventNpc.id();
+        if (normalized.equalsIgnoreCase("location of event npc") && eventNpc != null) return eventNpc.location();
         if (normalized.equalsIgnoreCase("name of npc")) return npc.id();
         if (normalized.equalsIgnoreCase("location of npc")) return npc.location();
         if (normalized.equalsIgnoreCase("x of npc")) return npc.location().getX();
