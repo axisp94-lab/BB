@@ -21,6 +21,7 @@ public final class ManagedNPC {
     private Location current;
     private final Interaction hitbox;
     private String animation = "idle";
+    private boolean scriptsEnabled = true;
 
     public ManagedNPC(NPCDefinition definition, ModelRenderer renderer, Location location) {
         this(definition, renderer, location, null);
@@ -63,6 +64,8 @@ public final class ManagedNPC {
         return ok;
     }
     public String animation() { return animation; }
+    public boolean scriptsEnabled() { return scriptsEnabled; }
+    public void setScriptsEnabled(boolean enabled) { scriptsEnabled = enabled; }
     public Entity hitbox() { return hitbox; }
     public void close() { if (!tracker.isClosed()) tracker.close(); if (hitbox.isValid()) hitbox.remove(); viewers.clear(); }
 }
