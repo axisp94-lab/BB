@@ -106,10 +106,35 @@ public final class FlyingPathfinder {
         return feet.isPassable() && head.isPassable() && !feet.isLiquid() && !head.isLiquid();
     }
 
+    /**
+     * Prevents a diagonal step from cutting through a block corner.
+     * Every intermediate cell formed by a non-empty subset of the changed
+     * axes must be flyable. For a 3-axis diagonal this checks all six
+     * intermediate cells, not only the three axis-aligned neighbours.
+     */
     private static boolean diagonalIsClear(World world, Node current, int dx, int dy, int dz) {
-        if (dx != 0 && !isFlyable(world, new Node(current.x() + dx, current.y(), current.z()))) return false;
-        if (dy != 0 && !isFlyable(world, new Node(current.x(), current.y() + dy, current.z()))) return false;
-        if (dz != 0 && !isFlyable(world, new Node(current.x(), current.y(), current.z() + dz))) return false;
+        int[] offsets = {dx, dy, dz};
+        int changedAxes = 0;
+        for (int offset : offsets) {
+            if (offset != 0) changedAxes++;
+        }
+        if (changedAxes <= 1) return true;
+
+        int combinations = 1 << 3;
+        for (int mask = 1; mask < combinations - 1; mask++) {
+            int x = current.x();
+            int y = current.y();
+            int z = current.z();
+            if ((mask & 1) != 0) x += dx;
+            if ((mask & 2) != 0) y += dy;
+            if ((mask & 4) != 0) z += dz;
+
+            // Ignore masks that do not select any axis that actually changes.
+            if (((mask & 1) == 0 || dx == 0)
+                    && ((mask & 2) == 0 || dy == 0)
+                    && ((mask & 4) == 0 || dz == 0)) continue;
+            if (!isFlyable(world, new Node(x, y, z))) return false;
+        }
         return true;
     }
 
