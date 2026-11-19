@@ -506,26 +506,13 @@ public final class ScriptEngine implements Listener {
             }
 
             if (line.startsWith("follow ")) {
-                startFollow(context.npc(), line.substring(7).trim(), 1.5, context.player());
+                configureFollow(context, instruction, line.substring(7).trim());
                 index++;
                 continue;
             }
 
             if (line.startsWith("keep distance ")) {
-                String arguments = line.substring(14).trim();
-                int separator = arguments.lastIndexOf(' ');
-                if (separator > 0) {
-                    String selector = arguments.substring(0, separator).trim();
-                    try {
-                        double distance = Math.max(0.5, Math.min(32.0,
-                                Double.parseDouble(arguments.substring(separator + 1).trim())));
-                        startFollow(context.npc(), selector, distance, context.player());
-                    } catch (NumberFormatException exception) {
-                        warnInstruction(context, instruction, "distance invalide");
-                    }
-                } else {
-                    warnInstruction(context, instruction, "syntaxe : keep distance <cible> <distance>");
-                }
+                configureKeepDistance(context, instruction, line.substring(14).trim());
                 index++;
                 continue;
             }
@@ -1199,7 +1186,56 @@ public final class ScriptEngine implements Listener {
         stopMovement(npc);
     }
 
-    private void startFollow(ManagedNPC npc, String selector, double desiredDistance, Player eventPlayer) {
+    private void configureFollow(ScriptContext context, Instruction instruction, String arguments) {
+        String lower = arguments.toLowerCase(Locale.ROOT);
+        String selector = arguments;
+        double minimum = 1.5;
+        double maximum = 1.5;
+
+        int at = lower.lastIndexOf(" at ");
+        int min = lower.lastIndexOf(" min ");
+        int max = lower.lastIndexOf(" max ");
+        try {
+            if (at > 0) {
+                selector = arguments.substring(0, at).trim();
+                minimum = maximum = Double.parseDouble(arguments.substring(at + 4).trim());
+            } else if (min > 0 && max > min) {
+                selector = arguments.substring(0, min).trim();
+                minimum = Double.parseDouble(arguments.substring(min + 5, max).trim());
+                maximum = Double.parseDouble(arguments.substring(max + 5).trim());
+            }
+            minimum = Math.max(0.5, Math.min(32.0, minimum));
+            maximum = Math.max(minimum, Math.min(32.0, maximum));
+            startFollow(context.npc(), selector, minimum, maximum, false, context.player());
+        } catch (NumberFormatException exception) {
+            warnInstruction(context, instruction, "syntaxe : follow <cible> at <distance> ou follow <cible> min <min> max <max>");
+        }
+    }
+
+    private void configureKeepDistance(ScriptContext context, Instruction instruction, String arguments) {
+        String lower = arguments.toLowerCase(Locale.ROOT);
+        int from = lower.lastIndexOf(" from ");
+        try {
+            String selector;
+            double distance;
+            if (from > 0) {
+                distance = Double.parseDouble(arguments.substring(0, from).trim());
+                selector = arguments.substring(from + 6).trim();
+            } else {
+                int separator = arguments.lastIndexOf(' ');
+                if (separator <= 0) throw new NumberFormatException();
+                selector = arguments.substring(0, separator).trim();
+                distance = Double.parseDouble(arguments.substring(separator + 1).trim());
+            }
+            distance = Math.max(0.5, Math.min(32.0, distance));
+            startFollow(context.npc(), selector, distance, distance, true, context.player());
+        } catch (NumberFormatException exception) {
+            warnInstruction(context, instruction, "syntaxe : keep distance <distance> from <cible>");
+        }
+    }
+
+    private void startFollow(ManagedNPC npc, String selector, double minimumDistance,
+                             double maximumDistance, boolean keepDistance, Player eventPlayer) {
         stopFollow(npc);
         if (selector.isBlank()) return;
 
@@ -1226,12 +1262,15 @@ public final class ScriptEngine implements Listener {
             }
 
             double distance = npcLocation.distance(targetLocation);
-            if (distance <= desiredDistance + 0.35) {
+            boolean tooFar = !keepDistance && distance > maximumDistance + 0.35;
+            boolean tooClose = distance < minimumDistance - 0.35;
+            if (!tooFar && !tooClose) {
                 stopMovement(npc);
                 return;
             }
 
             if (!movementTasks.containsKey(key)) {
+                double desiredDistance = tooFar ? maximumDistance : minimumDistance;
                 org.bukkit.util.Vector offset = npcLocation.toVector().subtract(targetLocation.toVector());
                 if (offset.lengthSquared() < 0.000001) offset = new org.bukkit.util.Vector(1, 0, 0);
                 offset.normalize().multiply(desiredDistance);
