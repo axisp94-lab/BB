@@ -141,6 +141,12 @@ if block below is not air:
     say local "Je suis posé."
 if block below is one of (stone, dirt):
     say local "Sol naturel."
+if player is sneaking:
+    say local "Tu es accroupi."
+else if player has permission "anpc.vip":
+    say local "Bienvenue VIP."
+else:
+    say local "Bienvenue."
 if ray = 3 contains stone:
     say local "Pierre dans le rayon horizontal."
 if sphere = 3 contains stone:
