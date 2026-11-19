@@ -551,11 +551,18 @@ public final class ScriptEngine implements Listener {
         }
         ManagedNPC previousNpc=context.npc();
         Player previousPlayer=context.player();
+        Map<String,Object> previousLoopLocals=new HashMap<>();
+        Set<String> existingLoopLocals=new HashSet<>();
+        for(String key:List.of("loop-value","loop-number","loop-player","loop-npc")){
+            if(context.locals().containsKey(key)){existingLoopLocals.add(key);previousLoopLocals.put(key,context.locals().get(key));}
+        }
         context.pushLoop();
         try{
             int number=0;
             for(Object value:values){
                 number++;
+                context.locals().remove("loop-player");
+                context.locals().remove("loop-npc");
                 context.locals().put("loop-value",value);
                 context.locals().put("loop-number",number);
                 context.setNpc(value instanceof ManagedNPC targetNpc?targetNpc:previousNpc);
@@ -571,6 +578,10 @@ public final class ScriptEngine implements Listener {
             context.popLoop();
             context.setNpc(previousNpc);
             context.setPlayer(previousPlayer);
+            for(String key:List.of("loop-value","loop-number","loop-player","loop-npc")){
+                if(existingLoopLocals.contains(key))context.locals().put(key,previousLoopLocals.get(key));
+                else context.locals().remove(key);
+            }
         }
     }
     private int findEnd(List<Instruction> c,int from,int parent){int i=from;while(i<c.size()&&c.get(i).indent()>parent)i++;return i;}
