@@ -13,6 +13,9 @@ import org.bukkit.entity.LivingEntity;
 import org.bukkit.entity.Monster;
 import org.bukkit.entity.Animals;
 import org.bukkit.entity.EntityType;
+import org.bukkit.Material;
+import org.bukkit.Particle;
+import org.bukkit.block.Block;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
 import org.bukkit.event.player.PlayerInteractAtEntityEvent;
@@ -197,6 +200,39 @@ public final class ScriptEngine implements Listener {
         if(s.startsWith("create variable ")){createVariable(c,s.substring(15).trim());index++;continue;}
         if(s.startsWith("say local ")||s.startsWith("say global ")){boolean global=s.startsWith("say global ");Object message=resolve(c,s.substring(global?11:10).trim());String rendered=ChatColor.translateAlternateColorCodes('&',c.npc().definition().displayName()+" » "+String.valueOf(message));if(global)Bukkit.broadcastMessage(rendered);else if(c.player()!=null)c.player().sendMessage(rendered);else for(Player p:c.npc().location().getWorld().getPlayers())if(p.getLocation().distanceSquared(c.npc().location())<32*32)p.sendMessage(rendered);index++;continue;}
         if(s.startsWith("send to ")){int pos=s.indexOf(' ',8);if(pos>0){String target=s.substring(8,pos);Object targetValue=resolve(c,target);String msg=String.valueOf(resolve(c,s.substring(pos+1).trim()));Player p=targetValue instanceof Player selected?selected:(target.equals("@p")?nearest(c.npc().location()):Bukkit.getPlayerExact(target));if(p!=null)p.sendMessage(ChatColor.translateAlternateColorCodes('&',msg));}index++;continue;}
+        if(s.startsWith("simulate break block at ")){
+            Location at=parseLocation(c,s.substring(23).trim());
+            if(at!=null)simulateBreakBlock(at);
+            index++;continue;
+        }
+        if(s.startsWith("simulate place ")){
+            int atIndex=s.toLowerCase(Locale.ROOT).indexOf(" at ");
+            if(atIndex>15){
+                Material material=Material.matchMaterial(s.substring(15,atIndex).trim());
+                Location at=parseLocation(c,s.substring(atIndex+4).trim());
+                if(material!=null&&at!=null)simulatePlaceBlock(at,material);
+            }
+            index++;continue;
+        }
+        if(s.startsWith("simulate interact with block at ")){
+            Location at=parseLocation(c,s.substring(32).trim());
+            if(at!=null){at.getWorld().spawnParticle(Particle.CRIT,at.clone().add(0.5,0.5,0.5),8,0.2,0.2,0.2,0.02);at.getWorld().playSound(at,Sound.UI_BUTTON_CLICK,0.8f,1.0f);}
+            index++;continue;
+        }
+        if(s.startsWith("set block ")){
+            int atIndex=s.toLowerCase(Locale.ROOT).indexOf(" at ");
+            if(atIndex>10){
+                Material material=Material.matchMaterial(s.substring(10,atIndex).trim());
+                Location at=parseLocation(c,s.substring(atIndex+4).trim());
+                if(material!=null&&at!=null)at.getBlock().setType(material,false);
+            }
+            index++;continue;
+        }
+        if(s.startsWith("break block at ")){
+            Location at=parseLocation(c,s.substring(15).trim());
+            if(at!=null)at.getBlock().breakNaturally();
+            index++;continue;
+        }
         if(s.startsWith("play anime ")){c.npc().animate(unquote(s.substring(11)));index++;continue;}
         if(s.startsWith("play sound ")){String name=unquote(s.substring(11));try{Sound sound=Sound.valueOf(name.toUpperCase(Locale.ROOT).replace('.','_'));c.npc().location().getWorld().playSound(c.npc().location(),sound,1f,1f);}catch(IllegalArgumentException ignored){}index++;continue;}
         if(s.startsWith("move to ")){stopFollow(c.npc());Location target=parseLocation(c,s.substring(8).trim());if(target!=null)move(c.npc(),target);index++;continue;}
@@ -267,7 +303,12 @@ public final class ScriptEngine implements Listener {
         }
     }
     private int findEnd(List<Instruction> c,int from,int parent){int i=from;while(i<c.size()&&c.get(i).indent()>parent)i++;return i;}
-    private boolean test(ScriptContext c,String expression){String e=expression.trim();if(e.startsWith("flag (")&&e.contains(") is ")){String name=e.substring(6,e.indexOf(')'));boolean v=Boolean.parseBoolean(variables.getLocal(c.npc().id(),c.npc().location().getWorld().getName(),"flag:"+name,"false"));return e.endsWith("on")?v:!v;}String[] ops={" >= "," <= "," != "," == "," > "," < "," contains "};for(String op:ops){int p=e.indexOf(op);if(p>0){Object a=resolve(c,e.substring(0,p)),b=resolve(c,e.substring(p+op.length()));if(op.equals(" contains "))return String.valueOf(a).contains(String.valueOf(b));double x=num(a),y=num(b);return switch(op.trim()){case ">"->x>y;case "<"->x<y;case ">="->x>=y;case "<="->x<=y;case "!="->!Objects.equals(String.valueOf(a),String.valueOf(b));default->Objects.equals(String.valueOf(a),String.valueOf(b))||x==y;};}}if(e.equalsIgnoreCase("player is sneaking"))return c.player()!=null&&c.player().isSneaking();if(e.toLowerCase(Locale.ROOT).startsWith("player has permission "))return c.player()!=null&&c.player().hasPermission(unquote(e.substring(22).trim()));if(e.toLowerCase(Locale.ROOT).startsWith("player has item ")){if(c.player()==null)return false;try{return c.player().getInventory().contains(org.bukkit.Material.valueOf(e.substring(16).trim().toUpperCase(Locale.ROOT)));}catch(IllegalArgumentException ex){return false;}}if(e.equalsIgnoreCase("npc is under attack"))return c.npc().lastAttacker()!=null;
+    private boolean test(ScriptContext c,String expression){String e=expression.trim();if(e.startsWith("flag (")&&e.contains(") is ")){String name=e.substring(6,e.indexOf(')'));boolean v=Boolean.parseBoolean(variables.getLocal(c.npc().id(),c.npc().location().getWorld().getName(),"flag:"+name,"false"));return e.endsWith("on")?v:!v;}String[] ops={" >= "," <= "," != "," == "," > "," < "," contains "};for(String op:ops){int p=e.indexOf(op);if(p>0){Object a=resolve(c,e.substring(0,p)),b=resolve(c,e.substring(p+op.length()));if(op.equals(" contains "))return String.valueOf(a).contains(String.valueOf(b));double x=num(a),y=num(b);return switch(op.trim()){case ">"->x>y;case "<"->x<y;case ">="->x>=y;case "<="->x<=y;case "!="->!Objects.equals(String.valueOf(a),String.valueOf(b));default->Objects.equals(String.valueOf(a),String.valueOf(b))||x==y;};}}if(e.equalsIgnoreCase("player is sneaking"))return c.player()!=null&&c.player().isSneaking();if(e.toLowerCase(Locale.ROOT).startsWith("player has permission "))return c.player()!=null&&c.player().hasPermission(unquote(e.substring(22).trim()));if(e.toLowerCase(Locale.ROOT).startsWith("player has item ")){if(c.player()==null)return false;try{return c.player().getInventory().contains(org.bukkit.Material.valueOf(e.substring(16).trim().toUpperCase(Locale.ROOT)));}catch(IllegalArgumentException ex){return false;}}if(e.toLowerCase(Locale.ROOT).startsWith("block below is ")){
+            Material expected=Material.matchMaterial(e.substring(15).trim());
+            Location location=c.npc().location();
+            return expected!=null&&location.getWorld().getBlockAt(location.getBlockX(),location.getBlockY()-1,location.getBlockZ()).getType()==expected;
+        }
+        if(e.equalsIgnoreCase("npc is under attack"))return c.npc().lastAttacker()!=null;
         if(e.equalsIgnoreCase("npc is hostile"))return c.npc().hostile();
         if(e.toLowerCase(Locale.ROOT).startsWith("npc state is "))return c.npc().primaryState().equalsIgnoreCase(unquote(e.substring(13).trim()));
         if(e.toLowerCase(Locale.ROOT).startsWith("state of npc is "))return c.npc().primaryState().equalsIgnoreCase(unquote(e.substring(16).trim()));
@@ -458,6 +499,7 @@ public final class ScriptEngine implements Listener {
         int period=Math.max(1,plugin.getConfig().getInt("movement.update-ticks",1));
         double speed=Math.max(0.1,plugin.getConfig().getDouble("movement.default-speed",4.0));
         int[] segment={0};
+        int[] lastBlock={npc.location().getBlockX(),npc.location().getBlockY(),npc.location().getBlockZ()};
         BukkitTask[] holder=new BukkitTask[1];
         npc.animate(animation);
         holder[0]=Bukkit.getScheduler().runTaskTimer(plugin,()->{
@@ -470,6 +512,7 @@ public final class ScriptEngine implements Listener {
             double step=speed*period/20.0;
             if(distance<=step||distance<0.001){
                 npc.move(destination);
+                fireWalkIfBlockChanged(npc,lastBlock);
                 segment[0]++;
                 if(segment[0]>=points.size()-1){
                     holder[0].cancel();tasks.remove(holder[0]);movementTasks.remove(npc,holder[0]);npc.animate("idle");
@@ -480,10 +523,20 @@ public final class ScriptEngine implements Listener {
                         (destination.getY()-current.getY())*fraction,(destination.getZ()-current.getZ())*fraction);
                 next.setYaw(destination.getYaw());next.setPitch(destination.getPitch());
                 npc.move(next);
+                fireWalkIfBlockChanged(npc,lastBlock);
             }
         },0L,period);
         movementTasks.put(npc,holder[0]);tasks.add(holder[0]);
         return true;
+    }
+
+    private void fireWalkIfBlockChanged(ManagedNPC npc,int[] lastBlock){
+        Location location=npc.location();
+        int x=location.getBlockX(),y=location.getBlockY(),z=location.getBlockZ();
+        if(x!=lastBlock[0]||y!=lastBlock[1]||z!=lastBlock[2]){
+            lastBlock[0]=x;lastBlock[1]=y;lastBlock[2]=z;
+            fireOn(npc,"walk",null);
+        }
     }
 
     private List<Location> findFlyingPath(Location start,Location target){
@@ -523,6 +576,19 @@ public final class ScriptEngine implements Listener {
         for(PathNode node=found;node!=null;node=node.parent())result.addFirst(new Location(world,node.x()+0.5,node.y()+0.5,node.z()+0.5));
         result.add(target.clone());
         return result;
+    }
+
+    private void simulateBreakBlock(Location location){
+        Block block=location.getBlock();
+        Location center=block.getLocation().add(0.5,0.5,0.5);
+        block.getWorld().spawnParticle(Particle.BLOCK,center,24,0.25,0.25,0.25,block.getBlockData());
+        block.getWorld().playSound(center,Sound.BLOCK_STONE_BREAK,0.8f,1.0f);
+    }
+
+    private void simulatePlaceBlock(Location location,Material material){
+        Location center=location.getBlock().getLocation().add(0.5,0.5,0.5);
+        location.getWorld().spawnParticle(Particle.BLOCK,center,18,0.2,0.2,0.2,material.createBlockData());
+        location.getWorld().playSound(center,Sound.BLOCK_STONE_PLACE,0.8f,1.0f);
     }
 
     private boolean canFly(org.bukkit.World world,int x,int y,int z){
