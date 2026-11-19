@@ -62,9 +62,20 @@ public final class ScriptEngine implements Listener {
             if(raw.isBlank()||raw.stripLeading().startsWith("#"))continue;
             int indent=raw.length()-raw.stripLeading().length(); String text=raw.trim();
             if(indent==0&&text.toLowerCase(Locale.ROOT).startsWith("function ")){event=null;continue;}
-            if(indent==0&&text.toLowerCase(Locale.ROOT).startsWith("on ")&&text.endsWith(":")){
-                event=text.substring(3,text.length()-1).trim().toLowerCase(Locale.ROOT);
-                result.put(event,new ArrayList<>());
+            if(indent==0&&text.toLowerCase(Locale.ROOT).startsWith("on ")){
+                if(!text.endsWith(":")){
+                    plugin.getLogger().warning("Déclaration d'événement invalide ligne "+(i+1)+" : "+text);
+                    event=null;
+                    continue;
+                }
+                String eventName=text.substring(3,text.length()-1).trim().toLowerCase(Locale.ROOT);
+                if(result.containsKey(eventName)){
+                    plugin.getLogger().warning("Événement dupliqué '"+eventName+"' ligne "+(i+1)+" : bloc ignoré.");
+                    event=null;
+                }else{
+                    event=eventName;
+                    result.put(event,new ArrayList<>());
+                }
             }else if(event!=null)result.get(event).add(new Instruction(indent,text,i+1));
         }
         return result;
@@ -92,7 +103,8 @@ public final class ScriptEngine implements Listener {
                 if(indent==0)break;
                 body.add(new Instruction(indent,line.trim(),j+1));
             }
-            result.put(name,new FunctionDefinition(List.copyOf(parameters),List.copyOf(body)));
+            if(result.putIfAbsent(name,new FunctionDefinition(List.copyOf(parameters),List.copyOf(body)))!=null)
+                plugin.getLogger().warning("Fonction dupliquée '"+name+"' dans le même fichier, déclaration ignorée (ligne "+(i+1)+").");
             i=j-1;
         }
         return result;
