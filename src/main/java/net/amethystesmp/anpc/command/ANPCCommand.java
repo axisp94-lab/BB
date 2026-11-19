@@ -73,7 +73,7 @@ public final class ANPCCommand implements TabExecutor {
             }
             case "tp" -> {
                 if (!(sender instanceof Player player) || args.length < 2) {
-                    msg(sender, "Usage : /anpc tp <id> (joueur)");
+                    msg(sender, "Usage : /anpc tp <id>");
                     return true;
                 }
                 ManagedNPC npc = plugin.npcs().get(args[1], player.getWorld());
