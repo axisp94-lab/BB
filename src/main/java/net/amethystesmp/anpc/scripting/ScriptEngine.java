@@ -220,7 +220,7 @@ public final class ScriptEngine implements Listener {
 
     private boolean isBlockHeader(String instruction){
         String text=instruction.trim().toLowerCase(Locale.ROOT);
-        return (text.startsWith("if ")||text.startsWith("loop "))&&text.endsWith(":");
+        return (text.startsWith("if ")||text.startsWith("else if ")||text.startsWith("loop "))&&text.endsWith(":")||text.equals("else:");
     }
 
     private void scheduleIntervals(){
@@ -457,7 +457,11 @@ public final class ScriptEngine implements Listener {
         if(s.startsWith("loop ")&&s.endsWith(":")){int end=findEnd(code,index+1,in.indent());int child=index+1<code.size()?code.get(index+1).indent():in.indent()+4;executeLoop(c,code,index+1,child,s.substring(5,s.length()-1).trim());if(c.suspended()){int resumeAt=end;c.addContinuation(()->runBlock(c,code,resumeAt,indent));return code.size();}index=end;continue;}
         if(s.equals("stop loop")){c.stopLoop();return code.size();}
         if(s.equals("skip loop")){c.skipLoop();return code.size();}
-        if(s.startsWith("if ")&&s.endsWith(":")){int end=findEnd(code,index+1,in.indent());if(test(c,s.substring(3,s.length()-1))){int child=index+1<code.size()?code.get(index+1).indent():in.indent()+4;runBlock(c,code,index+1,child);if(c.suspended()){int resumeAt=end;c.addContinuation(()->runBlock(c,code,resumeAt,indent));return code.size();}}index=end;continue;}
+        if((s.startsWith("if ")||s.startsWith("else if "))&&s.endsWith(":")||s.equals("else:")){
+             int next=executeConditional(c,code,index,indent);
+             if(c.suspended()){int resumeAt=next;c.addContinuation(()->runBlock(c,code,resumeAt,indent));return code.size();}
+             index=next;continue;
+         }
         if(s.startsWith("set hostile ")){setHostile(c.npc(),s.substring(12).trim().equalsIgnoreCase("on"));markChanged(c);index++;continue;}
         if(s.startsWith("set health of npc to ")){c.npc().setHealth(num(resolve(c,s.substring(21).trim())));markChanged(c);index++;continue;}
         if(s.startsWith("set max health of npc to ")){c.npc().setMaxHealth(num(resolve(c,s.substring(25).trim())));markChanged(c);index++;continue;}
@@ -603,7 +607,8 @@ public final class ScriptEngine implements Listener {
     private boolean isKnownInstruction(String instruction){
         String text=instruction.trim().toLowerCase(Locale.ROOT);
         if(text.matches("[a-z_][a-z0-9_-]*\\s*\\(.*\\)"))return true;
-        if(text.startsWith("if ")&&text.endsWith(":"))return true;
+        if((text.startsWith("if ")||text.startsWith("else if "))&&text.endsWith(":"))return true;
+        if(text.equals("else:"))return true;
         if(text.startsWith("loop ")&&text.endsWith(":"))return true;
         if(text.startsWith("set state ")||text.startsWith("set hostile ")
                 ||text.startsWith("set health of npc to ")||text.startsWith("set max health of npc to ")
@@ -714,6 +719,26 @@ public final class ScriptEngine implements Listener {
             else context.locals().remove(key);
         }
     }
+    private int executeConditional(ScriptContext context,List<Instruction> code,int index,int indent){
+        Instruction header=code.get(index);
+        String text=header.text().trim();
+        boolean matches=text.equals("else:")||test(context,text.startsWith("else if ")?text.substring(8,text.length()-1):text.substring(3,text.length()-1));
+        int branchEnd=findEnd(code,index+1,indent);
+        if(matches){
+            int child=index+1<code.size()?code.get(index+1).indent():indent+4;
+            runBlock(context,code,index+1,child);
+        }
+        int next=branchEnd;
+        if(next<code.size()&&code.get(next).indent()==indent){
+            String nextText=code.get(next).text().trim();
+            if(nextText.equals("else:")||nextText.startsWith("else if ")){
+                if(matches)return findEnd(code,next+1,indent);
+                return executeConditional(context,code,next,indent);
+            }
+        }
+        return next;
+    }
+
     private int findEnd(List<Instruction> c,int from,int parent){int i=from;while(i<c.size()&&c.get(i).indent()>parent)i++;return i;}
     private boolean test(ScriptContext context,String expression){
         String value=stripOuterParentheses(expression.trim());
