@@ -7,6 +7,8 @@ import net.amethystesmp.anpc.ANPCPlugin;
 
 import com.sun.net.httpserver.HttpServer;
 import javax.imageio.ImageIO;
+import javax.imageio.ImageReader;
+import javax.imageio.stream.ImageInputStream;
 import java.awt.image.BufferedImage;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
@@ -65,10 +67,42 @@ public final class LocalSkinServer implements AutoCloseable {
             }
 
             byte[] bytes = Files.readAllBytes(file);
-            BufferedImage image = ImageIO.read(new ByteArrayInputStream(bytes));
-            if (image == null || image.getWidth() != 64 || (image.getHeight() != 64 && image.getHeight() != 32)) {
-                plugin.getLogger().warning("Dimensions invalides pour " + requestedFile + " : un skin 64x64 ou 64x32 est attendu.");
-                return null;
+            try (ImageInputStream imageInput = ImageIO.createImageInputStream(new ByteArrayInputStream(bytes))) {
+                if (imageInput == null) {
+                    plugin.getLogger().warning("Image PNG illisible : " + requestedFile);
+                    return null;
+                }
+
+                var readers = ImageIO.getImageReaders(imageInput);
+                if (!readers.hasNext()) {
+                    plugin.getLogger().warning("Format d'image invalide pour " + requestedFile + ".");
+                    return null;
+                }
+
+                ImageReader reader = readers.next();
+                try {
+                    reader.setInput(imageInput, true, true);
+                    if (!"png".equalsIgnoreCase(reader.getFormatName())) {
+                        plugin.getLogger().warning("Le skin local doit être un véritable fichier PNG : " + requestedFile);
+                        return null;
+                    }
+
+                    int width = reader.getWidth(0);
+                    int height = reader.getHeight(0);
+                    if (width != 64 || (height != 64 && height != 32)) {
+                        plugin.getLogger().warning("Dimensions invalides pour " + requestedFile
+                                + " : un skin 64x64 ou 64x32 est attendu.");
+                        return null;
+                    }
+
+                    BufferedImage image = reader.read(0);
+                    if (image == null) {
+                        plugin.getLogger().warning("Image PNG illisible : " + requestedFile);
+                        return null;
+                    }
+                } finally {
+                    reader.dispose();
+                }
             }
 
             String digest = HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(bytes));
