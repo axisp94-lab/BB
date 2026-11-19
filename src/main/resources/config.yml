@@ -15,3 +15,12 @@ movement:
   flying:
     max-nodes: 5000
     max-distance: 128.0
+  climbing:
+    max-nodes: 5000
+    max-distance: 96.0
+  swimming:
+    max-nodes: 5000
+    max-distance: 96.0
+  amphibious:
+    max-nodes: 8000
+    max-distance: 128.0
