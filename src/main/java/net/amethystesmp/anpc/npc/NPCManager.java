@@ -267,8 +267,8 @@ public final class NPCManager {
         }
         try {
             NPCDefinition definition = NPCDefinition.read(id, backup);
+            if (!restoreDeletedScript(id)) return false;
             saveDefinition(definition);
-            restoreDeletedScript(id);
             plugin.variables().set("npc-lifecycle", id, "removed", false);
             yaml.set("npcs." + id + ".scripts-enabled", true);
             plugin.variables().restoreAllLocalVariables(id);
@@ -291,10 +291,22 @@ public final class NPCManager {
         List<String> worldNames = definition.worlds().stream().anyMatch(name -> name.equalsIgnoreCase("all"))
                 ? Bukkit.getWorlds().stream().map(World::getName).toList()
                 : definition.worlds();
-        plugin.variables().archiveAllLocalVariables(id);
+        if (!backupDeletedNPC(definition, worldNames)) return false;
+        if (!backupDeletedScript(id)) {
+            deletedYaml.set("npcs." + id, null);
+            saveDeleted();
+            return false;
+        }
+        try {
+            plugin.variables().archiveAllLocalVariables(id);
+        } catch (RuntimeException exception) {
+            restoreDeletedScript(id);
+            deletedYaml.set("npcs." + id, null);
+            saveDeleted();
+            plugin.getLogger().severe("Suppression du NPC '" + id + "' annulée : archivage SQLite impossible : " + exception.getMessage());
+            return false;
+        }
         plugin.variables().deleteOwnerAndPrefix("npc-runtime", id);
-        backupDeletedNPC(definition, worldNames);
-        backupDeletedScript(id);
         for (String mapKey : matchingKeys(id)) {
             ManagedNPC npc = npcs.remove(mapKey);
             if (npc != null) npc.close();
@@ -426,7 +438,7 @@ public final class NPCManager {
         return npcs.keySet().stream().filter(k -> k.startsWith(id.toLowerCase(Locale.ROOT) + "@")).toList();
     }
 
-    private void backupDeletedNPC(NPCDefinition definition, List<String> recoveryWorlds) {
+    private boolean backupDeletedNPC(NPCDefinition definition, List<String> recoveryWorlds) {
         String path = "npcs." + definition.id() + ".";
         deletedYaml.set(path + "display-name", definition.displayName());
         deletedYaml.set(path + "type", definition.type());
@@ -439,7 +451,9 @@ public final class NPCManager {
         deletedYaml.set(path + "skin", definition.skin());
         deletedYaml.set(path + "recovery-worlds", recoveryWorlds);
         deletedYaml.set(path + "deleted-at", System.currentTimeMillis());
-        saveDeleted();
+        if (saveDeleted()) return true;
+        deletedYaml.set("npcs." + definition.id(), null);
+        return false;
     }
 
     private File scriptFile(String id) {
@@ -454,32 +468,44 @@ public final class NPCManager {
         return new File(new File(plugin.getDataFolder(), "deleted-scripts"), id + ".aa");
     }
 
-    private void backupDeletedScript(String id) {
+    private boolean backupDeletedScript(String id) {
         File source = scriptFile(id);
         File backup = deletedScriptFile(id);
-        if (source == null || backup == null) return;
+        if (source == null || backup == null) return false;
+        if (!source.isFile()) {
+            try { Files.deleteIfExists(backup.toPath()); return true; }
+            catch (IOException exception) {
+                plugin.getLogger().warning("Nettoyage du script archivé de " + id + " impossible : " + exception.getMessage());
+                return false;
+            }
+        }
         try {
             File folder = backup.getParentFile();
             if (!folder.exists() && !folder.mkdirs()) throw new IOException("Dossier deleted-scripts impossible à créer.");
-            if (source.isFile()) Files.copy(source.toPath(), backup.toPath(), StandardCopyOption.REPLACE_EXISTING);
-            else Files.deleteIfExists(backup.toPath());
-            Files.deleteIfExists(source.toPath());
+            Files.copy(source.toPath(), backup.toPath(), StandardCopyOption.REPLACE_EXISTING);
+            Files.delete(source.toPath());
+            return true;
         } catch (IOException exception) {
+            try { Files.deleteIfExists(backup.toPath()); } catch (IOException ignored) { }
             plugin.getLogger().warning("Archivage du script de " + id + " impossible : " + exception.getMessage());
+            return false;
         }
     }
 
-    private void restoreDeletedScript(String id) {
+    private boolean restoreDeletedScript(String id) {
         File backup = deletedScriptFile(id);
         File destination = scriptFile(id);
-        if (backup == null || destination == null || !backup.isFile()) return;
+        if (backup == null || destination == null) return false;
+        if (!backup.isFile()) return true;
         try {
             File folder = destination.getParentFile();
             if (!folder.exists() && !folder.mkdirs()) throw new IOException("Dossier scripts impossible à créer.");
             Files.copy(backup.toPath(), destination.toPath(), StandardCopyOption.REPLACE_EXISTING);
-            Files.deleteIfExists(backup.toPath());
+            Files.delete(backup.toPath());
+            return true;
         } catch (IOException exception) {
             plugin.getLogger().warning("Restauration du script de " + id + " impossible : " + exception.getMessage());
+            return false;
         }
     }
 
@@ -505,9 +531,9 @@ public final class NPCManager {
         saveDeleted();
     }
 
-    private void saveDeleted() {
-        try { deletedYaml.save(deletedFile); }
-        catch (IOException exception) { plugin.getLogger().severe("Ecriture deleted-npcs.yml impossible : " + exception.getMessage()); }
+    private boolean saveDeleted() {
+        try { deletedYaml.save(deletedFile); return true; }
+        catch (IOException exception) { plugin.getLogger().severe("Ecriture deleted-npcs.yml impossible : " + exception.getMessage()); return false; }
     }
 
     private void saveDefinition(NPCDefinition definition) {
