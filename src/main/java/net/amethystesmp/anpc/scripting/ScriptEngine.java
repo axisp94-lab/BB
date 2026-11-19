@@ -122,8 +122,8 @@ public final class ScriptEngine implements Listener {
                 result.get(event).add(new Instruction(indent,text,i+1));
             }
         }
-        for(String event:new ArrayList<>(result.keySet())){
-            if(!validateBlockStructure(result.get(event),"événement '"+event+"'"))result.remove(event);
+        for(String eventKey:new ArrayList<>(result.keySet())){
+            if(!validateBlockStructure(result.get(eventKey),"événement '"+eventKey+"'"))result.remove(eventKey);
         }
         return result;
     }
