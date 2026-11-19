@@ -49,6 +49,7 @@ public final class ScriptEngine implements Listener {
     private final Map<ManagedNPC,Long> lastAttackTimes=new ConcurrentHashMap<>();
     private final Map<String,BukkitTask> intervalTasks=new ConcurrentHashMap<>();
     private final Map<ScriptContext,BukkitTask> watchdogTasks=new ConcurrentHashMap<>();
+    private final Map<String,Long> scriptGenerations=new ConcurrentHashMap<>();
     private final Map<String,Long> scriptLastRun=new ConcurrentHashMap<>();
     private final Map<String,Long> scriptLastChange=new ConcurrentHashMap<>();
     private final Map<String,Long> scriptLastWarning=new ConcurrentHashMap<>();
@@ -57,12 +58,14 @@ public final class ScriptEngine implements Listener {
     private final Map<String,Set<String>> nearbyNpcs=new ConcurrentHashMap<>();
     public ScriptEngine(ANPCPlugin plugin,NPCManager npcs,VariableStore variables){this.plugin=plugin;this.npcs=npcs;this.variables=variables;}
     public void loadAll(){
+        scriptGenerations.replaceAll((id,generation)->generation+1L);
         scripts.clear(); functions.clear(); intervalTasks.clear(); scriptLastRun.clear(); scriptLastChange.clear(); scriptLastWarning.clear();
         File dir=new File(plugin.getDataFolder(),"scripts");
         File[] fs=dir.listFiles((d,n)->n.toLowerCase(Locale.ROOT).endsWith(".aa"));
         if(fs==null)return;
         for(File file:fs){
             String id=file.getName().substring(0,file.getName().length()-3).toLowerCase(Locale.ROOT);
+            scriptGenerations.merge(id,1L,Long::sum);
             try{
                 List<String> lines=Files.readAllLines(file.toPath());
                 Map<String,FunctionDefinition> declared=parseFunctions(lines);
@@ -202,6 +205,7 @@ public final class ScriptEngine implements Listener {
         String id=requestedId.toLowerCase(Locale.ROOT).replaceFirst("\\.aa$","");
         if(!id.matches("[a-z0-9_-]+"))return;
         clearNpcTracking(id);
+        scriptGenerations.merge(id,1L,Long::sum);
         scripts.remove(id);
         BukkitTask interval=intervalTasks.remove(id);
         if(interval!=null){interval.cancel();tasks.remove(interval);}
@@ -257,6 +261,7 @@ public final class ScriptEngine implements Listener {
                 }
             }
             scripts.put(id,parsedScripts.getOrDefault(id,Map.of()));
+            scriptGenerations.merge(id,1L,Long::sum);
             functions.clear();functions.putAll(parsedFunctions);
             BukkitTask old=intervalTasks.remove(id);
             if(old!=null){old.cancel();tasks.remove(old);}
@@ -333,6 +338,7 @@ public final class ScriptEngine implements Listener {
         ScriptContext ctx=new ScriptContext(npc,player);
         ctx.setEventData(eventData);
         ctx.setEventNpc(eventNpc);
+        ctx.setScriptExecution(npc.id().toLowerCase(Locale.ROOT),scriptGenerations.getOrDefault(npc.id().toLowerCase(Locale.ROOT),0L));
         int indent=code.isEmpty()?baseIndent:code.get(0).indent();
         runBlock(ctx,code,0,indent);
     }
@@ -447,12 +453,21 @@ public final class ScriptEngine implements Listener {
             long ticks=parseDurationTicks(s.substring(5));
             List<Instruction> remaining=new ArrayList<>(code.subList(index+1,code.size()));
             c.beginWait();startWatchdog(c);
-            BukkitTask task=Bukkit.getScheduler().runTaskLater(plugin,()->{
+            final long expectedGeneration=c.scriptGeneration();
+            BukkitTask[] scheduled=new BukkitTask[1];
+            scheduled[0]=Bukkit.getScheduler().runTaskLater(plugin,()->{
+                tasks.remove(scheduled[0]);
                 c.endWait();
+                boolean sameScript=scriptGenerations.getOrDefault(c.scriptId(),0L)==expectedGeneration;
+                if(!sameScript||!c.npc().scriptsEnabled()||c.npc().tracker().isClosed()){
+                    c.finish();
+                    stopWatchdog(c);
+                    return;
+                }
                 runBlock(c,remaining,0,indent);
                 if(!c.hasPendingWaits()){c.finish();stopWatchdog(c);}
             },ticks);
-            tasks.add(task);return code.size();
+            tasks.add(scheduled[0]);return code.size();
         }
         if(s.startsWith("run command ")){String cmd=unquote(s.substring(12));Bukkit.dispatchCommand(Bukkit.getConsoleSender(),cmd.replace("%player%",c.player()==null?"":c.player().getName()));index++;continue;}
         if(s.startsWith("look at ")&&(c.player()!=null||c.eventNpc()!=null)){Location at=c.player()!=null?c.player().getLocation():c.eventNpc().location();Location from=c.npc().location();from.setDirection(at.toVector().subtract(from.toVector()));c.npc().move(from);markChanged(c);index++;continue;}
@@ -778,6 +793,7 @@ public final class ScriptEngine implements Listener {
         ScriptContext child=new ScriptContext(caller.npc(),caller.player());
         child.setEventData(caller.eventData());
         child.setEventNpc(caller.eventNpc());
+        child.setScriptExecution(caller.scriptId(),caller.scriptGeneration());
         child.setCallDepth(caller.callDepth()+1);
         for(int i=0;i<arguments.size();i++){String parameter=function.parameters().get(i);child.locals().put(parameter,resolve(caller,arguments.get(i)));child.markTransientLocal(parameter);}
         if(!function.code().isEmpty())runBlock(child,function.code(),0,function.code().get(0).indent());
