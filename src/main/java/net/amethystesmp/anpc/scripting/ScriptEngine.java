@@ -272,7 +272,11 @@ public final class ScriptEngine implements Listener {
             List<Instruction> interval=scripts.get(id).get("interval");
             if(interval!=null)scheduleInterval(id,interval);
             List<Instruction> spawn=scripts.get(id).get("spawn");
-            if(spawn!=null)for(ManagedNPC npc:npcs.instances(id))if(npc.scriptsEnabled())execute(npc,null,spawn,0);
+            List<Instruction> reload=scripts.get(id).get("reload");
+            for(ManagedNPC npc:npcs.instances(id))if(npc.scriptsEnabled()){
+                if(spawn!=null)execute(npc,null,spawn,0);
+                if(reload!=null)execute(npc,null,reload,0);
+            }
             return true;
         }catch(Exception exception){
             plugin.getLogger().warning("Rechargement du script '"+id+"' impossible : "+exception.getMessage());
