@@ -394,7 +394,7 @@ public final class ScriptEngine implements Listener {
         if(s.startsWith("set target of npc to ")){setTargetSelector(c.npc(),s.substring(21).trim());markChanged(c);index++;continue;}
         if(s.startsWith("set cooldown ")){
             String body=s.substring(13).trim();int forIndex=body.toLowerCase(Locale.ROOT).lastIndexOf(" for ");
-            if(forIndex>0){String name=unquote(body.substring(0,forIndex).trim());long duration=parseDurationMillis(body.substring(forIndex+5).trim());c.npc().setCooldown(name,duration);markChanged(c);}
+            if(forIndex>0){String name=unquote(body.substring(0,forIndex).trim());long duration=parseDurationMillis(body.substring(forIndex+5).trim());if(duration<0)plugin.getLogger().warning("Durée de cooldown invalide : "+body.substring(forIndex+5).trim());else{c.npc().setCooldown(name,duration);markChanged(c);}}
             else plugin.getLogger().warning("Syntaxe attendue : set cooldown \"nom\" for 5 seconds.");
             index++;continue;
         }
@@ -1295,19 +1295,25 @@ public final class ScriptEngine implements Listener {
     private String pathKey(int x,int y,int z){return x+":"+y+":"+z;}
 
     private long parseDurationMillis(String raw){
-        String value=raw.trim().toLowerCase(Locale.ROOT);
+        String value=raw==null?"":raw.trim().toLowerCase(Locale.ROOT);
         try{
-            if(value.endsWith("ticks"))return Math.max(0L,Long.parseLong(value.substring(0,value.length()-5).trim())*50L);
-            if(value.endsWith("tick"))return Math.max(0L,Long.parseLong(value.substring(0,value.length()-4).trim())*50L);
-            if(value.endsWith("ms"))return Math.max(0L,Long.parseLong(value.substring(0,value.length()-2).trim()));
-            if(value.endsWith("minutes"))return Math.max(0L,Long.parseLong(value.substring(0,value.length()-7).trim())*60_000L);
-            if(value.endsWith("minute"))return Math.max(0L,Long.parseLong(value.substring(0,value.length()-6).trim())*60_000L);
-            if(value.endsWith("m"))return Math.max(0L,Long.parseLong(value.substring(0,value.length()-1).trim())*60_000L);
-            if(value.endsWith("seconds"))return Math.max(0L,Long.parseLong(value.substring(0,value.length()-7).trim())*1_000L);
-            if(value.endsWith("second"))return Math.max(0L,Long.parseLong(value.substring(0,value.length()-6).trim())*1_000L);
-            if(value.endsWith("s"))return Math.max(0L,Long.parseLong(value.substring(0,value.length()-1).trim())*1_000L);
-            return Math.max(0L,Long.parseLong(value)*50L);
-        }catch(NumberFormatException exception){return 0L;}
+            if(value.endsWith("ticks"))return scaledDuration(value.substring(0,value.length()-5),50L);
+            if(value.endsWith("tick"))return scaledDuration(value.substring(0,value.length()-4),50L);
+            if(value.endsWith("ms"))return scaledDuration(value.substring(0,value.length()-2),1L);
+            if(value.endsWith("minutes"))return scaledDuration(value.substring(0,value.length()-7),60_000L);
+            if(value.endsWith("minute"))return scaledDuration(value.substring(0,value.length()-6),60_000L);
+            if(value.endsWith("m"))return scaledDuration(value.substring(0,value.length()-1),60_000L);
+            if(value.endsWith("seconds"))return scaledDuration(value.substring(0,value.length()-7),1_000L);
+            if(value.endsWith("second"))return scaledDuration(value.substring(0,value.length()-6),1_000L);
+            if(value.endsWith("s"))return scaledDuration(value.substring(0,value.length()-1),1_000L);
+            return scaledDuration(value,50L);
+        }catch(NumberFormatException|ArithmeticException exception){return -1L;}
+    }
+
+    private long scaledDuration(String raw,long multiplier){
+        long amount=Long.parseLong(raw.trim());
+        if(amount<0)return -1L;
+        return Math.multiplyExact(amount,multiplier);
     }
 
     private long parseDurationTicks(String raw){
