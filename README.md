@@ -196,9 +196,10 @@ on right click:
     set health of npc to 20
     set max health of npc to 30
     set speed of npc to 3
+    set attack damage of npc to 4
 ```
 
-Les états sont réinitialisés au redémarrage normal. Si les scripts du NPC sont désactivés, leur état courant est sauvegardé et restauré lors de la réactivation, même après un redémarrage.
+Les propriétés `health of npc`, `max health of npc`, `speed of npc` et `attack damage of npc` sont accessibles dans les expressions. `set attack damage of npc to <valeur>` règle les dégâts de combat propres à cette instance. Les états sont réinitialisés au redémarrage normal. Si les scripts du NPC sont désactivés, leur état courant est sauvegardé et restauré lors de la réactivation, même après un redémarrage.
 
 ## Commandes
 
