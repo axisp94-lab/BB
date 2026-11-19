@@ -31,6 +31,7 @@ public final class ScriptEngine implements Listener {
     private record FunctionResult(boolean returned, Object value) {}
     private final ANPCPlugin plugin; private final NPCManager npcs; private final VariableStore variables;
     private final Map<String, ScriptData> scripts = new ConcurrentHashMap<>();
+    private final ThreadLocal<Integer> functionDepth = ThreadLocal.withInitial(() -> 0);
     private final Set<BukkitTask> tasks=ConcurrentHashMap.newKeySet();
     private final Map<String,Set<UUID>> nearbyPlayers=new ConcurrentHashMap<>();
     public ScriptEngine(ANPCPlugin plugin,NPCManager npcs,VariableStore variables){this.plugin=plugin;this.npcs=npcs;this.variables=variables;}
@@ -518,6 +519,19 @@ public final class ScriptEngine implements Listener {
         } catch (NumberFormatException ignored) {
         }
 
+        if (value.startsWith("@")) {
+            List<Entity> selected = selectEntities(context, value);
+            if (value.equalsIgnoreCase("@p") || value.toLowerCase(Locale.ROOT).startsWith("@n")) {
+                return selected.isEmpty() ? null : selected.get(0);
+            }
+            return selected;
+        }
+        if (value.regionMatches(true, 0, "player:", 0, 7)) return Bukkit.getPlayerExact(value.substring(7));
+        if (value.regionMatches(true, 0, "npc:", 0, 4)) return npcs.get(value.substring(4));
+
+        FunctionResult functionResult = invokeFunction(context, value);
+        if (functionResult != null) return functionResult.value();
+
         String metadata = variables.get("meta", context.npc().id(), value, null);
         if (metadata == null) metadata = variables.get("meta", "", value, null);
         if (metadata != null) {
@@ -534,6 +548,134 @@ public final class ScriptEngine implements Listener {
         if (global != null) return parseStored(global);
         return context.value(value);
     }
+    private FunctionResult invokeFunction(ScriptContext parent, String expression) {
+        int open = expression.indexOf('(');
+        if (open <= 0 || !expression.endsWith(")")) return null;
+
+        String name = expression.substring(0, open).trim().toLowerCase(Locale.ROOT);
+        ScriptData script = scripts.get(parent.npc().id().toLowerCase(Locale.ROOT));
+        if (script == null) return null;
+        FunctionDefinition function = script.functions().get(name);
+        if (function == null) return null;
+
+        if (functionDepth.get() >= 32) {
+            plugin.getLogger().warning("Script " + parent.npc().id() + " : profondeur maximale d'appel de fonctions atteinte pour " + name + ".");
+            return new FunctionResult(true, null);
+        }
+
+        List<String> arguments = parseFunctionArguments(expression.substring(open + 1, expression.length() - 1));
+        if (arguments.size() != function.parameters().size()) {
+            plugin.getLogger().warning("Script " + parent.npc().id() + " : nombre d'arguments invalide pour " + name + ".");
+            return new FunctionResult(true, null);
+        }
+
+        ScriptContext context = new ScriptContext(parent.npc(), parent.player());
+        context.locals().putAll(parent.locals());
+        for (int i = 0; i < arguments.size(); i++) {
+            context.locals().put(function.parameters().get(i), resolve(parent, arguments.get(i)));
+        }
+
+        functionDepth.set(functionDepth.get() + 1);
+        try {
+            return runFunctionBlock(context, function.code(), 0, 0);
+        } finally {
+            functionDepth.set(functionDepth.get() - 1);
+        }
+    }
+
+    private List<String> parseFunctionArguments(String raw) {
+        List<String> arguments = new ArrayList<>();
+        if (raw.isBlank()) return arguments;
+
+        boolean quoted = false;
+        int parentheses = 0;
+        int brackets = 0;
+        int start = 0;
+        for (int i = 0; i < raw.length(); i++) {
+            char character = raw.charAt(i);
+            if (character == '"' && (i == 0 || raw.charAt(i - 1) != '\\\\')) quoted = !quoted;
+            if (quoted) continue;
+            if (character == '(') parentheses++;
+            else if (character == ')') parentheses--;
+            else if (character == '[') brackets++;
+            else if (character == ']') brackets--;
+            else if (character == ',' && parentheses == 0 && brackets == 0) {
+                arguments.add(raw.substring(start, i).trim());
+                start = i + 1;
+            }
+        }
+        arguments.add(raw.substring(start).trim());
+        return arguments;
+    }
+
+    private FunctionResult runFunctionBlock(ScriptContext context, List<Instruction> code, int start, int indent) {
+        int index = start;
+        while (index < code.size()) {
+            Instruction instruction = code.get(index);
+            if (instruction.indent() < indent) return new FunctionResult(false, null);
+            if (instruction.indent() > indent) {
+                index = findEnd(code, index + 1, instruction.indent());
+                continue;
+            }
+
+            String line = instruction.text();
+            if (line.startsWith("return")) {
+                String expression = line.length() > 6 ? line.substring(6).trim() : "";
+                return new FunctionResult(true, expression.isBlank() ? null : resolve(context, expression));
+            }
+
+            if (line.startsWith("if ") && line.endsWith(":")) {
+                int end = findEnd(code, index + 1, instruction.indent());
+                if (test(context, line.substring(3, line.length() - 1)) && index + 1 < end) {
+                    int childIndent = code.get(index + 1).indent();
+                    FunctionResult result = runFunctionBlock(context, code, index + 1, childIndent);
+                    if (result.returned()) return result;
+                }
+                index = end;
+                continue;
+            }
+
+            if (line.startsWith("set ")) {
+                String body = line.substring(4).trim();
+                int closingQuote = body.indexOf('"', 1);
+                if (body.startsWith("\"") && closingQuote > 0) {
+                    String name = body.substring(1, closingQuote).toLowerCase(Locale.ROOT);
+                    String value = body.substring(closingQuote + 1).trim();
+                    if (value.startsWith("(") && value.endsWith(")")) value = value.substring(1, value.length() - 1);
+                    context.locals().put(name, resolve(context, value));
+                }
+                index++;
+                continue;
+            }
+
+            if (line.startsWith("say local ") || line.startsWith("say global ")) {
+                boolean global = line.startsWith("say global ");
+                String message = ChatColor.translateAlternateColorCodes('&',
+                        context.npc().definition().displayName() + " » " + unquote(line.substring(global ? 11 : 10)));
+                if (global) Bukkit.broadcastMessage(message);
+                else if (context.player() != null) context.player().sendMessage(message);
+                index++;
+                continue;
+            }
+
+            if (line.startsWith("play anime ")) {
+                context.npc().animate(unquote(line.substring(11)));
+                index++;
+                continue;
+            }
+
+            if (line.startsWith("wait ")) {
+                warnInstruction(context, instruction, "wait n'est pas autorisé dans une fonction qui retourne une valeur");
+                index++;
+                continue;
+            }
+
+            warnInstruction(context, instruction, "instruction non prise en charge dans une fonction");
+            index++;
+        }
+        return new FunctionResult(false, null);
+    }
+
     private Object parseStored(String s){if(s.equalsIgnoreCase("true")||s.equalsIgnoreCase("false"))return Boolean.parseBoolean(s);try{return Double.parseDouble(s);}catch(Exception e){return s;}}
     private void createVariable(ScriptContext context, String declaration) {
         List<String> arguments = extractGroups(declaration);
