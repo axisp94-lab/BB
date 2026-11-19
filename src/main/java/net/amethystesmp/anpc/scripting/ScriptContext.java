@@ -22,6 +22,8 @@ public final class ScriptContext {
     private ManagedNPC eventNpc;
     private int pendingWaits;
     private boolean finished;
+    private boolean suspended;
+    private final Deque<Runnable> continuations = new ArrayDeque<>();
     private long lastChangeAt=System.currentTimeMillis();
     private long lastWarningAt;
     private String scriptId="";
@@ -41,7 +43,13 @@ public final class ScriptContext {
     public void endWait() { pendingWaits = Math.max(0, pendingWaits - 1); }
     public boolean hasPendingWaits() { return pendingWaits > 0; }
     public boolean finished() { return finished; }
-    public void finish() { finished = true; }
+    public void finish() { finished = true; suspended = false; continuations.clear(); }
+    public boolean suspended() { return suspended; }
+    public void suspend() { suspended = true; }
+    public void resume() { suspended = false; }
+    public void addContinuation(Runnable continuation) { continuations.addLast(continuation); }
+    public Runnable nextContinuation() { return continuations.pollFirst(); }
+    public void clearContinuations() { continuations.clear(); }
     public void markChanged() { lastChangeAt = System.currentTimeMillis(); }
     public boolean shouldWarnNoChange() {
         long now = System.currentTimeMillis();
