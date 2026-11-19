@@ -76,6 +76,7 @@ public final class ScriptContext {
         if(k.equals("health of npc"))return npc.health();
         if(k.equals("max health of npc"))return npc.maxHealth();
         if(k.equals("speed of npc"))return npc.speed();
+        if(k.equals("attack damage of npc"))return npc.attackDamage();
         if(k.equals("hostile of npc")||k.equals("npc is hostile"))return npc.hostile();
         if(k.equals("animation of npc"))return npc.animation();
         if(player!=null){
