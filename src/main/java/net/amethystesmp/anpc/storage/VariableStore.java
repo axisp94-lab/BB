@@ -131,22 +131,31 @@ public final class VariableStore implements AutoCloseable {
         long now = System.currentTimeMillis();
         try {
             connection.setAutoCommit(false);
-            try (PreparedStatement archive = connection.prepareStatement("""
+            try (PreparedStatement archiveCurrent = connection.prepareStatement("""
                     INSERT INTO deleted_npc_variables(npc_id,world,name,value,deleted_at)
                     SELECT ?, ?, name, value, ?
-                    FROM variables
-                    WHERE scope IN ('local','npc') AND owner IN (?, ?)
+                    FROM variables WHERE scope='local' AND owner=?
                     ON CONFLICT(npc_id,world,name) DO UPDATE SET
                         value=excluded.value, deleted_at=excluded.deleted_at
                     """);
+                 PreparedStatement archiveLegacy = connection.prepareStatement("""
+                    INSERT INTO deleted_npc_variables(npc_id,world,name,value,deleted_at)
+                    SELECT ?, ?, name, value, ?
+                    FROM variables WHERE scope IN ('local','npc') AND owner=?
+                    ON CONFLICT(npc_id,world,name) DO NOTHING
+                    """);
                  PreparedStatement delete = connection.prepareStatement(
                     "DELETE FROM variables WHERE scope IN ('local','npc') AND owner IN (?, ?)")) {
-                archive.setString(1, id);
-                archive.setString(2, world);
-                archive.setLong(3, now);
-                archive.setString(4, owner);
-                archive.setString(5, id);
-                archive.executeUpdate();
+                archiveCurrent.setString(1, id);
+                archiveCurrent.setString(2, world);
+                archiveCurrent.setLong(3, now);
+                archiveCurrent.setString(4, owner);
+                archiveCurrent.executeUpdate();
+                archiveLegacy.setString(1, id);
+                archiveLegacy.setString(2, world);
+                archiveLegacy.setLong(3, now);
+                archiveLegacy.setString(4, id);
+                archiveLegacy.executeUpdate();
                 delete.setString(1, owner);
                 delete.setString(2, id);
                 delete.executeUpdate();
