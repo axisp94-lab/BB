@@ -34,6 +34,7 @@ public final class ScriptEngine implements Listener {
     private final ThreadLocal<Integer> functionDepth = ThreadLocal.withInitial(() -> 0);
     private final Set<BukkitTask> tasks = ConcurrentHashMap.newKeySet();
     private final Map<String, BukkitTask> movementTasks = new ConcurrentHashMap<>();
+    private final Map<String, BukkitTask> followTasks = new ConcurrentHashMap<>();
     private final Map<String, Set<UUID>> nearbyPlayers = new ConcurrentHashMap<>();
     public ScriptEngine(ANPCPlugin plugin,NPCManager npcs,VariableStore variables){this.plugin=plugin;this.npcs=npcs;this.variables=variables;}
     public void loadAll() {
@@ -407,7 +408,39 @@ public final class ScriptEngine implements Listener {
                 continue;
             }
 
-            if (line.equals("stop follow") || line.equals("stop attack")) {
+            if (line.startsWith("follow ")) {
+                startFollow(context.npc(), line.substring(7).trim(), 1.5, context.player());
+                index++;
+                continue;
+            }
+
+            if (line.startsWith("keep distance ")) {
+                String arguments = line.substring(14).trim();
+                int separator = arguments.lastIndexOf(' ');
+                if (separator > 0) {
+                    String selector = arguments.substring(0, separator).trim();
+                    try {
+                        double distance = Math.max(0.5, Math.min(32.0,
+                                Double.parseDouble(arguments.substring(separator + 1).trim())));
+                        startFollow(context.npc(), selector, distance, context.player());
+                    } catch (NumberFormatException exception) {
+                        warnInstruction(context, instruction, "distance invalide");
+                    }
+                } else {
+                    warnInstruction(context, instruction, "syntaxe : keep distance <cible> <distance>");
+                }
+                index++;
+                continue;
+            }
+
+            if (line.equals("stop follow")) {
+                stopFollow(context.npc());
+                index++;
+                continue;
+            }
+
+            if (line.equals("stop attack")) {
+                warnInstruction(context, instruction, "cette action n'est pas disponible dans cette version");
                 index++;
                 continue;
             }
@@ -904,15 +937,75 @@ public final class ScriptEngine implements Listener {
         }
         return null;
     }
-    private void stopMovement(ManagedNPC npc) {
+    private String movementKey(ManagedNPC npc) {
         Location location = npc.location();
-        if (location.getWorld() == null) return;
-        String key = npc.id().toLowerCase(Locale.ROOT) + "@" + location.getWorld().getName().toLowerCase(Locale.ROOT);
+        String world = location.getWorld() == null ? "unknown" : location.getWorld().getName().toLowerCase(Locale.ROOT);
+        return npc.id().toLowerCase(Locale.ROOT) + "@" + world;
+    }
+
+    private void stopMovement(ManagedNPC npc) {
+        String key = movementKey(npc);
         BukkitTask task = movementTasks.remove(key);
         if (task != null) {
             task.cancel();
             tasks.remove(task);
         }
+    }
+
+    private void stopFollow(ManagedNPC npc) {
+        String key = movementKey(npc);
+        BukkitTask follow = followTasks.remove(key);
+        if (follow != null) {
+            follow.cancel();
+            tasks.remove(follow);
+        }
+        stopMovement(npc);
+    }
+
+    private void startFollow(ManagedNPC npc, String selector, double desiredDistance, Player eventPlayer) {
+        stopFollow(npc);
+        if (selector.isBlank()) return;
+
+        String key = movementKey(npc);
+        UUID fixedPlayer = selector.equalsIgnoreCase("event entity") && eventPlayer != null
+                ? eventPlayer.getUniqueId() : null;
+        ScriptContext selectorContext = new ScriptContext(npc, null);
+
+        BukkitTask task = Bukkit.getScheduler().runTaskTimer(plugin, () -> {
+            Entity target = fixedPlayer == null
+                    ? selectEntities(selectorContext, selector).stream().findFirst().orElse(null)
+                    : Bukkit.getPlayer(fixedPlayer);
+
+            if (target == null || !target.isValid()) {
+                stopFollow(npc);
+                return;
+            }
+
+            Location npcLocation = npc.location();
+            Location targetLocation = target.getLocation();
+            if (npcLocation.getWorld() == null || !npcLocation.getWorld().equals(targetLocation.getWorld())) {
+                stopMovement(npc);
+                return;
+            }
+
+            double distance = npcLocation.distance(targetLocation);
+            if (distance <= desiredDistance + 0.35) {
+                stopMovement(npc);
+                return;
+            }
+
+            if (!movementTasks.containsKey(key)) {
+                org.bukkit.util.Vector offset = npcLocation.toVector().subtract(targetLocation.toVector());
+                if (offset.lengthSquared() < 0.000001) offset = new org.bukkit.util.Vector(1, 0, 0);
+                offset.normalize().multiply(desiredDistance);
+                Location destination = targetLocation.clone().add(offset);
+                destination.setY(targetLocation.getY());
+                move(npc, destination);
+            }
+        }, 10L, 10L);
+
+        followTasks.put(key, task);
+        tasks.add(task);
     }
 
     private void move(ManagedNPC npc, Location target) {
@@ -940,8 +1033,7 @@ public final class ScriptEngine implements Listener {
             return;
         }
 
-        String movementKey = npc.id().toLowerCase(Locale.ROOT) + "@"
-                + start.getWorld().getName().toLowerCase(Locale.ROOT);
+        String movementKey = movementKey(npc);
         BukkitTask previousTask = movementTasks.remove(movementKey);
         if (previousTask != null) {
             previousTask.cancel();
@@ -1012,6 +1104,7 @@ public final class ScriptEngine implements Listener {
         tasks.forEach(BukkitTask::cancel);
         tasks.clear();
         movementTasks.clear();
+        followTasks.clear();
     }
 
     public void shutdown() {
