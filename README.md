@@ -97,6 +97,25 @@ on right click:
     say local message
 ```
 
+### Attentes asynchrones
+
+`wait` suspend puis reprend le script sans bloquer le thread serveur. Les continuations conservent le contexte des blocs conditionnels, des boucles et des appels de fonction autonomes (`call nom_fonction(...)`). Les attentes successives sont exécutées dans l'ordre. Les durées acceptées sont les ticks (unité par défaut), les secondes, les minutes et les millisecondes ; une durée invalide produit un avertissement et n'est pas exécutée.
+
+Une fonction contenant `wait` doit être appelée comme instruction autonome. Elle ne doit pas être appelée dans une expression telle que `set "x" (call ma_fonction())`, car une expression doit renvoyer sa valeur immédiatement.
+
+```python
+function saluer():
+    say local "Bonjour !"
+    wait 2 seconds
+    say local "À bientôt !"
+
+on right click:
+    loop 2 times:
+        if player is sneaking:
+            call saluer()
+        wait 5 ticks
+```
+
 ### Boucles
 
 ```python
@@ -230,7 +249,7 @@ Permission : `anpc.admin` (opérateur par défaut).
 **Encore incomplet ou à valider en jeu :**
 - Interactions complètes entre NPC, notamment les combats NPC contre NPC et les règles de ciblage des mobs vers les NPC.
 - Équipement visuel des NPC et couverture complète des attributs/items.
-- Couverture exhaustive des événements, conditions et actions `.aa`. En particulier, les continuations `wait` dans des blocs imbriqués ou des fonctions doivent encore être fiabilisées.
+- Couverture exhaustive des événements, conditions et actions `.aa`. Les attentes imbriquées dans les conditions, les boucles et les appels de fonction autonomes sont prises en charge ; les appels de fonction contenant `wait` dans une expression restent volontairement non pris en charge.
 - Validation réelle sur Paper 1.21.11 avec BetterModel 2.2.0, puis tests des intégrations MythicMobs et ItemsAdder sur serveur.
 - Tests d'intégration en jeu : les tests automatisés actuels couvrent le stockage SQLite, pas le comportement complet de Paper/BetterModel.
 
