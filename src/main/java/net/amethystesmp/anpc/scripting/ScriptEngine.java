@@ -121,7 +121,11 @@ public final class ScriptEngine implements Listener {
             String raw=lines.get(i);
             if(raw.isBlank()||raw.stripLeading().startsWith("#")||!raw.equals(raw.stripLeading()))continue;
             String header=raw.trim();
-            if(!header.toLowerCase(Locale.ROOT).startsWith("function ")||!header.endsWith(":"))continue;
+            if(!header.toLowerCase(Locale.ROOT).startsWith("function "))continue;
+            if(!header.endsWith(":")){
+                plugin.getLogger().warning("Déclaration de fonction invalide ligne "+(i+1)+" : ':' manquant.");
+                continue;
+            }
             int open=header.indexOf('('),close=header.lastIndexOf(')');
             if(open<10||close<open){plugin.getLogger().warning("Déclaration de fonction invalide ligne "+(i+1)+" : "+header);continue;}
             String name=header.substring(9,open).trim().toLowerCase(Locale.ROOT);
@@ -388,8 +392,13 @@ public final class ScriptEngine implements Listener {
         String text=instruction.trim().toLowerCase(Locale.ROOT);
         if(text.startsWith("if ")&&text.endsWith(":"))return true;
         if(text.startsWith("loop ")&&text.endsWith(":"))return true;
+        if(text.startsWith("set state ")||text.startsWith("set hostile ")
+                ||text.startsWith("set health of npc to ")||text.startsWith("set max health of npc to ")
+                ||text.startsWith("set speed of npc to ")||text.startsWith("set target of npc to ")
+                ||text.startsWith("set checkpoint ")||text.startsWith("set block "))return true;
+        if(text.startsWith("set "))return text.matches("^set\\s+\\"[^\\"]+\\"\\s+.+$");
         return text.startsWith("say local ")||text.startsWith("say global ")||text.startsWith("send to ")
-                ||text.startsWith("create variable ")||text.startsWith("set ")||text.startsWith("add state ")
+                ||text.startsWith("create variable ")||text.startsWith("add state ")
                 ||text.startsWith("remove state ")||text.equals("clear states")||text.startsWith("flag on ")
                 ||text.startsWith("flag off ")||text.startsWith("play sound ")||text.startsWith("play anime ")
                 ||text.startsWith("move to ")||text.startsWith("fly to ")||text.startsWith("follow ")
