@@ -77,8 +77,9 @@ public final class ANPCCommand implements TabExecutor {
                     return true;
                 }
                 ManagedNPC npc = plugin.npcs().get(args[1], player.getWorld());
+                if (npc == null) npc = plugin.npcs().get(args[1]);
                 if (npc == null) {
-                    msg(sender, "NPC introuvable dans ton monde : " + args[1]);
+                    msg(sender, "NPC introuvable : " + args[1]);
                     return true;
                 }
                 if (player.teleport(npc.location())) {
