@@ -439,7 +439,7 @@ public final class ScriptEngine implements Listener {
     }
 
     private boolean isKnownEvent(String event){
-        return Set.of("spawn","right click","left click","left click while sneaking","damage","entity approach","entity leave",
+        return Set.of("spawn","right click","right click while sneaking","left click","left click while sneaking","item click","damage","entity approach","entity leave",
                 "npc approach","npc leave","interval","player join","player connect","player quit","player disconnect",
                 "player chat","player command","chat","command","join","quit","connect","disconnect","click","interact","walk").contains(event);
     }
