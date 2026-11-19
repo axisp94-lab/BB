@@ -10,14 +10,14 @@ import java.util.Deque;
 
 public final class ScriptContext {
     private static final class LoopFrame { boolean stopped; boolean skipped; }
-    private final ManagedNPC npc; private final Player player; private final Map<String,Object> locals=new HashMap<>();
+    private ManagedNPC npc; private final Player player; private final Map<String,Object> locals=new HashMap<>();
     private final java.util.Set<String> transientLocals=new java.util.HashSet<>();
     private final Deque<LoopFrame> loops = new ArrayDeque<>();
     private boolean returned;
     private Object returnValue;
     private int callDepth;
     public ScriptContext(ManagedNPC npc,Player player){this.npc=npc;this.player=player;}
-    public ManagedNPC npc(){return npc;} public Player player(){return player;} public Map<String,Object> locals(){return locals;}
+    public ManagedNPC npc(){return npc;} public void setNpc(ManagedNPC npc){this.npc=npc;} public Player player(){return player;} public Map<String,Object> locals(){return locals;}
     public void markTransientLocal(String name){transientLocals.add(name.toLowerCase(java.util.Locale.ROOT));}
     public boolean isTransientLocal(String name){return transientLocals.contains(name.toLowerCase(java.util.Locale.ROOT));}
     public boolean returned() { return returned; }
