@@ -856,6 +856,8 @@ public final class ScriptEngine implements Listener {
         if(lowerValue.startsWith("player:"))return Bukkit.getPlayerExact(value.substring(7).trim());
         Object namedNpcValue=resolveNamedNpcProperty(c,value);
         if(namedNpcValue!=UNRESOLVED)return namedNpcValue;
+        Object namedPlayerValue=resolveNamedPlayerProperty(value);
+        if(namedPlayerValue!=UNRESOLVED)return namedPlayerValue;
         if(value.equalsIgnoreCase("@p"))return nearest(c.npc().location());
         if(value.equalsIgnoreCase("@a"))return new ArrayList<>(c.npc().location().getWorld().getPlayers());
         if(value.equalsIgnoreCase("@n"))return nearestEntity(c.npc().location(),null);
@@ -931,6 +933,34 @@ public final class ScriptEngine implements Listener {
             case "max health"->target.maxHealth();
             case "speed"->target.speed();
             case "state","primary state"->target.primaryState();
+            default->UNRESOLVED;
+        };
+    }
+
+    private Object resolveNamedPlayerProperty(String expression){
+        String lower=expression.toLowerCase(Locale.ROOT);
+        int marker=lower.indexOf(" of player:");
+        if(marker<0)return UNRESOLVED;
+        String property=lower.substring(0,marker).trim();
+        String name=expression.substring(marker+11).trim();
+        if(name.isBlank())return UNRESOLVED;
+        Player target=Bukkit.getPlayerExact(name);
+        if(target==null)return property.equals("name")?name:null;
+        return switch(property){
+            case "name"->target.getName();
+            case "uuid"->target.getUniqueId().toString();
+            case "location","position"->target.getLocation();
+            case "world"->target.getWorld().getName();
+            case "x"->target.getLocation().getX();
+            case "y"->target.getLocation().getY();
+            case "z"->target.getLocation().getZ();
+            case "yaw"->target.getLocation().getYaw();
+            case "pitch"->target.getLocation().getPitch();
+            case "health"->target.getHealth();
+            case "food level"->target.getFoodLevel();
+            case "level"->target.getLevel();
+            case "game mode"->target.getGameMode().name();
+            case "is online"->target.isOnline();
             default->UNRESOLVED;
         };
     }
