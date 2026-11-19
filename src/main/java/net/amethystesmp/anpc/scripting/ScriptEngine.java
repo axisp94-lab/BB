@@ -72,7 +72,7 @@ public final class ScriptEngine implements Listener {
         int bodyIndent = -1;
 
         for (int i = 0; i < lines.size(); i++) {
-            String raw = lines.get(i).replace("\\t", "    ");
+            String raw = lines.get(i).replace("\t", "    ");
             if (raw.isBlank() || raw.stripLeading().startsWith("#")) continue;
 
             int indent = raw.length() - raw.stripLeading().length();
@@ -593,7 +593,7 @@ public final class ScriptEngine implements Listener {
         int start = 0;
         for (int i = 0; i < raw.length(); i++) {
             char character = raw.charAt(i);
-            if (character == '"' && (i == 0 || raw.charAt(i - 1) != '\\\\')) quoted = !quoted;
+            if (character == '"' && (i == 0 || raw.charAt(i - 1) != '\\')) quoted = !quoted;
             if (quoted) continue;
             if (character == '(') parentheses++;
             else if (character == ')') parentheses--;
