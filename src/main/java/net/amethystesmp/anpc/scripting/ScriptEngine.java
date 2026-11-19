@@ -292,9 +292,8 @@ public final class ScriptEngine implements Listener {
                 int separator = line.indexOf(' ', 8);
                 if (separator > 0) {
                     String target = line.substring(8, separator);
-                    String message = unquote(line.substring(separator + 1));
-                    Player player = target.equals("@p") ? nearest(context.npc().location()) : Bukkit.getPlayerExact(target);
-                    if (player != null) player.sendMessage(ChatColor.translateAlternateColorCodes('&', message));
+                    String message = ChatColor.translateAlternateColorCodes('&', unquote(line.substring(separator + 1)));
+                    for (Player player : selectPlayers(context, target)) player.sendMessage(message);
                 }
                 index++;
                 continue;
@@ -590,8 +589,132 @@ public final class ScriptEngine implements Listener {
     }
     private double num(Object o){try{return Double.parseDouble(String.valueOf(o));}catch(Exception e){return 0;}}
     private String unquote(String s){s=s.trim();return s.length()>=2&&s.startsWith("\"")&&s.endsWith("\"")?s.substring(1,s.length()-1):s;}
-    private Player nearest(Location l){return l.getWorld().getPlayers().stream().min(Comparator.comparingDouble(p->p.getLocation().distanceSquared(l))).orElse(null);}
-    private Location parseLocation(ScriptContext c,String s){if(s.equals("@p")){Player p=nearest(c.npc().location());return p==null?null:p.getLocation();}if(s.equalsIgnoreCase("location of npc"))return c.npc().location();if(s.startsWith("(")&&s.endsWith(")")){String[] a=s.substring(1,s.length()-1).split(",");if(a.length==3)try{return new Location(c.npc().location().getWorld(),Double.parseDouble(a[0].trim()),Double.parseDouble(a[1].trim()),Double.parseDouble(a[2].trim()));}catch(NumberFormatException ignored){}}return null;}
+    private Player nearest(Location location) {
+        if (location.getWorld() == null) return null;
+        return location.getWorld().getPlayers().stream()
+                .min(Comparator.comparingDouble(player -> player.getLocation().distanceSquared(location)))
+                .orElse(null);
+    }
+
+    private List<Player> selectPlayers(ScriptContext context, String selector) {
+        String target = selector.trim();
+        Location origin = context.npc().location();
+        if (target.equalsIgnoreCase("event entity") && context.player() != null) return List.of(context.player());
+        if (target.equalsIgnoreCase("@p")) {
+            Player nearest = nearest(origin);
+            return nearest == null ? List.of() : List.of(nearest);
+        }
+        if (target.equalsIgnoreCase("@a")) {
+            return origin.getWorld() == null ? List.of() : new ArrayList<>(origin.getWorld().getPlayers());
+        }
+        if (target.regionMatches(true, 0, "player:", 0, 7)) {
+            Player player = Bukkit.getPlayerExact(target.substring(7));
+            return player == null ? List.of() : List.of(player);
+        }
+
+        Object value = resolve(context, target);
+        if (value instanceof Player player) return List.of(player);
+        if (value instanceof Collection<?> collection) {
+            return collection.stream().filter(Player.class::isInstance).map(Player.class::cast).toList();
+        }
+        Player player = Bukkit.getPlayerExact(target);
+        return player == null ? List.of() : List.of(player);
+    }
+
+    private List<Entity> selectEntities(ScriptContext context, String selector) {
+        String target = selector.trim();
+        Location origin = context.npc().location();
+        if (origin.getWorld() == null) return List.of();
+
+        if (target.equalsIgnoreCase("@p")) {
+            Player player = nearest(origin);
+            return player == null ? List.of() : List.of(player);
+        }
+        if (target.equalsIgnoreCase("@a")) return new ArrayList<>(origin.getWorld().getPlayers());
+        if (target.equalsIgnoreCase("event entity") && context.player() != null) return List.of(context.player());
+        if (target.regionMatches(true, 0, "player:", 0, 7)) {
+            Player player = Bukkit.getPlayerExact(target.substring(7));
+            return player == null ? List.of() : List.of(player);
+        }
+
+        String selectorName = target;
+        String options = "";
+        int open = target.indexOf('[');
+        if (open >= 0 && target.endsWith("]")) {
+            selectorName = target.substring(0, open);
+            options = target.substring(open + 1, target.length() - 1);
+        }
+        if (!selectorName.equalsIgnoreCase("@e") && !selectorName.equalsIgnoreCase("@n")) return List.of();
+
+        String requiredType = null;
+        int limit = Integer.MAX_VALUE;
+        for (String option : options.split(",")) {
+            String[] pair = option.trim().split("=", 2);
+            if (pair.length != 2) continue;
+            if (pair[0].equalsIgnoreCase("type")) requiredType = pair[1].trim().replace("minecraft:", "");
+            if (pair[0].equalsIgnoreCase("limit")) {
+                try { limit = Math.max(1, Integer.parseInt(pair[1].trim())); }
+                catch (NumberFormatException ignored) { }
+            }
+        }
+
+        final org.bukkit.entity.EntityType entityType;
+        if (requiredType == null || requiredType.isBlank()) {
+            entityType = null;
+        } else {
+            try {
+                entityType = org.bukkit.entity.EntityType.valueOf(requiredType.toUpperCase(Locale.ROOT));
+            } catch (IllegalArgumentException exception) {
+                return List.of();
+            }
+        }
+
+        double range = Math.max(1, plugin.getConfig().getDouble("selector-range", 64));
+        List<Entity> matches = origin.getWorld().getNearbyEntities(origin, range, range, range).stream()
+                .filter(Entity::isValid)
+                .filter(entity -> entity.getScoreboardTags().stream().noneMatch(tag -> tag.startsWith("anpc:")))
+                .filter(entity -> entityType == null || entity.getType() == entityType)
+                .sorted(Comparator.comparingDouble(entity -> entity.getLocation().distanceSquared(origin)))
+                .limit(limit)
+                .toList();
+
+        if (selectorName.equalsIgnoreCase("@n")) return matches.isEmpty() ? List.of() : List.of(matches.get(0));
+        return matches;
+    }
+
+    private Location parseLocation(ScriptContext context, String selector) {
+        String target = selector.trim();
+        if (target.equalsIgnoreCase("location of npc")) return context.npc().location();
+
+        if (target.regionMatches(true, 0, "npc:", 0, 4)) {
+            ManagedNPC npc = npcs.get(target.substring(4));
+            return npc == null ? null : npc.location();
+        }
+        if (target.startsWith("@")) {
+            return selectEntities(context, target).stream().findFirst().map(Entity::getLocation).orElse(null);
+        }
+        if (target.equalsIgnoreCase("event entity") && context.player() != null) return context.player().getLocation();
+
+        Object resolved = resolve(context, target);
+        if (resolved instanceof Location location) return location.clone();
+        if (resolved instanceof Player player) return player.getLocation();
+        if (resolved instanceof Entity entity) return entity.getLocation();
+        if (resolved instanceof ManagedNPC npc) return npc.location();
+
+        if (target.startsWith("(") && target.endsWith(")")) {
+            String[] coordinates = target.substring(1, target.length() - 1).split(",");
+            if (coordinates.length == 3) {
+                try {
+                    return new Location(context.npc().location().getWorld(),
+                            Double.parseDouble(coordinates[0].trim()),
+                            Double.parseDouble(coordinates[1].trim()),
+                            Double.parseDouble(coordinates[2].trim()));
+                } catch (NumberFormatException ignored) {
+                }
+            }
+        }
+        return null;
+    }
     private void move(ManagedNPC npc,Location target){Location start=npc.location();if(start.getWorld()!=target.getWorld())return;double distance=start.distance(target);double speed=plugin.getConfig().getDouble("movement.default-speed",4.0);long duration=Math.max(1,Math.round(distance/Math.max(.1,speed)*20));final long[] tick={0};BukkitTask[] holder=new BukkitTask[1];holder[0]=Bukkit.getScheduler().runTaskTimer(plugin,()->{tick[0]++;double t=Math.min(1,(double)tick[0]/duration);Location next=start.clone().add((target.getX()-start.getX())*t,(target.getY()-start.getY())*t,(target.getZ()-start.getZ())*t);next.setYaw((float)(start.getYaw()+(target.getYaw()-start.getYaw())*t));next.setPitch((float)(start.getPitch()+(target.getPitch()-start.getPitch())*t));npc.move(next);if(t>=1){holder[0].cancel();tasks.remove(holder[0]);npc.animate("idle");}},1L,Math.max(1,plugin.getConfig().getLong("movement.update-ticks",1)));tasks.add(holder[0]);npc.animate("walk");}
     private long parseDurationTicks(String s){String[] a=s.trim().split("\\s+");try{long n=Long.parseLong(a[0]);return a.length>1&&a[1].startsWith("second")?n*20:n;}catch(Exception e){return 1;}}
     @EventHandler public void onNpcRightClick(PlayerInteractAtEntityEvent e){
