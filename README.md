@@ -132,7 +132,7 @@ on right click:
 
 ### Conditions et expressions
 
-Les comparaisons prennent en charge `==`, `!=`, `>`, `<`, `>=` et `<=`, ainsi que `and`, `or` et `not`.
+Les comparaisons prennent en charge `==`, `!=`, `>`, `<`, `>=` et `<=`, ainsi que `and`, `or`, `not`, `else if` et `else`.
 
 ```python
 if block below is stone:
@@ -155,9 +155,9 @@ if (liste) contains (cle) more than 2 times:
 
 ### Variables intégrées et sélecteurs
 
-Les propriétés courantes comprennent notamment `name/id/type/skin/location/world/x/y/z/yaw/pitch/health/speed of npc`, ainsi que les propriétés de joueur comme `name/uuid/location/world/x/y/z/health/food level/level/game mode of player`. Les propriétés d'un autre NPC ou joueur peuvent être demandées avec `name of npc:gardien` ou `name of player:Axis`.
+Les propriétés courantes comprennent notamment `name/id/type/skin/location/world/x/y/z/yaw/pitch/health/speed/biome/light level of npc`, ainsi que les propriétés de joueur comme `name/uuid/location/world/x/y/z/health/food level/level/game mode/biome/light level/ping of player`. `weather of world` et `time of world` exposent la météo et l'heure du monde du NPC. Les propriétés d'un autre NPC ou joueur peuvent être demandées avec `name of npc:gardien` ou `name of player:Axis`.
 
-Les sélecteurs `@p`, `@a`, `@n`, `@e` et `@e[type=zombie]` sont résolus dans le monde du NPC. Les décalages de position sont acceptés sous la forme `move to @p + 1` ou `move to @p + (1, 0, 0)`.
+Les sélecteurs `@p`, `@a`, `@n`, `@e` et `@e[type=zombie]` sont résolus dans le monde du NPC. Les décalages de position sont acceptés sous la forme `move to @p + 1` ou `move to @p + (1, 0, 0)`. `move to nearest block magma_block` cherche le bloc le plus proche dans un rayon réglable.
 
 ### Flags
 
@@ -225,7 +225,7 @@ on walk:
         simulate interact with block at (2, 64, 0)
 ```
 
-Pour modifier réellement le monde, le script doit employer explicitement `set block <matériau> at (x, y, z)` ou `break block at (x, y, z)`.
+Pour modifier réellement le monde, le script doit employer explicitement `set block <matériau> at (x, y, z)`, `setblock (x, y, z) (matériau)` ou `break block at (x, y, z)`.
 
 ### Combat et hostilité
 
