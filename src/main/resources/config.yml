@@ -2,6 +2,8 @@
 script-default-interval: 20
 script-approach-radius: 3.0
 script-npc-approach-radius: 3.0
+# Durée pendant laquelle npc is under attack reste vrai après le dernier dégât.
+script-under-attack-duration-ticks: 100
 tracking-range: 64
 selector-range: 64
 movement:
