@@ -47,11 +47,12 @@ public final class ScriptEngine implements Listener {
     private final Map<ManagedNPC,BukkitTask> followTasks=new ConcurrentHashMap<>();
     private final Map<ManagedNPC,BukkitTask> combatTasks=new ConcurrentHashMap<>();
     private final Map<ManagedNPC,Long> lastAttackTimes=new ConcurrentHashMap<>();
+    private final Map<String,BukkitTask> intervalTasks=new ConcurrentHashMap<>();
     private final Map<String,Set<UUID>> nearbyPlayers=new ConcurrentHashMap<>();
     private final Map<String,Set<String>> nearbyNpcs=new ConcurrentHashMap<>();
     public ScriptEngine(ANPCPlugin plugin,NPCManager npcs,VariableStore variables){this.plugin=plugin;this.npcs=npcs;this.variables=variables;}
     public void loadAll(){
-        scripts.clear(); functions.clear();
+        scripts.clear(); functions.clear(); intervalTasks.clear();
         File dir=new File(plugin.getDataFolder(),"scripts");
         File[] fs=dir.listFiles((d,n)->n.endsWith(".aa"));
         if(fs==null)return;
@@ -133,7 +134,65 @@ public final class ScriptEngine implements Listener {
         }
         return result;
     }
-    private void scheduleIntervals(){for(var entry:scripts.entrySet()){List<Instruction> code=entry.getValue().get("interval");if(code==null)continue;long period=plugin.getConfig().getLong("script-default-interval",20);BukkitTask task=Bukkit.getScheduler().runTaskTimer(plugin,()->{for(ManagedNPC npc:npcs.instances(entry.getKey()))if(npc.scriptsEnabled())execute(npc,null,code,0);},period,period);tasks.add(task);}}
+    private void scheduleIntervals(){
+        for(var entry:scripts.entrySet()){
+            List<Instruction> code=entry.getValue().get("interval");
+            if(code!=null)scheduleInterval(entry.getKey(),code);
+        }
+    }
+
+    private void scheduleInterval(String id,List<Instruction> code){
+        long period=Math.max(1,plugin.getConfig().getLong("script-default-interval",20));
+        BukkitTask task=Bukkit.getScheduler().runTaskTimer(plugin,()->{
+            for(ManagedNPC npc:npcs.instances(id))if(npc.scriptsEnabled())execute(npc,null,code,0);
+        },period,period);
+        intervalTasks.put(id,task);tasks.add(task);
+    }
+
+    public List<String> scriptIds(){
+        File directory=new File(plugin.getDataFolder(),"scripts");
+        File[] files=directory.listFiles((folder,name)->name.toLowerCase(Locale.ROOT).endsWith(".aa"));
+        if(files==null)return List.of();
+        return Arrays.stream(files).map(file->file.getName().substring(0,file.getName().length()-3))
+                .sorted(String.CASE_INSENSITIVE_ORDER).toList();
+    }
+
+    public boolean reloadScript(String requestedId){
+        String id=requestedId.toLowerCase(Locale.ROOT).endsWith(".aa")
+                ?requestedId.substring(0,requestedId.length()-3).toLowerCase(Locale.ROOT)
+                :requestedId.toLowerCase(Locale.ROOT);
+        if(!id.matches("[a-z0-9_-]+"))return false;
+        File directory=new File(plugin.getDataFolder(),"scripts");
+        File[] files=directory.listFiles((folder,name)->name.toLowerCase(Locale.ROOT).endsWith(".aa"));
+        if(files==null)return false;
+        File selected=new File(directory,id+".aa");
+        if(!selected.isFile())return false;
+        try{
+            Map<String,Map<String,List<Instruction>>> parsedScripts=new HashMap<>();
+            Map<String,FunctionDefinition> parsedFunctions=new LinkedHashMap<>();
+            for(File file:files){
+                List<String> lines=Files.readAllLines(file.toPath());
+                String fileId=file.getName().substring(0,file.getName().length()-3).toLowerCase(Locale.ROOT);
+                parsedScripts.put(fileId,parse(lines));
+                for(var function:parseFunctions(lines).entrySet()){
+                    if(parsedFunctions.putIfAbsent(function.getKey(),function.getValue())!=null)
+                        plugin.getLogger().warning("Fonction globale dupliquée '"+function.getKey()+"' dans "+file.getName()+" (déclaration ignorée).");
+                }
+            }
+            scripts.put(id,parsedScripts.getOrDefault(id,Map.of()));
+            functions.clear();functions.putAll(parsedFunctions);
+            BukkitTask old=intervalTasks.remove(id);
+            if(old!=null){old.cancel();tasks.remove(old);}
+            List<Instruction> interval=scripts.get(id).get("interval");
+            if(interval!=null)scheduleInterval(id,interval);
+            List<Instruction> spawn=scripts.get(id).get("spawn");
+            if(spawn!=null)for(ManagedNPC npc:npcs.instances(id))if(npc.scriptsEnabled())execute(npc,null,spawn,0);
+            return true;
+        }catch(Exception exception){
+            plugin.getLogger().warning("Rechargement du script '"+id+"' impossible : "+exception.getMessage());
+            return false;
+        }
+    }
     private void scheduleProximity(){
         BukkitTask task=Bukkit.getScheduler().runTaskTimer(plugin,()->{
             double radius=plugin.getConfig().getDouble("script-approach-radius",3.0),r2=radius*radius;
@@ -954,5 +1013,5 @@ public final class ScriptEngine implements Listener {
             npc.hide(e.getPlayer());
         }
     }
-    public void shutdown(){tasks.forEach(BukkitTask::cancel);tasks.clear();movementTasks.clear();followTasks.clear();combatTasks.clear();lastAttackTimes.clear();scripts.clear();functions.clear();nearbyPlayers.clear();nearbyNpcs.clear();}
+    public void shutdown(){tasks.forEach(BukkitTask::cancel);tasks.clear();movementTasks.clear();followTasks.clear();combatTasks.clear();lastAttackTimes.clear();intervalTasks.clear();scripts.clear();functions.clear();nearbyPlayers.clear();nearbyNpcs.clear();}
 }
