@@ -88,7 +88,7 @@ public final class ScriptEngine implements Listener {
             String raw=lines.get(i);
             if(raw.isBlank()||raw.stripLeading().startsWith("#"))continue;
             int indent=raw.length()-raw.stripLeading().length(); String text=raw.trim();
-            if(indent==0&&text.toLowerCase(Locale.ROOT).startsWith("function ")){event=null;continue;}
+            if(indent==0&&(text.toLowerCase(Locale.ROOT).startsWith("function ")||text.toLowerCase(Locale.ROOT).startsWith("def "))){event=null;continue;}
             if(event!=null&&indent>0&&indent%4!=0){
                 plugin.getLogger().warning("Indentation invalide ligne "+(i+1)+" : utilise des blocs de 4 espaces. L'événement '"+event+"' est ignoré.");
                 result.remove(event);event=null;continue;
@@ -128,14 +128,16 @@ public final class ScriptEngine implements Listener {
             String raw=lines.get(i);
             if(raw.isBlank()||raw.stripLeading().startsWith("#")||!raw.equals(raw.stripLeading()))continue;
             String header=raw.trim();
-            if(!header.toLowerCase(Locale.ROOT).startsWith("function "))continue;
+            boolean functionKeyword=header.toLowerCase(Locale.ROOT).startsWith("function ");
+            boolean defKeyword=header.toLowerCase(Locale.ROOT).startsWith("def ");
+            if(!functionKeyword&&!defKeyword)continue;
             if(!header.endsWith(":")){
                 plugin.getLogger().warning("Déclaration de fonction invalide ligne "+(i+1)+" : ':' manquant.");
                 continue;
             }
             int open=header.indexOf('('),close=header.lastIndexOf(')');
-            if(open<10||close<open||close!=header.length()-2){plugin.getLogger().warning("Déclaration de fonction invalide ligne "+(i+1)+" : "+header);continue;}
-            String name=header.substring(9,open).trim().toLowerCase(Locale.ROOT);
+            if(open<(functionKeyword?10:5)||close<open||close!=header.length()-2){plugin.getLogger().warning("Déclaration de fonction invalide ligne "+(i+1)+" : "+header);continue;}
+            String name=header.substring(functionKeyword?9:4,open).trim().toLowerCase(Locale.ROOT);
             if(!name.matches("[a-z_][a-z0-9_-]*")){
                 plugin.getLogger().warning("Nom de fonction invalide ligne "+(i+1)+" : '"+name+"'.");
                 continue;
@@ -382,6 +384,7 @@ public final class ScriptEngine implements Listener {
         if(s.equals("return")){c.setReturnValue(null);return code.size();}
         if(s.startsWith("return ")){c.setReturnValue(resolve(c,s.substring(7).trim()));return code.size();}
         if(s.startsWith("call ")){callFunction(c,s.substring(5).trim(),true);index++;if(c.suspended()){int resumeAt=index;c.addContinuation(()->runBlock(c,code,resumeAt,indent));return code.size();}continue;}
+         if(isFunctionInvocation(s)){callFunction(c,s,true);index++;if(c.suspended()){int resumeAt=index;c.addContinuation(()->runBlock(c,code,resumeAt,indent));return code.size();}continue;}
         if(s.startsWith("loop ")&&s.endsWith(":")){int end=findEnd(code,index+1,in.indent());int child=index+1<code.size()?code.get(index+1).indent():in.indent()+4;executeLoop(c,code,index+1,child,s.substring(5,s.length()-1).trim());if(c.suspended()){int resumeAt=end;c.addContinuation(()->runBlock(c,code,resumeAt,indent));return code.size();}index=end;continue;}
         if(s.equals("stop loop")){c.stopLoop();return code.size();}
         if(s.equals("skip loop")){c.skipLoop();return code.size();}
@@ -660,6 +663,7 @@ public final class ScriptEngine implements Listener {
         if(value.length()>1&&value.startsWith("(")&&value.endsWith(")")&&balancedOuterParentheses(value))value=value.substring(1,value.length()-1).trim();
         if(c.locals().containsKey(value))return c.locals().get(value);
         if(value.toLowerCase(Locale.ROOT).startsWith("call "))return callFunction(c,value.substring(5).trim(),false);
+         if(isFunctionInvocation(value))return callFunction(c,value,false);
         if(value.startsWith("\"")&&value.endsWith("\""))return unquote(value);
         if(value.equalsIgnoreCase("true")||value.equalsIgnoreCase("false"))return Boolean.parseBoolean(value);
         try{return Double.parseDouble(value);}catch(NumberFormatException ignored){}
@@ -800,9 +804,16 @@ public final class ScriptEngine implements Listener {
             variables.setLocal(c.npc().id(),c.npc().location().getWorld().getName(),name,value);
         }
     }
+    private boolean isFunctionInvocation(String expression){
+        int open=expression.indexOf('('),close=expression.lastIndexOf(')');
+        if(open<=0||close!=expression.length()-1)return false;
+        String name=expression.substring(0,open).trim().toLowerCase(Locale.ROOT);
+        return name.matches("[a-z_][a-z0-9_-]*")&&functions.containsKey(name);
+    }
+
     private Object callFunction(ScriptContext caller,String invocation,boolean allowWait){
         int open=invocation.indexOf('('),close=invocation.lastIndexOf(')');
-        if(open<=0||close<open){plugin.getLogger().warning("Appel de fonction invalide : "+invocation);return null;}
+        if(open<=0||close<open||close!=invocation.length()-1){plugin.getLogger().warning("Appel de fonction invalide : "+invocation);return null;}
         String name=invocation.substring(0,open).trim().toLowerCase(Locale.ROOT);
         FunctionDefinition function=functions.get(name);
         if(function==null){plugin.getLogger().warning("Fonction inconnue : "+name);return null;}
