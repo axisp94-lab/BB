@@ -123,7 +123,8 @@ on right click:
     # ou : follow @p min 2 max 5
     # ou : keep distance 4 from @p
 
-stop follow
+on left click:
+    stop follow
 ```
 
 Le déplacement au sol utilise un pathfinding avec évitement des blocs solides. La limite est réglable dans `config.yml` via `movement.max-path-attempts` (100 par défaut). Le suivi s'arrête si la cible se déconnecte ou change de monde.
