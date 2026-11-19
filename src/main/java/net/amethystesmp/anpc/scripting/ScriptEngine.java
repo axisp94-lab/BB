@@ -194,6 +194,7 @@ public final class ScriptEngine implements Listener {
         if(s.startsWith("play anime ")){c.npc().animate(unquote(s.substring(11)));index++;continue;}
         if(s.startsWith("play sound ")){String name=unquote(s.substring(11));try{Sound sound=Sound.valueOf(name.toUpperCase(Locale.ROOT).replace('.','_'));c.npc().location().getWorld().playSound(c.npc().location(),sound,1f,1f);}catch(IllegalArgumentException ignored){}index++;continue;}
         if(s.startsWith("move to ")){stopFollow(c.npc());Location target=parseLocation(c,s.substring(8).trim());if(target!=null)move(c.npc(),target);index++;continue;}
+        if(s.startsWith("fly to ")){stopFollow(c.npc());Location target=parseLocation(c,s.substring(7).trim());if(target!=null)moveFlying(c.npc(),target);index++;continue;}
         if(s.startsWith("tp ")){stopFollow(c.npc());Location target=parseLocation(c,s.substring(3).trim());if(target!=null)move(c.npc(),target);index++;continue;}
         if(s.startsWith("flag on ")||s.startsWith("flag off ")){boolean on=s.startsWith("flag on ");String name=s.substring(on?8:9).replace("(","").replace(")","").trim();variables.setLocal(c.npc().id(),c.npc().location().getWorld().getName(),"flag:"+name,on);index++;continue;}
         if(s.startsWith("wait ")){long ticks=parseDurationTicks(s.substring(5));List<Instruction> remaining=new ArrayList<>(code.subList(index+1,code.size()));BukkitTask task=Bukkit.getScheduler().runTaskLater(plugin,()->runBlock(c,remaining,0,indent),ticks);tasks.add(task);return code.size();}
@@ -424,6 +425,17 @@ public final class ScriptEngine implements Listener {
         Location start=npc.location();
         if(start.getWorld()==null||target.getWorld()==null||start.getWorld()!=target.getWorld())return false;
         List<Location> path=findPath(start,target);
+        return animatePath(npc,target,path);
+    }
+
+    private boolean moveFlying(ManagedNPC npc,Location target){
+        Location start=npc.location();
+        if(start.getWorld()==null||target.getWorld()==null||start.getWorld()!=target.getWorld())return false;
+        List<Location> path=findFlyingPath(start,target);
+        return animatePath(npc,target,path);
+    }
+
+    private boolean animatePath(ManagedNPC npc,Location target,List<Location> path){
         if(path==null||path.isEmpty()){
             plugin.getLogger().warning("Aucun chemin trouvé pour le NPC "+npc.id()+" (limite d'essais : "+plugin.getConfig().getInt("movement.max-path-attempts",100)+").");
             return false;
@@ -436,7 +448,6 @@ public final class ScriptEngine implements Listener {
         int period=Math.max(1,plugin.getConfig().getInt("movement.update-ticks",1));
         double speed=Math.max(0.1,plugin.getConfig().getDouble("movement.default-speed",4.0));
         int[] segment={0};
-        Location[] segmentStart={npc.location()};
         BukkitTask[] holder=new BukkitTask[1];
         npc.animate("walk");
         holder[0]=Bukkit.getScheduler().runTaskTimer(plugin,()->{
@@ -450,7 +461,6 @@ public final class ScriptEngine implements Listener {
             if(distance<=step||distance<0.001){
                 npc.move(destination);
                 segment[0]++;
-                segmentStart[0]=destination.clone();
                 if(segment[0]>=points.size()-1){
                     holder[0].cancel();tasks.remove(holder[0]);movementTasks.remove(npc,holder[0]);npc.animate("idle");
                 }
@@ -464,6 +474,50 @@ public final class ScriptEngine implements Listener {
         },0L,period);
         movementTasks.put(npc,holder[0]);tasks.add(holder[0]);
         return true;
+    }
+
+    private List<Location> findFlyingPath(Location start,Location target){
+        org.bukkit.World world=start.getWorld();
+        int sx=start.getBlockX(),sy=start.getBlockY(),sz=start.getBlockZ();
+        int tx=target.getBlockX(),ty=target.getBlockY(),tz=target.getBlockZ();
+        if(!canFly(world,tx,ty,tz)){
+            boolean adjusted=false;
+            for(int radius=1;radius<=2&&!adjusted;radius++){
+                for(int dx=-radius;dx<=radius&&!adjusted;dx++)for(int dy=-radius;dy<=radius&&!adjusted;dy++)for(int dz=-radius;dz<=radius;dz++){
+                    if(canFly(world,tx+dx,ty+dy,tz+dz)){tx+=dx;ty+=dy;tz+=dz;adjusted=true;break;}
+                }
+            }
+        }
+        int maxAttempts=Math.max(1,plugin.getConfig().getInt("movement.max-path-attempts",100));
+        PriorityQueue<PathNode> open=new PriorityQueue<>(Comparator.comparingDouble(PathNode::score));
+        Map<String,Double> best=new HashMap<>();
+        open.add(new PathNode(sx,sy,sz,0,heuristic(sx,sy,sz,tx,ty,tz),null));
+        best.put(pathKey(sx,sy,sz),0.0);
+        PathNode found=null;int attempts=0;
+        while(!open.isEmpty()&&attempts<maxAttempts){
+            PathNode current=open.poll();attempts++;
+            if(current.x()==tx&&current.y()==ty&&current.z()==tz){found=current;break;}
+            for(int dx=-1;dx<=1;dx++)for(int dy=-1;dy<=1;dy++)for(int dz=-1;dz<=1;dz++){
+                if(dx==0&&dy==0&&dz==0)continue;
+                int x=current.x()+dx,y=current.y()+dy,z=current.z()+dz;
+                if(!canFly(world,x,y,z))continue;
+                double cost=current.cost()+Math.sqrt(dx*dx+dy*dy+dz*dz);
+                String key=pathKey(x,y,z);
+                if(cost>=best.getOrDefault(key,Double.POSITIVE_INFINITY))continue;
+                best.put(key,cost);
+                open.add(new PathNode(x,y,z,cost,cost+heuristic(x,y,z,tx,ty,tz),current));
+            }
+        }
+        if(found==null)return null;
+        LinkedList<Location> result=new LinkedList<>();
+        for(PathNode node=found;node!=null;node=node.parent())result.addFirst(new Location(world,node.x()+0.5,node.y()+0.5,node.z()+0.5));
+        result.add(target.clone());
+        return result;
+    }
+
+    private boolean canFly(org.bukkit.World world,int x,int y,int z){
+        if(y<world.getMinHeight()||y+1>=world.getMaxHeight())return false;
+        return world.getBlockAt(x,y,z).isPassable()&&world.getBlockAt(x,y+1,z).isPassable();
     }
 
     private void startFollow(ManagedNPC npc,String expression){
