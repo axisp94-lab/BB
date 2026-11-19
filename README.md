@@ -51,6 +51,13 @@ on entity approach:
     loop all players:
         send to loop-player "Un NPC est proche de vous."
 
+on npc approach:
+    set "autre_npc" name of event npc
+    say local "Bonjour, autre_npc !"
+
+on npc leave:
+    say local "À bientôt !"
+
 on interval:
     if flag (ouvert) is on:
         say local "La porte est ouverte."
@@ -60,7 +67,7 @@ on interval:
 ```
 
 Éléments pris en charge dans cette version :
-- événements de clic, d'approche, de départ, d'intervalle et de spawn ;
+- événements de clic, d'approche des joueurs, de proximité et de départ entre NPC, d'intervalle et de spawn ;
 - blocs `if`, variables locales/partagées/globales et fonctions avec paramètres et `return` ;
 - boucles `loop all players`, `loop all npcs`, `loop all (liste)` et `loop N times`, avec `stop loop` et `skip loop` ;
 - sélecteurs `@p`, `@a`, `@n`, `@e[type=...]`, `player:<pseudo>` et `npc:<id>` pour les cibles compatibles ;
@@ -90,4 +97,4 @@ Le socle comprend le chargement de `npc.yml`, les NPC BetterModel basés sur `Du
 
 La stabilisation du cycle de vie, des commandes et du rechargement a été compilée avec succès par GitHub Actions. La prise en charge des skins PNG locaux, la correction du parseur, les variables, fonctions, boucles, sélecteurs, le pathfinding, les déplacements aériens directs et le suivi ont également été compilés. Les essais en jeu avec Paper 1.21.11 et BetterModel 2.2.0 restent à effectuer.
 
-Les intégrations MythicMobs, ItemsAdder et Multiverse ainsi que les autres modes avancés restent à développer.
+Les interactions NPC-NPC de proximité et les événements `on npc approach` / `on npc leave` sont disponibles sans mécanisme de combat. Les intégrations MythicMobs, ItemsAdder et Multiverse ainsi que les autres modes avancés restent à développer.
