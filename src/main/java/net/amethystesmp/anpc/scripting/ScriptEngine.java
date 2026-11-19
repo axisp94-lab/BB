@@ -57,7 +57,7 @@ public final class ScriptEngine implements Listener {
     private final Map<String,Set<String>> nearbyNpcs=new ConcurrentHashMap<>();
     public ScriptEngine(ANPCPlugin plugin,NPCManager npcs,VariableStore variables){this.plugin=plugin;this.npcs=npcs;this.variables=variables;}
     public void loadAll(){
-        scripts.clear(); functions.clear(); intervalTasks.clear();
+        scripts.clear(); functions.clear(); intervalTasks.clear(); scriptLastRun.clear(); scriptLastChange.clear(); scriptLastWarning.clear();
         File dir=new File(plugin.getDataFolder(),"scripts");
         File[] fs=dir.listFiles((d,n)->n.endsWith(".aa"));
         if(fs==null)return;
@@ -300,13 +300,14 @@ public final class ScriptEngine implements Listener {
             long now=System.currentTimeMillis();
             for(String key:new HashSet<>(scriptLastRun.keySet())){
                 long lastRun=scriptLastRun.getOrDefault(key,0L);
+                if(now-lastRun>60_000L){scriptLastRun.remove(key);scriptLastChange.remove(key);scriptLastWarning.remove(key);continue;}
                 long lastChange=scriptLastChange.getOrDefault(key,lastRun);
                 if(now-lastRun>5_000L||now-lastChange<5_000L)continue;
                 ManagedNPC npc=npcs.all().stream().filter(candidate->npcInstanceKey(candidate).equals(key)).findFirst().orElse(null);
                 if(npc==null||!npc.scriptsEnabled()){
                     scriptLastRun.remove(key);scriptLastChange.remove(key);scriptLastWarning.remove(key);continue;
                 }
-                if(movementTasks.containsKey(npc)||followTasks.containsKey(npc)||combatTasks.containsKey(npc)){
+                if(movementTasks.containsKey(npc)||followTasks.containsKey(npc)){
                     scriptLastChange.put(key,now);continue;
                 }
                 long lastWarning=scriptLastWarning.getOrDefault(key,0L);
@@ -417,6 +418,7 @@ public final class ScriptEngine implements Listener {
     }return index;}
     private void startWatchdog(ScriptContext context){
         if(watchdogTasks.containsKey(context))return;
+        scriptLastRun.remove(npcInstanceKey(context.npc()));
         BukkitTask task=Bukkit.getScheduler().runTaskTimer(plugin,()->{
             if(context.finished()||!context.hasPendingWaits()||!context.npc().scriptsEnabled()||context.npc().tracker().isClosed()){context.finish();stopWatchdog(context);return;}
             if(movementTasks.containsKey(context.npc())||followTasks.containsKey(context.npc())||combatTasks.containsKey(context.npc())){
