@@ -201,6 +201,7 @@ public final class ScriptEngine implements Listener {
         if(e.toLowerCase(Locale.ROOT).startsWith("npc has state "))return c.npc().secondaryStates().contains(unquote(e.substring(14).trim()).toLowerCase(Locale.ROOT));return false;}
     private Object resolve(ScriptContext c,String raw){
         String value=raw.trim();
+        if(value.length()>1&&value.startsWith("(")&&value.endsWith(")")&&balancedOuterParentheses(value))value=value.substring(1,value.length()-1).trim();
         if(c.locals().containsKey(value))return c.locals().get(value);
         if(value.toLowerCase(Locale.ROOT).startsWith("call "))return callFunction(c,value.substring(5).trim());
         if(value.startsWith("\"")&&value.endsWith("\""))return unquote(value);
@@ -320,11 +321,26 @@ public final class ScriptEngine implements Listener {
         return result;
     }
 
+    private boolean balancedOuterParentheses(String expression){
+        int depth=0;boolean quoted=false;
+        for(int i=0;i<expression.length();i++){
+            char ch=expression.charAt(i);
+            if(ch=='"'&&(i==0||expression.charAt(i-1)!='\\\\'))quoted=!quoted;
+            if(quoted)continue;
+            if(ch=='(')depth++;
+            else if(ch==')'){
+                depth--;
+                if(depth==0&&i<expression.length()-1)return false;
+            }
+        }
+        return depth==0&&!quoted;
+    }
+
     private int findTopLevelOperator(String expression,char wanted){
         boolean quoted=false;int depth=0;int found=-1;
         for(int i=0;i<expression.length();i++){
             char ch=expression.charAt(i);
-            if(ch=='"'&&(i==0||expression.charAt(i-1)!='\\\\'))quoted=!quoted;
+            if(ch=='"'&&(i==0||expression.charAt(i-1)!='\\'))quoted=!quoted;
             if(quoted)continue;
             if(ch=='('){depth++;continue;}
             if(ch==')'){depth--;continue;}
