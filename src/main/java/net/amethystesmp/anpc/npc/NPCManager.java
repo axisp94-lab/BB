@@ -24,12 +24,17 @@ public final class NPCManager {
     private BukkitTask visibilityTask;
     private File file;
     private YamlConfiguration yaml;
+    private File deletedFile;
+    private YamlConfiguration deletedYaml;
 
     public NPCManager(ANPCPlugin plugin) { this.plugin = plugin; }
 
     public void load() {
         file = new File(plugin.getDataFolder(), "npc.yml");
         yaml = YamlConfiguration.loadConfiguration(file);
+        deletedFile = new File(plugin.getDataFolder(), "deleted-npcs.yml");
+        deletedYaml = YamlConfiguration.loadConfiguration(deletedFile);
+        purgeExpiredDeletedNPCs();
         ConfigurationSection root = yaml.getConfigurationSection("npcs");
         if (root != null) {
             for (String id : root.getKeys(false)) {
@@ -164,16 +169,47 @@ public final class NPCManager {
 
     /** Recreates a soft-removed NPC from its unchanged definition. */
     public boolean restore(String id) {
-        if (!exists(id)) return false;
-        yaml.set("npcs." + id + ".removed", false);
-        save();
+        if (exists(id)) {
+            yaml.set("npcs." + id + ".removed", false);
+            save();
+            try {
+                NPCDefinition definition = NPCDefinition.read(id, yaml.getConfigurationSection("npcs." + id));
+                createFrom(definition);
+                refreshVisibility();
+                return true;
+            } catch (Exception exception) {
+                plugin.getLogger().warning("Restauration du NPC '" + id + "' impossible : " + exception.getMessage());
+                return false;
+            }
+        }
+
+        ConfigurationSection backup = deletedYaml == null ? null : deletedYaml.getConfigurationSection("npcs." + id);
+        if (backup == null) return false;
+        long deletedAt = backup.getLong("deleted-at", 0L);
+        if (deletedAt <= 0L || System.currentTimeMillis() - deletedAt > 24L * 60L * 60L * 1000L) {
+            deletedYaml.set("npcs." + id, null);
+            saveDeleted();
+            return false;
+        }
         try {
-            NPCDefinition definition = NPCDefinition.read(id, yaml.getConfigurationSection("npcs." + id));
+            NPCDefinition definition = NPCDefinition.read(id, backup);
+            saveDefinition(definition);
+            yaml.set("npcs." + id + ".removed", false);
+            yaml.set("npcs." + id + ".scripts-enabled", true);
+            for (String worldName : definition.worlds()) {
+                if (!worldName.equalsIgnoreCase("all")) plugin.variables().restoreLocalVariables(id, worldName);
+            }
+            if (definition.worlds().stream().anyMatch(name -> name.equalsIgnoreCase("all"))) {
+                for (World world : Bukkit.getWorlds()) plugin.variables().restoreLocalVariables(id, world.getName());
+            }
+            deletedYaml.set("npcs." + id, null);
+            saveDeleted();
+            save();
             createFrom(definition);
             refreshVisibility();
-            return !instances(id).isEmpty();
+            return true;
         } catch (Exception exception) {
-            plugin.getLogger().warning("Restauration du NPC '" + id + "' impossible : " + exception.getMessage());
+            plugin.getLogger().warning("Récupération du NPC supprimé '" + id + "' impossible : " + exception.getMessage());
             return false;
         }
     }
@@ -182,6 +218,7 @@ public final class NPCManager {
     public boolean delete(String id) {
         if (!exists(id)) return false;
         NPCDefinition definition = NPCDefinition.read(id, yaml.getConfigurationSection("npcs." + id));
+        backupDeletedNPC(definition);
         List<String> worldNames = definition.worlds().stream().anyMatch(name -> name.equalsIgnoreCase("all"))
                 ? Bukkit.getWorlds().stream().map(World::getName).toList()
                 : definition.worlds();
@@ -286,6 +323,37 @@ public final class NPCManager {
 
     private List<String> matchingKeys(String id) {
         return npcs.keySet().stream().filter(k -> k.startsWith(id.toLowerCase(Locale.ROOT) + "@")).toList();
+    }
+
+    private void backupDeletedNPC(NPCDefinition definition) {
+        String path = "npcs." + definition.id() + ".";
+        deletedYaml.set(path + "display-name", definition.displayName());
+        deletedYaml.set(path + "type", definition.type());
+        deletedYaml.set(path + "world", definition.worlds());
+        deletedYaml.set(path + "x", definition.x());
+        deletedYaml.set(path + "y", definition.y());
+        deletedYaml.set(path + "z", definition.z());
+        deletedYaml.set(path + "yaw", definition.yaw());
+        deletedYaml.set(path + "pitch", definition.pitch());
+        deletedYaml.set(path + "skin", definition.skin());
+        deletedYaml.set(path + "deleted-at", System.currentTimeMillis());
+        saveDeleted();
+    }
+
+    private void purgeExpiredDeletedNPCs() {
+        if (deletedYaml == null) return;
+        ConfigurationSection root = deletedYaml.getConfigurationSection("npcs");
+        if (root == null) return;
+        long cutoff = System.currentTimeMillis() - 24L * 60L * 60L * 1000L;
+        for (String id : new ArrayList<>(root.getKeys(false))) {
+            if (root.getLong(id + ".deleted-at", 0L) < cutoff) deletedYaml.set("npcs." + id, null);
+        }
+        saveDeleted();
+    }
+
+    private void saveDeleted() {
+        try { deletedYaml.save(deletedFile); }
+        catch (IOException exception) { plugin.getLogger().severe("Ecriture deleted-npcs.yml impossible : " + exception.getMessage()); }
     }
 
     private void saveDefinition(NPCDefinition definition) {
