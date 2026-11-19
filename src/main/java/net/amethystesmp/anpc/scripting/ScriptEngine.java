@@ -1100,9 +1100,22 @@ public final class ScriptEngine implements Listener {
         }
     }
     private String unquote(String s){s=s.trim();return s.length()>=2&&s.startsWith("\"")&&s.endsWith("\"")?s.substring(1,s.length()-1):s;}
+    private double selectorRangeSquared(Location origin) {
+        double range = Math.max(1.0, plugin.getConfig().getDouble("selector-range", 64.0));
+        return range * range;
+    }
+
+    private boolean isWithinSelectorRange(Location origin, Entity entity) {
+        return origin.getWorld() != null
+                && origin.getWorld().equals(entity.getWorld())
+                && entity.getLocation().distanceSquared(origin) <= selectorRangeSquared(origin);
+    }
+
     private Player nearest(Location location) {
         if (location.getWorld() == null) return null;
+        double rangeSquared = selectorRangeSquared(location);
         return location.getWorld().getPlayers().stream()
+                .filter(player -> player.getLocation().distanceSquared(location) <= rangeSquared)
                 .min(Comparator.comparingDouble(player -> player.getLocation().distanceSquared(location)))
                 .orElse(null);
     }
@@ -1116,7 +1129,9 @@ public final class ScriptEngine implements Listener {
             return nearest == null ? List.of() : List.of(nearest);
         }
         if (target.equalsIgnoreCase("@a")) {
-            return origin.getWorld() == null ? List.of() : new ArrayList<>(origin.getWorld().getPlayers());
+            return origin.getWorld() == null ? List.of() : origin.getWorld().getPlayers().stream()
+                    .filter(player -> isWithinSelectorRange(origin, player))
+                    .toList();
         }
         if (target.regionMatches(true, 0, "player:", 0, 7)) {
             Player player = Bukkit.getPlayerExact(target.substring(7));
@@ -1143,6 +1158,7 @@ public final class ScriptEngine implements Listener {
         }
         if (target.equalsIgnoreCase("@a")) {
             return origin.getWorld().getPlayers().stream()
+                    .filter(player -> isWithinSelectorRange(origin, player))
                     .sorted(Comparator.comparingDouble(player -> player.getLocation().distanceSquared(origin)))
                     .map(player -> (Entity) player)
                     .toList();
@@ -1188,6 +1204,7 @@ public final class ScriptEngine implements Listener {
         double range = Math.max(1, plugin.getConfig().getDouble("selector-range", 64));
         List<Entity> matches = origin.getWorld().getNearbyEntities(origin, range, range, range).stream()
                 .filter(Entity::isValid)
+                .filter(entity -> isWithinSelectorRange(origin, entity))
                 .filter(entity -> entity.getScoreboardTags().stream().noneMatch(tag -> tag.startsWith("anpc:")))
                 .filter(entity -> entityType == null || entity.getType() == entityType)
                 .sorted(Comparator.comparingDouble(entity -> entity.getLocation().distanceSquared(origin)))
