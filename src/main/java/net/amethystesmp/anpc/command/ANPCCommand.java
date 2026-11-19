@@ -168,7 +168,16 @@ public final class ANPCCommand implements TabExecutor {
         if (args.length == 2 && args[0].equalsIgnoreCase("reload")) return filter(plugin.scripts().scriptIds(), args[1]);
         if (args.length == 2 && Set.of("tp", "center", "rename", "kill", "remove", "restore",
                 "delete", "disable", "enable").contains(args[0].toLowerCase(Locale.ROOT))) {
-            return filter(plugin.npcs().allIds(), args[1]);
+            String subcommand = args[0].toLowerCase(Locale.ROOT);
+            List<String> ids;
+            if (subcommand.equals("restore")) {
+                ids = plugin.npcs().allIds();
+            } else if (Set.of("delete", "rename", "disable", "enable").contains(subcommand)) {
+                ids = plugin.npcs().allIds().stream().filter(plugin.npcs()::exists).toList();
+            } else {
+                ids = plugin.npcs().all().stream().map(ManagedNPC::id).distinct().sorted(String.CASE_INSENSITIVE_ORDER).toList();
+            }
+            return filter(ids, args[1]);
         }
         if (args.length == 3 && args[0].equalsIgnoreCase("delete")) return filter(List.of("confirm"), args[2]);
         return Collections.emptyList();
