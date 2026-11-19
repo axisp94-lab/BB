@@ -38,7 +38,7 @@ public final class Pathfinder {
         Node targetNode = findStandable(world, target.getBlockX(), target.getBlockY(), target.getBlockZ());
         if (startNode == null || targetNode == null) return List.of();
 
-        if (startNode.equals(targetNode)) return List.of(target.clone());
+        if (startNode.equals(targetNode)) return List.of(targetLocation(world, targetNode, target));
 
         PriorityQueue<QueueEntry> open = new PriorityQueue<>(Comparator.comparingDouble(QueueEntry::estimate));
         Map<Node, Double> scores = new HashMap<>();
@@ -92,7 +92,7 @@ public final class Pathfinder {
 
         if (!found) return List.of();
         List<Node> nodes = reconstruct(previous, startNode, targetNode);
-        return toCheckpoints(world, nodes, target, Math.max(0.5, checkpointSpacing));
+        return toCheckpoints(world, nodes, targetNode, target, Math.max(0.5, checkpointSpacing));
     }
 
     private static Node findStandable(World world, int x, int y, int z) {
@@ -142,7 +142,7 @@ public final class Pathfinder {
         return path;
     }
 
-    private static List<Location> toCheckpoints(World world, List<Node> path,
+    private static List<Location> toCheckpoints(World world, List<Node> path, Node targetNode,
                                                 Location target, double spacing) {
         if (path.isEmpty()) return List.of();
         List<Location> result = new ArrayList<>();
@@ -167,8 +167,14 @@ public final class Pathfinder {
             }
         }
 
-        result.add(target.clone());
+        result.add(targetLocation(world, targetNode, target));
         return result;
+    }
+
+    private static Location targetLocation(World world, Node targetNode, Location requested) {
+        if (requested.getBlockX() == targetNode.x() && requested.getBlockY() == targetNode.y()
+                && requested.getBlockZ() == targetNode.z()) return requested.clone();
+        return toLocation(world, targetNode);
     }
 
     private static Location toLocation(World world, Node node) {
