@@ -133,10 +133,25 @@ public final class ScriptEngine implements Listener {
             int open=header.indexOf('('),close=header.lastIndexOf(')');
             if(open<10||close<open){plugin.getLogger().warning("Déclaration de fonction invalide ligne "+(i+1)+" : "+header);continue;}
             String name=header.substring(9,open).trim().toLowerCase(Locale.ROOT);
-            if(name.isBlank())continue;
+            if(!name.matches("[a-z_][a-z0-9_-]*")){
+                plugin.getLogger().warning("Nom de fonction invalide ligne "+(i+1)+" : '"+name+"'.");
+                continue;
+            }
             List<String> parameters=new ArrayList<>();
+            Set<String> parameterNames=new HashSet<>();
             String rawParameters=header.substring(open+1,close).trim();
-            if(!rawParameters.isBlank())for(String parameter:splitArguments(rawParameters))parameters.add(parameter.trim().toLowerCase(Locale.ROOT));
+            if(!rawParameters.isBlank()){
+                boolean invalidParameters=false;
+                for(String rawParameter:splitArguments(rawParameters)){
+                    String parameter=rawParameter.trim().toLowerCase(Locale.ROOT);
+                    if(!parameter.matches("[a-z_][a-z0-9_-]*")||!parameterNames.add(parameter)){
+                        plugin.getLogger().warning("Paramètre invalide ou dupliqué '"+rawParameter+"' dans la fonction '"+name+"' (ligne "+(i+1)+").");
+                        invalidParameters=true;break;
+                    }
+                    parameters.add(parameter);
+                }
+                if(invalidParameters)continue;
+            }
             List<Instruction> body=new ArrayList<>();
             boolean invalidIndent=false;
             int j=i+1;
