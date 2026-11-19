@@ -38,6 +38,8 @@ public final class ScriptEngine implements Listener {
     private final Map<String, BukkitTask> followTasks = new ConcurrentHashMap<>();
     private final Map<String, Set<UUID>> nearbyPlayers = new ConcurrentHashMap<>();
     private final Map<String, NpcPair> activeNpcPairs = new HashMap<>();
+    private final Map<String, String> mainStates = new ConcurrentHashMap<>();
+    private final Map<String, Set<String>> secondaryStates = new ConcurrentHashMap<>();
     public ScriptEngine(ANPCPlugin plugin,NPCManager npcs,VariableStore variables){this.plugin=plugin;this.npcs=npcs;this.variables=variables;}
     public void loadAll() {
         cancelTasks();
@@ -522,7 +524,24 @@ public final class ScriptEngine implements Listener {
             }
 
             if (line.startsWith("set state ")) {
-                context.locals().put("state", unquote(line.substring(10)));
+                mainStates.put(context.npc().id().toLowerCase(Locale.ROOT),
+                        normalizeArgument(line.substring(10)));
+                index++;
+                continue;
+            }
+
+            if (line.startsWith("add state ")) {
+                String state = normalizeArgument(line.substring(10)).toLowerCase(Locale.ROOT);
+                secondaryStates.computeIfAbsent(context.npc().id().toLowerCase(Locale.ROOT),
+                        ignored -> ConcurrentHashMap.newKeySet()).add(state);
+                index++;
+                continue;
+            }
+
+            if (line.startsWith("remove state ")) {
+                String state = normalizeArgument(line.substring(13)).toLowerCase(Locale.ROOT);
+                secondaryStates.computeIfAbsent(context.npc().id().toLowerCase(Locale.ROOT),
+                        ignored -> ConcurrentHashMap.newKeySet()).remove(state);
                 index++;
                 continue;
             }
@@ -623,7 +642,67 @@ public final class ScriptEngine implements Listener {
         while (index < code.size() && code.get(index).indent() > parentIndent) index++;
         return index;
     }
-    private boolean test(ScriptContext c,String expression){String e=expression.trim();if(e.startsWith("flag (")&&e.contains(") is ")){String name=e.substring(6,e.indexOf(')'));boolean v=Boolean.parseBoolean(variables.get("npc",c.npc().id(),"flag:"+name,"false"));return e.endsWith("on")?v:!v;}String[] ops={" >= "," <= "," != "," == "," > "," < "," contains "};for(String op:ops){int p=e.indexOf(op);if(p>0){Object a=resolve(c,e.substring(0,p)),b=resolve(c,e.substring(p+op.length()));if(op.equals(" contains "))return String.valueOf(a).contains(String.valueOf(b));double x=num(a),y=num(b);return switch(op.trim()){case ">"->x>y;case "<"->x<y;case ">="->x>=y;case "<="->x<=y;case "!="->!Objects.equals(String.valueOf(a),String.valueOf(b));default->Objects.equals(String.valueOf(a),String.valueOf(b))||x==y;};}}if(e.equalsIgnoreCase("player is sneaking"))return c.player()!=null&&c.player().isSneaking();if(e.toLowerCase(Locale.ROOT).startsWith("player has permission "))return c.player()!=null&&c.player().hasPermission(unquote(e.substring(22).trim()));if(e.toLowerCase(Locale.ROOT).startsWith("player has item ")){if(c.player()==null)return false;try{return c.player().getInventory().contains(org.bukkit.Material.valueOf(e.substring(16).trim().toUpperCase(Locale.ROOT)));}catch(IllegalArgumentException ex){return false;}}if(e.equalsIgnoreCase("npc is under attack"))return false;return false;}
+    private boolean test(ScriptContext context, String expression) {
+        String expressionText = expression.trim();
+        String lower = expressionText.toLowerCase(Locale.ROOT);
+        String npcId = context.npc().id().toLowerCase(Locale.ROOT);
+
+        if (lower.startsWith("flag (") && lower.contains(") is ")) {
+            String name = expressionText.substring(6, expressionText.indexOf(')'));
+            boolean enabled = Boolean.parseBoolean(variables.get("npc", context.npc().id(), "flag:" + name, "false"));
+            return lower.endsWith("on") ? enabled : !enabled;
+        }
+        if (lower.startsWith("state is ")) {
+            String expected = normalizeArgument(expressionText.substring(9));
+            return mainStates.getOrDefault(npcId, "").equalsIgnoreCase(expected);
+        }
+        if (lower.startsWith("has state ")) {
+            String expected = normalizeArgument(expressionText.substring(10)).toLowerCase(Locale.ROOT);
+            return secondaryStates.getOrDefault(npcId, Set.of()).contains(expected);
+        }
+
+        String[] operators = {" >= ", " <= ", " != ", " == ", " > ", " < ", " contains "};
+        for (String operator : operators) {
+            int position = expressionText.indexOf(operator);
+            if (position <= 0) continue;
+            Object left = resolve(context, expressionText.substring(0, position));
+            Object right = resolve(context, expressionText.substring(position + operator.length()));
+            if (operator.equals(" contains ")) return String.valueOf(left).contains(String.valueOf(right));
+            double leftNumber = num(left);
+            double rightNumber = num(right);
+            return switch (operator.trim()) {
+                case ">" -> leftNumber > rightNumber;
+                case "<" -> leftNumber < rightNumber;
+                case ">=" -> leftNumber >= rightNumber;
+                case "<=" -> leftNumber <= rightNumber;
+                case "!=" -> !Objects.equals(String.valueOf(left), String.valueOf(right));
+                default -> Objects.equals(String.valueOf(left), String.valueOf(right)) || leftNumber == rightNumber;
+            };
+        }
+
+        if (lower.equals("player is sneaking")) return context.player() != null && context.player().isSneaking();
+        if (lower.startsWith("player has permission ")) {
+            return context.player() != null && context.player().hasPermission(unquote(expressionText.substring(22).trim()));
+        }
+        if (lower.startsWith("player has item ")) {
+            if (context.player() == null) return false;
+            try {
+                org.bukkit.Material material = org.bukkit.Material.matchMaterial(expressionText.substring(16).trim());
+                return material != null && context.player().getInventory().contains(material);
+            } catch (IllegalArgumentException ignored) {
+                return false;
+            }
+        }
+        if (lower.equals("npc is under attack")) return false;
+        return false;
+    }
+
+    private String normalizeArgument(String raw) {
+        String value = raw.trim();
+        if (value.startsWith("(") && value.endsWith(")")) value = value.substring(1, value.length() - 1).trim();
+        return unquote(value);
+    }
+
     private Object resolve(ScriptContext context, String raw) {
         String value = raw.trim();
         if (value.startsWith("\"") && value.endsWith("\"")) return unquote(value);
@@ -646,6 +725,9 @@ public final class ScriptEngine implements Listener {
         if (value.regionMatches(true, 0, "player:", 0, 7)) return Bukkit.getPlayerExact(value.substring(7));
         if (value.regionMatches(true, 0, "npc:", 0, 4)) {
             return npcs.get(value.substring(4), context.npc().location().getWorld());
+        }
+        if (value.equalsIgnoreCase("state of npc")) {
+            return mainStates.getOrDefault(context.npc().id().toLowerCase(Locale.ROOT), "");
         }
 
         FunctionResult functionResult = invokeFunction(context, value);
