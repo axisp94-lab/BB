@@ -175,8 +175,11 @@ public final class NPCManager {
     public boolean delete(String id) {
         if (!exists(id)) return false;
         NPCDefinition definition = NPCDefinition.read(id, yaml.getConfigurationSection("npcs." + id));
-        for (World world : resolveWorlds(definition.worlds())) {
-            plugin.variables().archiveLocalVariables(id, world.getName());
+        List<String> worldNames = definition.worlds().stream().anyMatch(name -> name.equalsIgnoreCase("all"))
+                ? Bukkit.getWorlds().stream().map(World::getName).toList()
+                : definition.worlds();
+        for (String worldName : worldNames) {
+            plugin.variables().archiveLocalVariables(id, worldName);
         }
         for (String mapKey : matchingKeys(id)) {
             ManagedNPC npc = npcs.remove(mapKey);
