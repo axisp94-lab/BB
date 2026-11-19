@@ -1353,7 +1353,14 @@ public final class ScriptEngine implements Listener {
             if(quoted)continue;
             if(ch=='('){depth++;continue;}
             if(ch==')'){depth--;continue;}
-            if(depth==0&&ch==wanted&&i>0)found=i;
+            if(depth==0&&ch==wanted&&i>0){
+                if(wanted=='+'||wanted=='-'){
+                    int previous=i-1;
+                    while(previous>=0&&Character.isWhitespace(expression.charAt(previous)))previous--;
+                    if(previous<0||"+-*/(".indexOf(expression.charAt(previous))>=0)continue;
+                }
+                found=i;
+            }
         }
         return found;
     }
