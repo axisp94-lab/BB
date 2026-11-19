@@ -355,11 +355,11 @@ public final class ScriptEngine implements Listener {
         if(s.equals("stop loop")){c.stopLoop();return code.size();}
         if(s.equals("skip loop")){c.skipLoop();return code.size();}
         if(s.startsWith("if ")&&s.endsWith(":")){int end=findEnd(code,index+1,in.indent());if(test(c,s.substring(3,s.length()-1))){int child=index+1<code.size()?code.get(index+1).indent():in.indent()+4;runBlock(c,code,index+1,child);}index=end;continue;}
-        if(s.startsWith("set hostile ")){setHostile(c.npc(),s.substring(12).trim().equalsIgnoreCase("on"));index++;continue;}
+        if(s.startsWith("set hostile ")){setHostile(c.npc(),s.substring(12).trim().equalsIgnoreCase("on"));markChanged(c);index++;continue;}
         if(s.startsWith("set health of npc to ")){c.npc().setHealth(num(resolve(c,s.substring(21).trim())));markChanged(c);index++;continue;}
         if(s.startsWith("set max health of npc to ")){c.npc().setMaxHealth(num(resolve(c,s.substring(25).trim())));markChanged(c);index++;continue;}
         if(s.startsWith("set speed of npc to ")){c.npc().setSpeed(num(resolve(c,s.substring(20).trim())));markChanged(c);index++;continue;}
-        if(s.startsWith("set target of npc to ")){setTargetSelector(c.npc(),s.substring(21).trim());index++;continue;}
+        if(s.startsWith("set target of npc to ")){setTargetSelector(c.npc(),s.substring(21).trim());markChanged(c);index++;continue;}
         if(s.startsWith("set cooldown ")){
             String body=s.substring(13).trim();int forIndex=body.toLowerCase(Locale.ROOT).lastIndexOf(" for ");
             if(forIndex>0){String name=unquote(body.substring(0,forIndex).trim());long duration=parseDurationMillis(body.substring(forIndex+5).trim());c.npc().setCooldown(name,duration);markChanged(c);}
@@ -433,9 +433,9 @@ public final class ScriptEngine implements Listener {
         if(s.startsWith("follow ")){startFollow(c.npc(),s.substring(7).trim());markChanged(c);index++;continue;}
         if(s.startsWith("keep distance ")){startKeepDistance(c.npc(),s.substring(14).trim());markChanged(c);index++;continue;}
         if(s.equals("stop follow")){stopFollow(c.npc());markChanged(c);index++;continue;}
-        if(s.startsWith("target ")){setTargetSelector(c.npc(),s.substring(7).trim());index++;continue;}
-        if(s.startsWith("attack ")){setTargetSelector(c.npc(),s.substring(7).trim());setHostile(c.npc(),true);index++;continue;}
-        if(s.equals("stop attack")){setHostile(c.npc(),false);index++;continue;}
+        if(s.startsWith("target ")){setTargetSelector(c.npc(),s.substring(7).trim());markChanged(c);index++;continue;}
+        if(s.startsWith("attack ")){setTargetSelector(c.npc(),s.substring(7).trim());setHostile(c.npc(),true);markChanged(c);index++;continue;}
+        if(s.equals("stop attack")){setHostile(c.npc(),false);markChanged(c);index++;continue;}
         if(s.startsWith("set state ")){c.npc().setPrimaryState(unquote(s.substring(10)));markChanged(c);index++;continue;}
         if(s.startsWith("add state ")){c.npc().addSecondaryState(unquote(s.substring(10)));markChanged(c);index++;continue;}
         if(s.startsWith("remove state ")){c.npc().removeSecondaryState(unquote(s.substring(13)));markChanged(c);index++;continue;}
