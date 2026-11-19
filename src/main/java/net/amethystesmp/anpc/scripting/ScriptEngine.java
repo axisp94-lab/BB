@@ -354,7 +354,7 @@ public final class ScriptEngine implements Listener {
             if (line.startsWith("cooldown ") && line.endsWith(":")) {
                 int end = findEnd(code, index + 1, instruction.indent());
                 long ticks = parseDurationTicks(line.substring(9, line.length() - 1));
-                String cooldownKey = context.npc().id().toLowerCase(Locale.ROOT) + ":" + instruction.line();
+                String cooldownKey = npcKey(context.npc()) + ":" + instruction.line();
                 long now = System.currentTimeMillis();
                 long availableAt = cooldowns.getOrDefault(cooldownKey, 0L);
                 if (now >= availableAt && index + 1 < end) {
@@ -1520,10 +1520,14 @@ public final class ScriptEngine implements Listener {
         String[] parts = input.trim().toLowerCase(Locale.ROOT).split("\\s+");
         try {
             long amount = Math.max(1L, Long.parseLong(parts[0]));
-            if (parts.length < 2) return amount;
-            if (parts[1].startsWith("minute")) return Math.min(2_000_000_000L, amount * 1200L);
-            if (parts[1].startsWith("second")) return Math.min(2_000_000_000L, amount * 20L);
-            return amount;
+            long multiplier = 1L;
+            if (parts.length >= 2) {
+                if (parts[1].startsWith("minute")) multiplier = 1200L;
+                else if (parts[1].startsWith("second")) multiplier = 20L;
+            }
+            long maximum = 2_000_000_000L;
+            if (amount >= maximum / multiplier) return maximum;
+            return Math.min(maximum, amount * multiplier);
         } catch (Exception exception) {
             return 1L;
         }
