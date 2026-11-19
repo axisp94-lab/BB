@@ -1,12 +1,38 @@
+# Fonction globale disponible dans tous les scripts NPC.
+function saluer(nom):
+    return "Bonjour " + nom
+
+on spawn:
+    create variable visites (0) local
+    set state "garde"
+    set checkpoint "depart"
+    play anime "idle"
+
 on right click:
-    say local "Bonjour ! Que puis-je faire pour toi ?"
-    play sound "entity.villager.yes"
+    if cooldown "salut" is ready:
+        set "message" (call saluer("visiteur"))
+        say local message
+        emote "wave"
+        set "visites" (visites + 1)
+        set cooldown "salut" for 5 seconds
 
 on right click while sneaking:
-    say local "Tu as fait un clic droit accroupi."
+    say local "Tu as effectué une interaction spéciale."
+    flag on (porte)
 
 on entity approach:
     say local "Bienvenue près de moi !"
+
+on npc approach:
+    look at event npc
+
+on player chat:
+    if event message contains "bonjour":
+        say local "Bonjour !"
+
+on walk:
+    if block below is stone:
+        play sound "block.stone.step"
 
 on interval:
     if flag (porte) is on:
