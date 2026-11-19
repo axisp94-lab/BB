@@ -685,10 +685,19 @@ public final class ScriptEngine implements Listener {
             remainder=next<0?"":remainder.substring(next+1).trim();
         }
         Object value=resolve(c,rawValue);
+        String existingGlobalMeta=variables.get("meta","",name,null);
         if(scope.equals("global")){
+            if(existingGlobalMeta!=null&&existingGlobalMeta.toLowerCase(Locale.ROOT).startsWith("shared|")){
+                plugin.getLogger().warning("La variable '"+name+"' est déjà déclarée shared et ne peut pas devenir global.");
+                return;
+            }
             variables.set("meta","",name,"global|@");
             variables.setGlobal(name,value);
         }else if(scope.equals("shared")){
+            if(existingGlobalMeta!=null&&!existingGlobalMeta.toLowerCase(Locale.ROOT).startsWith("shared|")){
+                plugin.getLogger().warning("La variable '"+name+"' possède déjà une portée globale différente de shared.");
+                return;
+            }
             if(!remainder.startsWith("[")||!remainder.endsWith("]")){
                 plugin.getLogger().warning("Déclaration shared invalide pour '"+name+"' : utilise shared [npc1, npc2].");
                 return;
@@ -696,6 +705,15 @@ public final class ScriptEngine implements Listener {
             String members=Arrays.stream(remainder.substring(1,remainder.length()-1).split(","))
                     .map(String::trim).filter(member->!member.isBlank()).distinct()
                     .collect(java.util.stream.Collectors.joining(","));
+            if(existingGlobalMeta!=null){
+                String existingMembers=existingGlobalMeta.substring(existingGlobalMeta.indexOf('|')+1);
+                Set<String> oldSet=Arrays.stream(existingMembers.split(",")).map(v->v.trim().toLowerCase(Locale.ROOT)).collect(java.util.stream.Collectors.toSet());
+                Set<String> newSet=Arrays.stream(members.split(",")).map(v->v.trim().toLowerCase(Locale.ROOT)).collect(java.util.stream.Collectors.toSet());
+                if(!oldSet.equals(newSet)){
+                    plugin.getLogger().warning("La liste des membres de la variable shared '"+name+"' ne peut pas être modifiée après sa création.");
+                    return;
+                }
+            }
             if(members.isBlank()||!isSharedMember(members,c.npc().id())){
                 plugin.getLogger().warning("Le NPC "+c.npc().id()+" doit figurer dans la liste des membres autorisés de la variable shared '"+name+"'.");
                 return;
