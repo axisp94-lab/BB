@@ -13,6 +13,9 @@ import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
 import org.bukkit.event.player.PlayerInteractAtEntityEvent;
 import org.bukkit.event.entity.EntityDamageByEntityEvent;
+import org.bukkit.event.entity.EntityDamageEvent;
+import org.bukkit.entity.Projectile;
+import org.bukkit.projectiles.ProjectileSource;
 import org.bukkit.entity.Entity;
 import org.bukkit.event.player.PlayerJoinEvent;
 import org.bukkit.event.player.PlayerQuitEvent;
@@ -41,11 +44,13 @@ public final class ScriptEngine implements Listener {
     private final Map<String, String> mainStates = new ConcurrentHashMap<>();
     private final Map<String, Set<String>> secondaryStates = new ConcurrentHashMap<>();
     private final Map<String, Long> cooldowns = new ConcurrentHashMap<>();
+    private final Map<String, Long> lastAttackedAt = new ConcurrentHashMap<>();
     public ScriptEngine(ANPCPlugin plugin,NPCManager npcs,VariableStore variables){this.plugin=plugin;this.npcs=npcs;this.variables=variables;}
     public void loadAll() {
         cancelTasks();
         scripts.clear();
         nearbyPlayers.clear();
+        lastAttackedAt.clear();
 
         File directory = new File(plugin.getDataFolder(), "scripts");
         File[] files = directory.listFiles((dir, name) -> name.toLowerCase(Locale.ROOT).endsWith(".aa"));
@@ -247,8 +252,12 @@ public final class ScriptEngine implements Listener {
 
     private String npcKey(ManagedNPC npc) {
         Location location = npc.location();
-        String world = location.getWorld() == null ? "unknown" : location.getWorld().getName().toLowerCase(Locale.ROOT);
-        return npc.id().toLowerCase(Locale.ROOT) + "@" + world;
+        return npcKey(npc.id(), location.getWorld());
+    }
+
+    private String npcKey(String id, org.bukkit.World world) {
+        String worldName = world == null ? "unknown" : world.getName().toLowerCase(Locale.ROOT);
+        return id.toLowerCase(Locale.ROOT) + "@" + worldName;
     }
     public void fire(String npc, String event, Player player) {
         ScriptData script = scripts.get(npc.toLowerCase(Locale.ROOT));
@@ -781,7 +790,11 @@ public final class ScriptEngine implements Listener {
                 return false;
             }
         }
-        if (lower.equals("npc is under attack")) return false;
+        if (lower.equals("npc is under attack")) {
+            long lastAttack = lastAttackedAt.getOrDefault(npcKey(context.npc()), 0L);
+            long durationTicks = Math.max(1L, plugin.getConfig().getLong("script-under-attack-duration-ticks", 100L));
+            return lastAttack > 0L && System.currentTimeMillis() - lastAttack <= durationTicks * 50L;
+        }
         return false;
     }
 
@@ -1465,10 +1478,34 @@ public final class ScriptEngine implements Listener {
         String id=e.getRightClicked().getScoreboardTags().stream().filter(t->t.startsWith("anpc:")).map(t->t.substring(5)).findFirst().orElse(null);
         if(id!=null){e.setCancelled(true);fire(id,e.getPlayer().isSneaking()?"right click while sneaking":"right click",e.getPlayer());if(!e.getPlayer().getInventory().getItemInMainHand().getType().isAir())fire(id,"item click",e.getPlayer());}
     }
-    @EventHandler public void onNpcLeftClick(EntityDamageByEntityEvent e){
-        if(!(e.getDamager() instanceof Player p))return;
-        String id=e.getEntity().getScoreboardTags().stream().filter(t->t.startsWith("anpc:")).map(t->t.substring(5)).findFirst().orElse(null);
-        if(id!=null){e.setCancelled(true);fire(id,p.isSneaking()?"left click while sneaking":"left click",p);fire(id,"damage",p);}
+    @EventHandler
+    public void onNpcDamaged(EntityDamageEvent event) {
+        Entity target = event.getEntity();
+        String id = target.getScoreboardTags().stream()
+                .filter(tag -> tag.startsWith("anpc:"))
+                .map(tag -> tag.substring(5))
+                .findFirst()
+                .orElse(null);
+        if (id == null) return;
+
+        // The condition stays true for a configurable window after the latest hit.
+        lastAttackedAt.put(npcKey(id, target.getWorld()), System.currentTimeMillis());
+
+        if (!(event instanceof EntityDamageByEntityEvent byEntity)) return;
+
+        Player attacker = null;
+        if (byEntity.getDamager() instanceof Player player) {
+            attacker = player;
+        } else if (byEntity.getDamager() instanceof Projectile projectile) {
+            ProjectileSource shooter = projectile.getShooter();
+            if (shooter instanceof Player player) attacker = player;
+        }
+
+        if (attacker == null) return;
+        // NPC hitboxes and backing entities should not take ordinary player damage.
+        event.setCancelled(true);
+        fire(id, attacker.isSneaking() ? "left click while sneaking" : "left click", attacker);
+        fire(id, "damage", attacker);
     }
     @EventHandler public void onJoin(PlayerJoinEvent e){for(ManagedNPC npc:npcs.all())if(e.getPlayer().getWorld().equals(npc.location().getWorld())&&e.getPlayer().getLocation().distanceSquared(npc.location())<64*64)npc.show(e.getPlayer());}
     @EventHandler public void onQuit(PlayerQuitEvent e){for(ManagedNPC npc:npcs.all())npc.hide(e.getPlayer());}
@@ -1478,6 +1515,7 @@ public final class ScriptEngine implements Listener {
         movementTasks.clear();
         followTasks.clear();
         activeNpcPairs.clear();
+        lastAttackedAt.clear();
     }
 
     public void shutdown() {
