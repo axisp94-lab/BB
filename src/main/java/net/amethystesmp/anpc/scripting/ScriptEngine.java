@@ -325,7 +325,7 @@ public final class ScriptEngine implements Listener {
         int depth=0;boolean quoted=false;
         for(int i=0;i<expression.length();i++){
             char ch=expression.charAt(i);
-            if(ch=='"'&&(i==0||expression.charAt(i-1)!='\\\\'))quoted=!quoted;
+            if(ch=='"'&&(i==0||expression.charAt(i-1)!='\\'))quoted=!quoted;
             if(quoted)continue;
             if(ch=='(')depth++;
             else if(ch==')'){
