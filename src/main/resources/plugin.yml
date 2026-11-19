@@ -7,7 +7,7 @@ softdepend: [BetterModel, MythicMobs, ItemsAdder, Multiverse-Core]
 commands:
   anpc:
     description: Gestion des NPC Amethyys
-    usage: /anpc [help|list|create|tp|center|rename|kill|remove|restore|delete|enable|disable|reload]
+    usage: /anpc [help|list|create|tp|center|rename|kill|remove|restore|delete|enable|disable|reload [script]]
     permission: anpc.admin
 permissions:
   anpc.admin:
