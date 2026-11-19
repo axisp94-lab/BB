@@ -37,6 +37,7 @@ public final class ManagedNPC {
     private double health = 20.0;
     private double maxHealth = 20.0;
     private double speed = 4.0;
+    private double attackDamage = 2.0;
     private final Map<String, Location> checkpoints = new ConcurrentHashMap<>();
     private final Map<String, Long> cooldowns = new ConcurrentHashMap<>();
 
@@ -112,6 +113,8 @@ public final class ManagedNPC {
     public void setMaxHealth(double maxHealth) { this.maxHealth = Math.max(1.0, maxHealth); this.health = Math.min(this.health, this.maxHealth); }
     public double speed() { return speed; }
     public void setSpeed(double speed) { this.speed = Math.max(0.1, speed); }
+    public double attackDamage() { return attackDamage; }
+    public void setAttackDamage(double damage) { attackDamage = Math.max(0.0, damage); }
     public void setCheckpoint(String name, Location location) {
         if (name != null && !name.isBlank() && location != null) checkpoints.put(name.toLowerCase(java.util.Locale.ROOT), location.clone());
     }
