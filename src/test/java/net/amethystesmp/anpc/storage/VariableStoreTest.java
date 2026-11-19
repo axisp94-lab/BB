@@ -100,6 +100,40 @@ class VariableStoreTest {
     }
 
     @Test
+    void allWorldVariablesCanBeArchivedAndRestoredWithoutLoadedWorldList() throws Exception {
+        try (VariableStore store = openStore()) {
+            store.setLocal("guard", "world", "coins", 12);
+            store.setLocal("guard", "world_nether", "coins", 8);
+            store.set("local", "guard", "legacy", "kept");
+
+            store.archiveAllLocalVariables("guard");
+
+            assertNull(store.getLocal("guard", "world", "coins", null));
+            assertNull(store.getLocal("guard", "world_nether", "coins", null));
+            assertTrue(store.restoreAllLocalVariables("guard"));
+
+            assertEquals("12", store.getLocal("guard", "world", "coins", null));
+            assertEquals("8", store.getLocal("guard", "world_nether", "coins", null));
+            assertEquals("kept", store.getLocal("guard", "world_the_end", "legacy", null));
+        }
+    }
+
+    @Test
+    void ownerPrefixDeletionRemovesRuntimeStateForUnloadedWorlds() throws Exception {
+        try (VariableStore store = openStore()) {
+            store.set("npc-runtime", "guard@world", "health", 10);
+            store.set("npc-runtime", "guard@world_nether", "health", 8);
+            store.set("npc-runtime", "other@world", "health", 5);
+
+            store.deleteOwnerAndPrefix("npc-runtime", "guard");
+
+            assertNull(store.get("npc-runtime", "guard@world", "health", null));
+            assertNull(store.get("npc-runtime", "guard@world_nether", "health", null));
+            assertEquals("5", store.get("npc-runtime", "other@world", "health", null));
+        }
+    }
+
+    @Test
     void expiredRecoveryRowsArePurged() throws Exception {
         try (VariableStore store = openStore()) {
             store.setLocal("guard", "world", "old-value", "expired");
