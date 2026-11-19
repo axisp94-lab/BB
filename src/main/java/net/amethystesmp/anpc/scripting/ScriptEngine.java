@@ -561,28 +561,28 @@ public final class ScriptEngine implements Listener {
         FunctionDefinition function = script.functions().get(name);
         if (function == null) return null;
 
-        if (functionDepth.get() >= 32) {
+        int depth = functionDepth.get();
+        if (depth >= 32) {
             plugin.getLogger().warning("Script " + parent.npc().id() + " : profondeur maximale d'appel de fonctions atteinte pour " + name + ".");
             return new FunctionResult(true, null);
         }
 
-        List<String> arguments = parseFunctionArguments(expression.substring(open + 1, expression.length() - 1));
-        if (arguments.size() != function.parameters().size()) {
-            plugin.getLogger().warning("Script " + parent.npc().id() + " : nombre d'arguments invalide pour " + name + ".");
-            return new FunctionResult(true, null);
-        }
-
-        ScriptContext context = new ScriptContext(parent.npc(), parent.player());
-        context.locals().putAll(parent.locals());
-        for (int i = 0; i < arguments.size(); i++) {
-            context.locals().put(function.parameters().get(i), resolve(parent, arguments.get(i)));
-        }
-
-        functionDepth.set(functionDepth.get() + 1);
+        functionDepth.set(depth + 1);
         try {
+            List<String> arguments = parseFunctionArguments(expression.substring(open + 1, expression.length() - 1));
+            if (arguments.size() != function.parameters().size()) {
+                plugin.getLogger().warning("Script " + parent.npc().id() + " : nombre d'arguments invalide pour " + name + ".");
+                return new FunctionResult(true, null);
+            }
+
+            ScriptContext context = new ScriptContext(parent.npc(), parent.player());
+            context.locals().putAll(parent.locals());
+            for (int i = 0; i < arguments.size(); i++) {
+                context.locals().put(function.parameters().get(i), resolve(parent, arguments.get(i)));
+            }
             return runFunctionBlock(context, function.code(), 0, 0);
         } finally {
-            functionDepth.set(functionDepth.get() - 1);
+            functionDepth.set(depth);
         }
     }
 
