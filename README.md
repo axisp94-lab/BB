@@ -78,13 +78,13 @@ on interval:
 ```
 
 Éléments pris en charge dans cette version :
-- événements de clic, d'approche des joueurs, de proximité et de départ entre NPC, d'intervalle et de spawn ;
+- événements de clic, de dégâts, d'approche des joueurs, de proximité et de départ entre NPC, d'intervalle et de spawn ;
 - blocs `if`, variables locales/partagées/globales et fonctions avec paramètres et `return` ;
 - boucles `loop all players`, `loop all npcs`, `loop all (liste)` et `loop N times`, avec `stop loop` et `skip loop` ;
 - sélecteurs `@p`, `@a`, `@n`, `@e[type=...]`, `player:<pseudo>` et `npc:<id>` pour les cibles compatibles ;
 - actions de message, son vanilla ou identifiant custom `namespace:sound` (ItemsAdder), animation BetterModel, déplacement, téléportation, suivi, maintien de distance, déplacement aérien direct, états, simulation de blocs et commande console.
 
-Les états principaux et secondaires sont conservés en mémoire et réinitialisés au redémarrage du serveur. `setblock (position) (bloc)` ne modifie pas le monde : il joue seulement les particules et le son. Le préfixe explicite `setblock real` applique réellement le changement. Le bloc `cooldown 10 seconds:` limite la fréquence d'exécution de son contenu. Les fonctions sont synchrones : `wait` n'est pas accepté dans une fonction qui retourne une valeur. Les sélecteurs d'entités sont limités au rayon défini par `selector-range` (64 blocs par défaut). Les listes sauvegardées sont actuellement interprétées depuis une chaîne séparée par des virgules.
+Les états principaux et secondaires sont conservés en mémoire et réinitialisés au redémarrage du serveur. La condition `npc is under attack` devient vraie après un dégât reçu par le NPC (attaque directe, projectile ou autre source) et reste active pendant `script-under-attack-duration-ticks` ticks (100 par défaut, soit 5 secondes) après le dernier dégât. `setblock (position) (bloc)` ne modifie pas le monde : il joue seulement les particules et le son. Le préfixe explicite `setblock real` applique réellement le changement. Le bloc `cooldown 10 seconds:` limite la fréquence d'exécution de son contenu. Les fonctions sont synchrones : `wait` n'est pas accepté dans une fonction qui retourne une valeur. Les sélecteurs d'entités sont limités au rayon défini par `selector-range` (64 blocs par défaut). Les listes sauvegardées sont actuellement interprétées depuis une chaîne séparée par des virgules.
 
 ### Déplacements
 - `move to <cible>` utilise A* sur les blocs praticables et des checkpoints.
