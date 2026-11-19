@@ -123,6 +123,11 @@ public final class NPCManager {
         return npcs.values().stream().filter(npc -> npc.id().equalsIgnoreCase(id)).toList();
     }
 
+    public List<String> allIds() {
+        ConfigurationSection root = yaml == null ? null : yaml.getConfigurationSection("npcs");
+        return root == null ? List.of() : root.getKeys(false).stream().sorted(String.CASE_INSENSITIVE_ORDER).toList();
+    }
+
     public Collection<ManagedNPC> all() { return Collections.unmodifiableCollection(npcs.values()); }
     public int size() { return npcs.size(); }
     public boolean exists(String id) { return yaml != null && yaml.isConfigurationSection("npcs." + id); }
