@@ -32,6 +32,9 @@ public final class ManagedNPC {
     private String targetSelector = "all players";
     private UUID lastAttacker;
     private UUID combatTarget;
+    private double health = 20.0;
+    private double maxHealth = 20.0;
+    private double speed = 4.0;
 
     public ManagedNPC(NPCDefinition definition, ModelRenderer renderer, Location location) {
         this(definition, renderer, location, null);
@@ -99,6 +102,12 @@ public final class ManagedNPC {
     public void setLastAttacker(UUID attacker) { lastAttacker = attacker; }
     public UUID combatTarget() { return combatTarget; }
     public void setCombatTarget(UUID target) { combatTarget = target; }
+    public double health() { return health; }
+    public void setHealth(double health) { this.health = Math.max(0.0, Math.min(maxHealth, health)); }
+    public double maxHealth() { return maxHealth; }
+    public void setMaxHealth(double maxHealth) { this.maxHealth = Math.max(1.0, maxHealth); this.health = Math.min(this.health, this.maxHealth); }
+    public double speed() { return speed; }
+    public void setSpeed(double speed) { this.speed = Math.max(0.1, speed); }
     public Entity hitbox() { return hitbox; }
     public void close() { if (!tracker.isClosed()) tracker.close(); if (hitbox.isValid()) hitbox.remove(); viewers.clear(); }
 }
