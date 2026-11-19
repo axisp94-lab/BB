@@ -109,7 +109,11 @@ public final class NPCManager implements Listener {
 
             String key = instanceKey(definition.id(), world);
             ManagedNPC previous = npcs.put(key, managed);
-            if (previous != null) previous.close();
+            if (previous != null) {
+                if (plugin.scripts() != null) plugin.scripts().onNpcUnloaded(previous);
+                previous.close();
+            }
+            if (plugin.scripts() != null) plugin.scripts().onNpcLoaded(managed);
         } catch (RuntimeException exception) {
             plugin.getLogger().warning("Impossible de créer le NPC '" + definition.id() + "' dans " + world.getName()
                     + " : " + exception.getMessage());
@@ -135,7 +139,10 @@ public final class NPCManager implements Listener {
                 .toList();
         for (String key : keys) {
             ManagedNPC npc = npcs.remove(key);
-            if (npc != null) npc.close();
+            if (npc != null) {
+                if (plugin.scripts() != null) plugin.scripts().onNpcUnloaded(npc);
+                npc.close();
+            }
         }
     }
 
@@ -276,6 +283,7 @@ public final class NPCManager implements Listener {
 
             npcs.put(instanceKey(id, location.getWorld()), managed);
             definitions.put(id.toLowerCase(Locale.ROOT), definition);
+            if (plugin.scripts() != null) plugin.scripts().onNpcLoaded(managed);
             saveDefinition(definition);
             refreshVisibility();
             return true;
@@ -298,7 +306,10 @@ public final class NPCManager implements Listener {
 
         for (String key : matches) {
             ManagedNPC npc = npcs.remove(key);
-            if (npc != null) npc.close();
+            if (npc != null) {
+                if (plugin.scripts() != null) plugin.scripts().onNpcUnloaded(npc);
+                npc.close();
+            }
         }
 
         definitions.remove(normalizedId);
@@ -413,7 +424,10 @@ public final class NPCManager implements Listener {
             visibilityTask.cancel();
             visibilityTask = null;
         }
-        npcs.values().forEach(ManagedNPC::close);
+        npcs.values().forEach(npc -> {
+            if (plugin.scripts() != null) plugin.scripts().onNpcUnloaded(npc);
+            npc.close();
+        });
         npcs.clear();
         definitions.clear();
     }
