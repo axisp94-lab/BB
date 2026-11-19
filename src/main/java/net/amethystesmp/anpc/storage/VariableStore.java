@@ -89,6 +89,18 @@ public final class VariableStore implements AutoCloseable {
         }
     }
 
+    public synchronized void delete(String scope, String owner, String name) {
+        try (PreparedStatement statement = connection.prepareStatement(
+                "DELETE FROM variables WHERE scope=? AND owner=? AND name=?")) {
+            statement.setString(1, normalize(scope));
+            statement.setString(2, normalize(owner));
+            statement.setString(3, normalize(name));
+            statement.executeUpdate();
+        } catch (SQLException exception) {
+            throw new IllegalStateException("Impossible de supprimer la variable " + name, exception);
+        }
+    }
+
     public synchronized void setLocal(String npcId, String worldName, String name, Object value) {
         set("local", localOwner(npcId, worldName), name, value);
     }
