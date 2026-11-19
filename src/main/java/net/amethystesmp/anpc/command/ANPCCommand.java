@@ -29,7 +29,7 @@ public final class ANPCCommand implements TabExecutor {
         if (args.length == 0 || args[0].equalsIgnoreCase("help")) {
             msg(sender, "/anpc list | create <id> <modele> | tp <id> | center <id> | rename <id> <nom>");
             msg(sender, "/anpc kill <id> | remove <id> | restore <id> | delete <id> [confirm]");
-            msg(sender, "/anpc disable <id> | enable <id> | reload");
+            msg(sender, "/anpc disable <id> | enable <id> | reload [script]");
             return true;
         }
 
