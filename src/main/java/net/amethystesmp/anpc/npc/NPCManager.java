@@ -175,6 +175,18 @@ public final class NPCManager {
     public int size() { return npcs.size(); }
     private boolean isValidId(String id) { return id != null && id.matches("[A-Za-z0-9_-]+"); }
 
+    private boolean hasRecoverableDeletion(String id) {
+        ConfigurationSection backup = deletedYaml == null ? null : deletedYaml.getConfigurationSection("npcs." + id);
+        if (backup == null) return false;
+        long deletedAt = backup.getLong("deleted-at", 0L);
+        if (deletedAt > 0L && System.currentTimeMillis() - deletedAt <= 24L * 60L * 60L * 1000L) return true;
+        deletedYaml.set("npcs." + id, null);
+        deleteBackupScript(id);
+        plugin.variables().purgeExpiredRecoveries();
+        saveDeleted();
+        return false;
+    }
+
     public boolean exists(String id) { return isValidId(id) && yaml != null && yaml.isConfigurationSection("npcs." + id); }
 
     private boolean isRemoved(String id) {
@@ -183,7 +195,7 @@ public final class NPCManager {
     }
 
     public boolean create(String id, String type, Location location) {
-        if (!isValidId(id) || type == null || type.isBlank() || exists(id) || location == null || location.getWorld() == null) return false;
+        if (!isValidId(id) || type == null || type.isBlank() || exists(id) || hasRecoverableDeletion(id) || location == null || location.getWorld() == null) return false;
         NPCDefinition definition = new NPCDefinition(id, id, type, List.of(location.getWorld().getName()),
                 location.getX(), location.getY(), location.getZ(), location.getYaw(), location.getPitch(), "");
         ModelRenderer renderer = resolveRenderer(type);
