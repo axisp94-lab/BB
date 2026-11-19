@@ -24,6 +24,9 @@ public final class ManagedNPC {
     private boolean scriptsEnabled = true;
     private String primaryState = "idle";
     private final Set<String> secondaryStates = new HashSet<>();
+    private String followTarget = "";
+    private double followMin = 2.0;
+    private double followMax = 5.0;
 
     public ManagedNPC(NPCDefinition definition, ModelRenderer renderer, Location location) {
         this(definition, renderer, location, null);
@@ -74,6 +77,15 @@ public final class ManagedNPC {
     public void addSecondaryState(String state) { if (state != null && !state.isBlank()) secondaryStates.add(state.toLowerCase(java.util.Locale.ROOT)); }
     public void removeSecondaryState(String state) { if (state != null) secondaryStates.remove(state.toLowerCase(java.util.Locale.ROOT)); }
     public void clearSecondaryStates() { secondaryStates.clear(); }
+    public String followTarget() { return followTarget; }
+    public double followMin() { return followMin; }
+    public double followMax() { return followMax; }
+    public void setFollowState(String target, double min, double max) {
+        followTarget = target == null ? "" : target;
+        followMin = Math.max(0.5, min);
+        followMax = Math.max(followMin, max);
+    }
+    public void clearFollowState() { followTarget = ""; }
     public Entity hitbox() { return hitbox; }
     public void close() { if (!tracker.isClosed()) tracker.close(); if (hitbox.isValid()) hitbox.remove(); viewers.clear(); }
 }
