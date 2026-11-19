@@ -49,10 +49,24 @@ on right click:
     play sound "entity.villager.yes"
     play sound "itemsadder:amethyys:welcome"
     emote "wave"
+    sneak
+    sprint
+    jump
+    look at @p
+    look away
     stop animation
 
 on entity approach:
     say local "Bienvenue près de moi !"
+
+on entity leave:
+    say local "À bientôt !"
+
+on item click:
+    say local event item
+
+on reload:
+    say local "Mes scripts sont rechargés."
 
 on interval:
     if flag (ouvert) is on:
