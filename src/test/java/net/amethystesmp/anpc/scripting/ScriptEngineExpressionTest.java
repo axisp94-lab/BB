@@ -52,4 +52,22 @@ class ScriptEngineExpressionTest {
         assertTrue(test(engine, context, "(items) contains (apple) more than 1 times"));
         assertFalse(test(engine, context, "(items) contains (\"pear\") more than 1 times"));
     }
+    private boolean knownCondition(ScriptEngine engine, String expression) throws Exception {
+        Method method = ScriptEngine.class.getDeclaredMethod("isKnownConditionSyntax", String.class);
+        method.setAccessible(true);
+        return (boolean) method.invoke(engine, expression);
+    }
+
+    @Test
+    void validatesDocumentedConditionFormsAndRejectsUnknownOnes() throws Exception {
+        ScriptEngine engine = new ScriptEngine(null, null, null);
+
+        assertTrue(knownCondition(engine, "event message contains \"bonjour\""));
+        assertTrue(knownCondition(engine, "block below is one of (stone, dirt)"));
+        assertTrue(knownCondition(engine, "ray = 3 contains stone"));
+        assertTrue(knownCondition(engine, "number of stone in sphere 3 > 5"));
+        assertTrue(knownCondition(engine, "flag (porte) is on"));
+        assertFalse(knownCondition(engine, "this is not a supported condition"));
+    }
+
 }
