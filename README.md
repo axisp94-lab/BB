@@ -163,6 +163,19 @@ on left click:
 
 `attack @p` choisit le joueur le plus proche et active l'hostilité. Les sélecteurs pris en charge comprennent `all players`, `all mobs`, `all entities`, `monsters`, `animals`, `player:<pseudo>`, `mob:<type>`, `entity:<type>` et `mythic:<id>`. Les portées, dégâts et délais sont réglables dans `config.yml` sous `combat`.
 
+### Cooldowns
+
+Les cooldowns sont indépendants pour chaque instance du NPC.
+
+```python
+on right click:
+    if cooldown "dialogue" is ready:
+        say local "Bonjour !"
+        set cooldown "dialogue" for 5 seconds
+```
+
+Pour réinitialiser un cooldown : `reset cooldown "dialogue"`. Les durées acceptent les ticks, secondes, minutes et millisecondes.
+
 ### États
 
 Un NPC possède un état principal et peut avoir plusieurs états secondaires.
