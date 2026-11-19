@@ -136,7 +136,7 @@ public final class ANPCCommand implements TabExecutor {
         }
         if (args.length == 2 && Set.of("tp", "center", "rename", "kill", "remove", "delete")
                 .contains(args[0].toLowerCase(Locale.ROOT))) {
-            return filter(plugin.npcs().all().stream().map(ManagedNPC::id).distinct().toList(), args[1]);
+            return filter(plugin.npcs().definitions().stream().map(NPCDefinition::id).toList(), args[1]);
         }
         return Collections.emptyList();
     }
