@@ -209,7 +209,7 @@ public final class ScriptEngine implements Listener {
                 for (Player player : location.getWorld().getPlayers()) {
                     if (player.getLocation().distanceSquared(location) <= radiusSquared) {
                         current.add(player.getUniqueId());
-                        if (previous.add(player.getUniqueId())) fire(npc.id(), "entity approach", player);
+                        if (previous.add(player.getUniqueId())) firePlayerEvent(npc, "entity approach", player);
                     }
                 }
 
@@ -217,7 +217,7 @@ public final class ScriptEngine implements Listener {
                     if (!current.contains(uuid)) {
                         previous.remove(uuid);
                         Player player = Bukkit.getPlayer(uuid);
-                        if (player != null) fire(npc.id(), "entity leave", player);
+                        firePlayerEvent(npc, "entity leave", player);
                     }
                 }
             }
