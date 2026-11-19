@@ -763,9 +763,13 @@ public final class ScriptEngine implements Listener {
         String npcId = context.npc().id().toLowerCase(Locale.ROOT);
 
         if (lower.startsWith("flag (") && lower.contains(") is ")) {
+            int separator = lower.indexOf(") is ");
             String name = expressionText.substring(6, expressionText.indexOf(')'));
+            String expected = lower.substring(separator + 5).trim();
             boolean enabled = Boolean.parseBoolean(variables.get("npc", context.npc().id(), "flag:" + name, "false"));
-            return lower.endsWith("on") ? enabled : !enabled;
+            if (expected.equals("on")) return enabled;
+            if (expected.equals("off")) return !enabled;
+            return false;
         }
         if (lower.startsWith("state is ")) {
             String expected = normalizeArgument(expressionText.substring(9));
@@ -950,7 +954,7 @@ public final class ScriptEngine implements Listener {
             }
 
             String line = instruction.text();
-            if (line.startsWith("return")) {
+            if (line.equalsIgnoreCase("return") || line.regionMatches(true, 0, "return ", 0, 7)) {
                 String expression = line.length() > 6 ? line.substring(6).trim() : "";
                 return new FunctionResult(true, expression.isBlank() ? null : resolve(context, expression));
             }
