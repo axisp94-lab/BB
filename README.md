@@ -28,13 +28,13 @@ npcs:
     z: 0.5
     yaw: 0
     pitch: 0
-    skin: "00000000-0000-0000-0000-000000000000"
+    skin: "file:skins/gardien.png"
 ```
 
 - `type: player` sélectionne le limb `steve`.
 - `type: limb:nom` utilise un limb BetterModel.
 - Pour un modèle classique, `type` correspond au nom du modèle BetterModel.
-- `skin` accepte un UUID ou le nom d'un joueur actuellement connecté.
+- `skin` accepte un UUID Minecraft, un pseudo (si son UUID est connu) ou `file:skins/nom.png`. Les skins locaux doivent être des PNG 64x64 ou 64x32 dans `plugins/AmethyysNPCs/skins/`.
 - `world` accepte un nom, une liste de noms ou `all`. Une instance est créée dans chaque monde ciblé.
 
 ## Scripts .aa
