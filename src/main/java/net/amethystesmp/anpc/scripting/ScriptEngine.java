@@ -792,13 +792,24 @@ public final class ScriptEngine implements Listener {
     private boolean compareValues(Object left,Object right,String operator){
         if(operator.equals("==")||operator.equals("!=")){
             boolean equal;
-            if(left instanceof Number&&right instanceof Number)equal=Double.compare(num(left),num(right))==0;
-            else equal=Objects.equals(String.valueOf(left),String.valueOf(right))
-                    ||(left!=null&&right!=null&&String.valueOf(left).equalsIgnoreCase(String.valueOf(right)));
+            if(left==null||right==null)equal=left==right;
+            else if(isNumericValue(left)&&isNumericValue(right))equal=Double.compare(Double.parseDouble(String.valueOf(left)),Double.parseDouble(String.valueOf(right)))==0;
+            else equal=String.valueOf(left).equalsIgnoreCase(String.valueOf(right));
             return operator.equals("==")?equal:!equal;
         }
-        double a=num(left),b=num(right);
-        return switch(operator){case ">"->a>b;case "<"->a<b;case ">="->a>=b;case "<="->a<=b;default->false;};
+        if(isNumericValue(left)&&isNumericValue(right)){
+            double a=Double.parseDouble(String.valueOf(left)),b=Double.parseDouble(String.valueOf(right));
+            return switch(operator){case ">"->a>b;case "<"->a<b;case ">="->a>=b;case "<="->a<=b;default->false;};
+        }
+        int comparison=String.valueOf(left).compareToIgnoreCase(String.valueOf(right));
+        return switch(operator){case ">"->comparison>0;case "<"->comparison<0;case ">="->comparison>=0;case "<="->comparison<=0;default->false;};
+    }
+
+    private boolean isNumericValue(Object value){
+        if(value instanceof Number)return true;
+        if(value==null)return false;
+        try{Double.parseDouble(String.valueOf(value));return true;}
+        catch(NumberFormatException exception){return false;}
     }
 
     private int countOccurrences(Object source,Object needle){
