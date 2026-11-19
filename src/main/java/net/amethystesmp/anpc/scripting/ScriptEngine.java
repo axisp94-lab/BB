@@ -101,6 +101,7 @@ public final class ScriptEngine implements Listener {
                 plugin.getLogger().warning("Le NPC "+c.npc().id()+" doit faire partie des membres autorisés pour créer la variable shared '"+name+"'.");
                 return;
             }
+            variables.set("meta","",name,"shared|"+members);
             variables.set("meta",c.npc().id(),name,"shared|"+members);
             for(String member:members.split(","))variables.set("meta",member.trim(),name,"shared|"+members);
             variables.set("shared",members,name,value);
