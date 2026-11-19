@@ -82,7 +82,7 @@ on right click:
     flag off (ouvert)
 ```
 
-Les variables sont conservées dans SQLite. Les variables locales sont isolées par NPC et par monde. Les variables globales et partagées restent communes selon leur portée.
+Les variables sont conservées dans SQLite. Les variables locales sont isolées par NPC et par monde. Les variables globales et partagées restent communes selon leur portée. La liste des membres d’une variable `shared` est fixée lors de sa première déclaration : une redéclaration avec une liste différente est refusée pour éviter de laisser d’anciens accès.
 
 ### Fonctions globales
 
