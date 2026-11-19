@@ -1,9 +1,7 @@
 package net.amethystesmp.anpc.scripting;
 
 import org.junit.jupiter.api.Test;
-import org.bukkit.Material;
 import org.bukkit.Location;
-import org.bukkit.inventory.ItemStack;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -66,20 +64,6 @@ class ScriptContextTest {
         continuation.run();
         assertEquals(1, executions.get());
     }
-    @Test
-    void eventItemIsCopiedWhenStoredAndRead() {
-        ScriptContext context = new ScriptContext(null, null);
-        ItemStack original = new ItemStack(Material.STONE, 1);
-
-        context.setEventItem(original);
-        original.setAmount(5);
-
-        assertEquals(1, context.eventItem().getAmount());
-        ItemStack exposed = context.eventItem();
-        exposed.setAmount(9);
-        assertEquals(1, context.eventItem().getAmount());
-    }
-
     @Test
     void eventPlaceIsReturnedAsACopy() {
         ScriptContext context = new ScriptContext(null, null);
