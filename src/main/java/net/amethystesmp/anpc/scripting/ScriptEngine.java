@@ -80,6 +80,10 @@ public final class ScriptEngine implements Listener {
             if(raw.isBlank()||raw.stripLeading().startsWith("#"))continue;
             int indent=raw.length()-raw.stripLeading().length(); String text=raw.trim();
             if(indent==0&&text.toLowerCase(Locale.ROOT).startsWith("function ")){event=null;continue;}
+            if(event!=null&&indent>0&&indent%4!=0){
+                plugin.getLogger().warning("Indentation invalide ligne "+(i+1)+" : utilise des blocs de 4 espaces. L'événement '"+event+"' est ignoré.");
+                result.remove(event);event=null;continue;
+            }
             if(indent==0&&text.toLowerCase(Locale.ROOT).startsWith("on ")){
                 if(!text.endsWith(":")){
                     plugin.getLogger().warning("Déclaration d'événement invalide ligne "+(i+1)+" : "+text);
@@ -113,15 +117,17 @@ public final class ScriptEngine implements Listener {
             String rawParameters=header.substring(open+1,close).trim();
             if(!rawParameters.isBlank())for(String parameter:splitArguments(rawParameters))parameters.add(parameter.trim().toLowerCase(Locale.ROOT));
             List<Instruction> body=new ArrayList<>();
+            boolean invalidIndent=false;
             int j=i+1;
             for(;j<lines.size();j++){
                 String line=lines.get(j);
                 if(line.isBlank()||line.stripLeading().startsWith("#"))continue;
                 int indent=line.length()-line.stripLeading().length();
                 if(indent==0)break;
+                if(indent%4!=0){plugin.getLogger().warning("Indentation invalide dans la fonction '"+name+"' ligne "+(j+1)+" : fonction ignorée.");invalidIndent=true;}
                 body.add(new Instruction(indent,line.trim(),j+1));
             }
-            if(result.putIfAbsent(name,new FunctionDefinition(List.copyOf(parameters),List.copyOf(body)))!=null)
+            if(!invalidIndent&&result.putIfAbsent(name,new FunctionDefinition(List.copyOf(parameters),List.copyOf(body)))!=null)
                 plugin.getLogger().warning("Fonction dupliquée '"+name+"' dans le même fichier, déclaration ignorée (ligne "+(i+1)+").");
             i=j-1;
         }
@@ -261,6 +267,27 @@ public final class ScriptEngine implements Listener {
         if(s.equals("clear states")){c.npc().setPrimaryState("idle");c.npc().clearSecondaryStates();index++;continue;}
         index++;
     }return index;}
+    private void warnUnknownInstruction(int line,String text){
+        List<String> keywords=List.of("say local","say global","send to","set","create variable","flag on","flag off",
+                "play sound","play anime","move to","fly to","follow","keep distance","stop follow","target","attack",
+                "stop attack","set state","add state","remove state","clear states","simulate break block","simulate place",
+                "simulate interact","set block","break block","wait","run command","look at","if","loop","return","call");
+        String first=text.trim().split("\\s+",2)[0].toLowerCase(Locale.ROOT);
+        String suggestion=keywords.stream().min(Comparator.comparingInt(keyword->editDistance(first,keyword.split(" ",2)[0]))).orElse("");
+        int distance=suggestion.isBlank()?99:editDistance(first,suggestion.split(" ",2)[0]);
+        String suffix=distance<=2?" Suggestion : '"+suggestion+"'.":"";
+        plugin.getLogger().warning("Instruction .aa inconnue ligne "+line+" : '"+text+"'."+suffix);
+    }
+
+    private int editDistance(String left,String right){
+        int[][] dp=new int[left.length()+1][right.length()+1];
+        for(int i=0;i<=left.length();i++)dp[i][0]=i;
+        for(int j=0;j<=right.length();j++)dp[0][j]=j;
+        for(int i=1;i<=left.length();i++)for(int j=1;j<=right.length();j++)
+            dp[i][j]=Math.min(Math.min(dp[i-1][j]+1,dp[i][j-1]+1),dp[i-1][j-1]+(left.charAt(i-1)==right.charAt(j-1)?0:1));
+        return dp[left.length()][right.length()];
+    }
+
     private void executeLoop(ScriptContext context,List<Instruction> code,int bodyStart,int bodyIndent,String expression){
         List<Object> values=new ArrayList<>();
         String loop=expression.trim();
