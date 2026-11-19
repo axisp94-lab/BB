@@ -71,6 +71,17 @@ class VariableStoreTest {
     }
 
     @Test
+    void worldSpecificValueWinsOverLegacyNpcValueDuringRecovery() throws Exception {
+        try (VariableStore store = openStore()) {
+            store.setLocal("guard", "world", "rank", "world-specific");
+            store.set("local", "guard", "rank", "legacy");
+            store.archiveLocalVariables("guard", "world");
+            assertTrue(store.restoreLocalVariables("guard", "world"));
+            assertEquals("world-specific", store.getLocal("guard", "world", "rank", null));
+        }
+    }
+
+    @Test
     void archiveRestoresWorldLocalValuesWithoutTouchingGlobalOrSharedValues() throws Exception {
         try (VariableStore store = openStore()) {
             store.setLocal("merchant", "world", "coins", 45);
