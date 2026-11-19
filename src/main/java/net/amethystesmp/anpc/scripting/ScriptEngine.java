@@ -526,6 +526,7 @@ public final class ScriptEngine implements Listener {
             c.npc().animate(unquote(s.substring(offset)));markChanged(c);index++;continue;
         }
         if(s.equals("stop animation")){c.npc().animate("idle");markChanged(c);index++;continue;}
+        if(s.equals("sneak")||s.equals("sprint")||s.equals("jump")){c.npc().animate(s);markChanged(c);index++;continue;}
         if(s.startsWith("play sound ")){playScriptSound(c,s.substring(11).trim());index++;continue;}
         if(s.startsWith("reset cooldown ")){c.npc().resetCooldown(unquote(s.substring(15).trim()));markChanged(c);index++;continue;}
         if(s.startsWith("set checkpoint ")){c.npc().setCheckpoint(unquote(s.substring(15).trim()),c.npc().location());markChanged(c);index++;continue;}
@@ -630,6 +631,7 @@ public final class ScriptEngine implements Listener {
                 ||text.startsWith("create variable ")||text.startsWith("add state ")
                 ||text.startsWith("remove state ")||text.equals("clear states")||text.startsWith("flag on ")
                 ||text.startsWith("flag off ")||text.startsWith("play sound ")||text.startsWith("play anime ")||text.startsWith("emote ")||text.equals("stop animation")
+                 ||text.equals("sneak")||text.equals("sprint")||text.equals("jump")
                 ||text.startsWith("move to ")||text.startsWith("fly to ")||text.startsWith("tp ")||text.startsWith("follow ")
                 ||text.startsWith("keep distance ")||text.equals("stop follow")||text.equals("stop movement")||text.startsWith("target ")
                 ||text.startsWith("attack ")||text.equals("stop attack")||text.startsWith("look at ")
