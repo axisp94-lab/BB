@@ -62,8 +62,19 @@ on interval:
     if flag (ouvert) is on:
         say local "La porte est ouverte."
 
+    set state (guard)
+    add state (alert)
+    if state is (guard):
+        say local "Je monte la garde."
+    if has state (alert):
+        say local "Je suis en alerte."
+
     loop 3 times:
         say local "Rappel numéro loop-number"
+
+    setblock (100,64,100) (stone)
+    # Modification réelle uniquement sur demande explicite :
+    # setblock real (100,64,100) (stone)
 ```
 
 Éléments pris en charge dans cette version :
@@ -71,9 +82,9 @@ on interval:
 - blocs `if`, variables locales/partagées/globales et fonctions avec paramètres et `return` ;
 - boucles `loop all players`, `loop all npcs`, `loop all (liste)` et `loop N times`, avec `stop loop` et `skip loop` ;
 - sélecteurs `@p`, `@a`, `@n`, `@e[type=...]`, `player:<pseudo>` et `npc:<id>` pour les cibles compatibles ;
-- actions de message, son vanilla ou identifiant custom `namespace:sound` (ItemsAdder), animation BetterModel, déplacement, téléportation, suivi, maintien de distance, déplacement aérien direct, variables, drapeaux et commande console.
+- actions de message, son vanilla ou identifiant custom `namespace:sound` (ItemsAdder), animation BetterModel, déplacement, téléportation, suivi, maintien de distance, déplacement aérien direct, états, simulation de blocs et commande console.
 
-Les fonctions sont synchrones : `wait` n'est pas accepté dans une fonction qui retourne une valeur. Les sélecteurs d'entités sont limités au rayon défini par `selector-range` (64 blocs par défaut). Les listes sauvegardées sont actuellement interprétées depuis une chaîne séparée par des virgules.
+Les états principaux et secondaires sont conservés en mémoire et réinitialisés au redémarrage du serveur. `setblock (position) (bloc)` ne modifie pas le monde : il joue seulement les particules et le son. Le préfixe explicite `setblock real` applique réellement le changement. Les fonctions sont synchrones : `wait` n'est pas accepté dans une fonction qui retourne une valeur. Les sélecteurs d'entités sont limités au rayon défini par `selector-range` (64 blocs par défaut). Les listes sauvegardées sont actuellement interprétées depuis une chaîne séparée par des virgules.
 
 ### Déplacements
 - `move to <cible>` utilise A* sur les blocs praticables et des checkpoints.
