@@ -75,6 +75,7 @@ public final class NPCManager {
             return;
         }
 
+        boolean multipleWorlds = allWorlds || targets.size() > 1;
         for (World world : targets) {
             ModelRenderer renderer = resolveRenderer(definition);
             if (renderer == null) {
@@ -83,7 +84,7 @@ public final class NPCManager {
             }
 
             ManagedNPC managed = new ManagedNPC(definition, renderer, definition.location(world), skinProfile(definition));
-            String key = instanceKey(definition.id(), world, allWorlds);
+            String key = instanceKey(definition.id(), world, multipleWorlds);
             ManagedNPC previous = npcs.put(key, managed);
             if (previous != null) previous.close();
         }
