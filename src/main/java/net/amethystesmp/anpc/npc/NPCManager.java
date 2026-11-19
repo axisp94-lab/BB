@@ -196,12 +196,10 @@ public final class NPCManager {
             saveDefinition(definition);
             yaml.set("npcs." + id + ".removed", false);
             yaml.set("npcs." + id + ".scripts-enabled", true);
-            for (String worldName : definition.worlds()) {
-                if (!worldName.equalsIgnoreCase("all")) plugin.variables().restoreLocalVariables(id, worldName);
-            }
-            if (definition.worlds().stream().anyMatch(name -> name.equalsIgnoreCase("all"))) {
-                for (World world : Bukkit.getWorlds()) plugin.variables().restoreLocalVariables(id, world.getName());
-            }
+            List<String> recoveryWorlds = backup.getStringList("recovery-worlds");
+            if (recoveryWorlds.isEmpty()) recoveryWorlds = definition.worlds().stream().anyMatch(name -> name.equalsIgnoreCase("all"))
+                    ? Bukkit.getWorlds().stream().map(World::getName).toList() : definition.worlds();
+            for (String worldName : recoveryWorlds) plugin.variables().restoreLocalVariables(id, worldName);
             deletedYaml.set("npcs." + id, null);
             saveDeleted();
             save();
@@ -218,10 +216,10 @@ public final class NPCManager {
     public boolean delete(String id) {
         if (!exists(id)) return false;
         NPCDefinition definition = NPCDefinition.read(id, yaml.getConfigurationSection("npcs." + id));
-        backupDeletedNPC(definition);
         List<String> worldNames = definition.worlds().stream().anyMatch(name -> name.equalsIgnoreCase("all"))
                 ? Bukkit.getWorlds().stream().map(World::getName).toList()
                 : definition.worlds();
+        backupDeletedNPC(definition, worldNames);
         for (String worldName : worldNames) {
             plugin.variables().archiveLocalVariables(id, worldName);
             String owner = net.amethystesmp.anpc.storage.VariableStore.localOwner(id, worldName);
@@ -325,7 +323,7 @@ public final class NPCManager {
         return npcs.keySet().stream().filter(k -> k.startsWith(id.toLowerCase(Locale.ROOT) + "@")).toList();
     }
 
-    private void backupDeletedNPC(NPCDefinition definition) {
+    private void backupDeletedNPC(NPCDefinition definition, List<String> recoveryWorlds) {
         String path = "npcs." + definition.id() + ".";
         deletedYaml.set(path + "display-name", definition.displayName());
         deletedYaml.set(path + "type", definition.type());
@@ -336,6 +334,7 @@ public final class NPCManager {
         deletedYaml.set(path + "yaw", definition.yaw());
         deletedYaml.set(path + "pitch", definition.pitch());
         deletedYaml.set(path + "skin", definition.skin());
+        deletedYaml.set(path + "recovery-worlds", recoveryWorlds);
         deletedYaml.set(path + "deleted-at", System.currentTimeMillis());
         saveDeleted();
     }
