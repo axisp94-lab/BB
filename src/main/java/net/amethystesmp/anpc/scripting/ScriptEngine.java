@@ -508,7 +508,7 @@ public final class ScriptEngine implements Listener {
         if(e.equalsIgnoreCase("npc is hostile"))return c.npc().hostile();
         if(e.toLowerCase(Locale.ROOT).startsWith("npc state is "))return c.npc().primaryState().equalsIgnoreCase(unquote(e.substring(13).trim()));
         if(e.toLowerCase(Locale.ROOT).startsWith("state of npc is "))return c.npc().primaryState().equalsIgnoreCase(unquote(e.substring(16).trim()));
-        if(e.toLowerCase(Locale.ROOT).startsWith("npc has state "))return c.npc().secondaryStates().contains(unquote(e.substring(14).trim()).toLowerCase(Locale.ROOT));return false;}
+        if(e.toLowerCase(Locale.ROOT).startsWith("npc has state "))return c.npc().secondaryStates().contains(unquote(e.substring(14).trim()).toLowerCase(Locale.ROOT));Object resolved=resolve(c,e);return resolved instanceof Boolean value&&value;}
     private Object resolve(ScriptContext c,String raw){
         String value=raw.trim();
         if(value.length()>1&&value.startsWith("(")&&value.endsWith(")")&&balancedOuterParentheses(value))value=value.substring(1,value.length()-1).trim();
