@@ -308,6 +308,9 @@ public final class ScriptEngine implements Listener {
         }
         if(s.startsWith("play anime ")){c.npc().animate(unquote(s.substring(11)));c.markChanged();index++;continue;}
         if(s.startsWith("play sound ")){playScriptSound(c,s.substring(11).trim());index++;continue;}
+        if(s.startsWith("set checkpoint ")){c.npc().setCheckpoint(unquote(s.substring(15).trim()),c.npc().location());c.markChanged();index++;continue;}
+        if(s.startsWith("remove checkpoint ")){c.npc().removeCheckpoint(unquote(s.substring(18).trim()));c.markChanged();index++;continue;}
+        if(s.startsWith("move to checkpoint ")){stopFollow(c.npc());Location checkpoint=c.npc().checkpoint(unquote(s.substring(19).trim()));if(checkpoint!=null)move(c.npc(),checkpoint);else plugin.getLogger().warning("Checkpoint introuvable pour "+c.npc().id()+" : "+s.substring(19));c.markChanged();index++;continue;}
         if(s.startsWith("move to ")){stopFollow(c.npc());Location target=parseLocation(c,s.substring(8).trim());if(target!=null)move(c.npc(),target);c.markChanged();index++;continue;}
         if(s.startsWith("fly to ")){stopFollow(c.npc());Location target=parseLocation(c,s.substring(7).trim());if(target!=null)moveFlying(c.npc(),target);c.markChanged();index++;continue;}
         if(s.startsWith("tp ")){stopFollow(c.npc());Location target=parseLocation(c,s.substring(3).trim());if(target!=null)move(c.npc(),target);index++;continue;}
