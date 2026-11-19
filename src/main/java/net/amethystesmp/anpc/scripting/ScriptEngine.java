@@ -425,17 +425,17 @@ public final class ScriptEngine implements Listener {
         Location start=npc.location();
         if(start.getWorld()==null||target.getWorld()==null||start.getWorld()!=target.getWorld())return false;
         List<Location> path=findPath(start,target);
-        return animatePath(npc,target,path);
+        return animatePath(npc,target,path,"walk");
     }
 
     private boolean moveFlying(ManagedNPC npc,Location target){
         Location start=npc.location();
         if(start.getWorld()==null||target.getWorld()==null||start.getWorld()!=target.getWorld())return false;
         List<Location> path=findFlyingPath(start,target);
-        return animatePath(npc,target,path);
+        return animatePath(npc,target,path,"fly");
     }
 
-    private boolean animatePath(ManagedNPC npc,Location target,List<Location> path){
+    private boolean animatePath(ManagedNPC npc,Location target,List<Location> path,String animation){
         if(path==null||path.isEmpty()){
             plugin.getLogger().warning("Aucun chemin trouvé pour le NPC "+npc.id()+" (limite d'essais : "+plugin.getConfig().getInt("movement.max-path-attempts",100)+").");
             return false;
@@ -449,7 +449,7 @@ public final class ScriptEngine implements Listener {
         double speed=Math.max(0.1,plugin.getConfig().getDouble("movement.default-speed",4.0));
         int[] segment={0};
         BukkitTask[] holder=new BukkitTask[1];
-        npc.animate("walk");
+        npc.animate(animation);
         holder[0]=Bukkit.getScheduler().runTaskTimer(plugin,()->{
             if(npc.tracker().isClosed()||!npc.location().getWorld().equals(target.getWorld())){
                 holder[0].cancel();tasks.remove(holder[0]);movementTasks.remove(npc,holder[0]);return;
