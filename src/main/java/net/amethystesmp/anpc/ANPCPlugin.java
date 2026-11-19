@@ -1,6 +1,7 @@
 package net.amethystesmp.anpc;
 
 import net.amethystesmp.anpc.command.ANPCCommand;
+import net.amethystesmp.anpc.npc.LocalSkinServer;
 import net.amethystesmp.anpc.npc.NPCManager;
 import net.amethystesmp.anpc.scripting.ScriptEngine;
 import net.amethystesmp.anpc.storage.VariableStore;
@@ -16,6 +17,7 @@ public final class ANPCPlugin extends JavaPlugin {
     private NPCManager npcManager;
     private ScriptEngine scriptEngine;
     private VariableStore variableStore;
+    private LocalSkinServer localSkinServer;
 
     @Override
     public void onEnable() {
@@ -38,6 +40,7 @@ public final class ANPCPlugin extends JavaPlugin {
                 return;
             }
 
+            localSkinServer = new LocalSkinServer(this);
             variableStore = new VariableStore(this);
             npcManager = new NPCManager(this);
             scriptEngine = new ScriptEngine(this, npcManager, variableStore);
@@ -66,6 +69,7 @@ public final class ANPCPlugin extends JavaPlugin {
         if (scriptEngine != null) scriptEngine.shutdown();
         if (npcManager != null) npcManager.shutdown();
         if (variableStore != null) variableStore.close();
+        if (localSkinServer != null) localSkinServer.close();
     }
 
     public NPCManager npcs() {
@@ -78,5 +82,9 @@ public final class ANPCPlugin extends JavaPlugin {
 
     public VariableStore variables() {
         return variableStore;
+    }
+
+    public LocalSkinServer localSkins() {
+        return localSkinServer;
     }
 }
