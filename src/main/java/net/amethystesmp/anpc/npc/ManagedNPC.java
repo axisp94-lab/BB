@@ -38,6 +38,7 @@ public final class ManagedNPC {
     private double maxHealth = 20.0;
     private double speed = 4.0;
     private final Map<String, Location> checkpoints = new ConcurrentHashMap<>();
+    private final Map<String, Long> cooldowns = new ConcurrentHashMap<>();
 
     public ManagedNPC(NPCDefinition definition, ModelRenderer renderer, Location location) {
         this(definition, renderer, location, null);
@@ -120,6 +121,17 @@ public final class ManagedNPC {
     }
     public void removeCheckpoint(String name) { if (name != null) checkpoints.remove(name.toLowerCase(java.util.Locale.ROOT)); }
     public Set<String> checkpointNames() { return Set.copyOf(checkpoints.keySet()); }
+    public void setCooldown(String name, long durationMillis) {
+        if (name != null && !name.isBlank()) cooldowns.put(name.toLowerCase(java.util.Locale.ROOT), System.currentTimeMillis() + Math.max(0L, durationMillis));
+    }
+    public boolean hasCooldown(String name) {
+        if (name == null) return false;
+        Long expiry = cooldowns.get(name.toLowerCase(java.util.Locale.ROOT));
+        if (expiry == null) return false;
+        if (expiry <= System.currentTimeMillis()) { cooldowns.remove(name.toLowerCase(java.util.Locale.ROOT), expiry); return false; }
+        return true;
+    }
+    public void resetCooldown(String name) { if (name != null) cooldowns.remove(name.toLowerCase(java.util.Locale.ROOT)); }
     public Entity hitbox() { return hitbox; }
     public void close() { if (!tracker.isClosed()) tracker.close(); if (hitbox.isValid()) hitbox.remove(); viewers.clear(); }
 }
