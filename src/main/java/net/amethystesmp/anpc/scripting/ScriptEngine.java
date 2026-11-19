@@ -237,7 +237,7 @@ public final class ScriptEngine implements Listener {
         if(value.matches("[a-z_][a-z0-9_-]*"))return true;
         if(value.matches("(name|id|type|skin|location|position|world|x|y|z|yaw|pitch|health|max health|speed|attack damage|target|animation|state|primary state|secondary states|biome|light level|weather|time|uuid|food level|level|total experience|exp progress|game mode|movement speed|ping) of (npc|player|world)(:[a-z0-9_-]+)?"))return true;
         if(value.matches("event (message|command|entity|item|place|npc)")||value.equals("player"))return true;
-        if(value.matches("@p|@a|@n|@e|@e\\\\[type=[a-z0-9_:-]+\\\\]|@n\\\\[type=[a-z0-9_:-]+\\\\]"))return true;
+        if(value.matches("@p|@a|@n|@e|@e\\[type=[a-z0-9_:-]+\\]|@n\\[type=[a-z0-9_:-]+\\]"))return true;
         if(value.matches("(npc|player):[a-z0-9_-]+"))return true;
         if(value.matches("number of [a-z0-9_:-]+ in (range|sphere) \\d+"))return true;
         if(value.matches("[a-z_][a-z0-9_-]*\\s*\\(.*\\)"))return true;
