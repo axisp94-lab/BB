@@ -72,11 +72,7 @@ public final class Pathfinder {
                     Node next = new Node(current.x() + dx, current.y() + dy, current.z() + dz);
                     if (closed.contains(next) || !isStandable(world, next)) continue;
 
-                    if (dx != 0 && dz != 0) {
-                        Node sideX = new Node(current.x() + dx, current.y(), current.z());
-                        Node sideZ = new Node(current.x(), current.y(), current.z() + dz);
-                        if (!isStandable(world, sideX) || !isStandable(world, sideZ)) continue;
-                    }
+                    if (!transitionIsClear(world, current, dx, dy, dz)) continue;
 
                     if (distance(startNode, next) > maxDistance) continue;
                     double stepCost = Math.sqrt(dx * dx + dz * dz) + Math.abs(dy) * 1.25;
@@ -93,6 +89,35 @@ public final class Pathfinder {
         if (!found) return List.of();
         List<Node> nodes = reconstruct(previous, startNode, targetNode);
         return toCheckpoints(world, nodes, targetNode, target, Math.max(0.5, checkpointSpacing));
+    }
+
+    /**
+     * Checks every intermediate cell of a diagonal/vertical transition.
+     * This prevents a step that changes multiple axes from clipping through
+     * a wall or the corner of a block.
+     */
+    private static boolean transitionIsClear(World world, Node current, int dx, int dy, int dz) {
+        int[][] changes = new int[3][];
+        int count = 0;
+        if (dx != 0) changes[count++] = new int[]{dx, 0, 0};
+        if (dy != 0) changes[count++] = new int[]{0, dy, 0};
+        if (dz != 0) changes[count++] = new int[]{0, 0, dz};
+        if (count <= 1) return true;
+
+        int combinations = 1 << count;
+        for (int mask = 1; mask < combinations - 1; mask++) {
+            int x = current.x();
+            int y = current.y();
+            int z = current.z();
+            for (int axis = 0; axis < count; axis++) {
+                if ((mask & (1 << axis)) == 0) continue;
+                x += changes[axis][0];
+                y += changes[axis][1];
+                z += changes[axis][2];
+            }
+            if (!isStandable(world, new Node(x, y, z))) return false;
+        }
+        return true;
     }
 
     private static Node findStandable(World world, int x, int y, int z) {
