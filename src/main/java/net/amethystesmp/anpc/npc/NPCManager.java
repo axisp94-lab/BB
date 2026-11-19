@@ -11,6 +11,10 @@ import org.bukkit.World;
 import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.entity.Player;
+import org.bukkit.event.EventHandler;
+import org.bukkit.event.Listener;
+import org.bukkit.event.world.WorldLoadEvent;
+import org.bukkit.event.world.WorldUnloadEvent;
 import org.bukkit.scheduler.BukkitTask;
 
 import java.io.File;
@@ -18,9 +22,10 @@ import java.io.IOException;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 
-public final class NPCManager {
+public final class NPCManager implements Listener {
     private final ANPCPlugin plugin;
     private final Map<String, ManagedNPC> npcs = new ConcurrentHashMap<>();
+    private final Map<String, NPCDefinition> definitions = new ConcurrentHashMap<>();
     private BukkitTask visibilityTask;
     private File file;
     private YamlConfiguration yaml;
@@ -43,7 +48,9 @@ public final class NPCManager {
                     continue;
                 }
                 try {
-                    createFrom(NPCDefinition.read(id, section));
+                    NPCDefinition definition = NPCDefinition.read(id, section);
+                    definitions.put(id.toLowerCase(Locale.ROOT), definition);
+                    createFrom(definition);
                 } catch (Exception e) {
                     plugin.getLogger().warning("NPC '" + id + "' non chargé : " + e.getMessage());
                 }
@@ -54,8 +61,8 @@ public final class NPCManager {
     }
 
     private void createFrom(NPCDefinition definition) {
+        boolean allWorlds = definition.worlds().stream().anyMatch(world -> world.equalsIgnoreCase("all"));
         List<World> targets = new ArrayList<>();
-        boolean allWorlds = definition.worlds().stream().anyMatch(w -> w.equalsIgnoreCase("all"));
 
         if (allWorlds) {
             targets.addAll(Bukkit.getWorlds());
@@ -74,25 +81,53 @@ public final class NPCManager {
             plugin.getLogger().warning("NPC '" + definition.id() + "' ignoré : aucun monde valide n'est configuré.");
             return;
         }
+        for (World world : targets) createInWorld(definition, world);
+    }
 
-        boolean multipleWorlds = allWorlds || targets.size() > 1;
-        for (World world : targets) {
-            ModelRenderer renderer = resolveRenderer(definition);
-            if (renderer == null) {
-                plugin.getLogger().severe("Modèle BetterModel introuvable pour " + definition.id() + " : " + definition.type());
-                continue;
-            }
+    private void createInWorld(NPCDefinition definition, World world) {
+        if (world == null) return;
+        boolean configured = definition.worlds().stream()
+                .anyMatch(name -> name.equalsIgnoreCase("all") || name.equalsIgnoreCase(world.getName()));
+        if (!configured) return;
 
+        ModelRenderer renderer = resolveRenderer(definition);
+        if (renderer == null) {
+            plugin.getLogger().severe("Modèle BetterModel introuvable pour " + definition.id() + " : " + definition.type());
+            return;
+        }
+
+        try {
             ManagedNPC managed = new ManagedNPC(definition, renderer, definition.location(world), skinProfile(definition));
-            String key = instanceKey(definition.id(), world, multipleWorlds);
+            String key = instanceKey(definition.id(), world);
             ManagedNPC previous = npcs.put(key, managed);
             if (previous != null) previous.close();
+        } catch (RuntimeException exception) {
+            plugin.getLogger().warning("Impossible de créer le NPC '" + definition.id() + "' dans " + world.getName()
+                    + " : " + exception.getMessage());
         }
     }
 
-    private String instanceKey(String id, World world, boolean allWorlds) {
-        String normalizedId = id.toLowerCase(Locale.ROOT);
-        return allWorlds ? normalizedId + "@" + world.getName().toLowerCase(Locale.ROOT) : normalizedId;
+    private String instanceKey(String id, World world) {
+        return id.toLowerCase(Locale.ROOT) + "@" + world.getName().toLowerCase(Locale.ROOT);
+    }
+
+    @EventHandler
+    public void onWorldLoad(WorldLoadEvent event) {
+        for (NPCDefinition definition : definitions.values()) createInWorld(definition, event.getWorld());
+        refreshVisibility();
+    }
+
+    @EventHandler
+    public void onWorldUnload(WorldUnloadEvent event) {
+        World unloading = event.getWorld();
+        List<String> keys = npcs.entrySet().stream()
+                .filter(entry -> unloading.equals(entry.getValue().location().getWorld()))
+                .map(Map.Entry::getKey)
+                .toList();
+        for (String key : keys) {
+            ManagedNPC npc = npcs.remove(key);
+            if (npc != null) npc.close();
+        }
     }
 
     private ModelProfile.Uncompleted skinProfile(NPCDefinition definition) {
@@ -216,7 +251,8 @@ public final class NPCManager {
 
         try {
             ManagedNPC managed = new ManagedNPC(definition, renderer, location, skinProfile(definition));
-            npcs.put(id.toLowerCase(Locale.ROOT), managed);
+            npcs.put(instanceKey(id, location.getWorld()), managed);
+            definitions.put(id.toLowerCase(Locale.ROOT), definition);
             saveDefinition(definition);
             refreshVisibility();
             return true;
@@ -239,6 +275,7 @@ public final class NPCManager {
             if (npc != null) npc.close();
         }
 
+        definitions.remove(id.toLowerCase(Locale.ROOT));
         String yamlId = findYamlId(id);
         if (yamlId != null && yaml != null) {
             yaml.set("npcs." + yamlId, null);
@@ -260,6 +297,12 @@ public final class NPCManager {
                     current.x(), current.y(), current.z(), current.yaw(), current.pitch(), current.skin()));
         }
 
+        NPCDefinition currentDefinition = definitions.get(id.toLowerCase(Locale.ROOT));
+        if (currentDefinition != null) {
+            definitions.put(id.toLowerCase(Locale.ROOT), new NPCDefinition(currentDefinition.id(), displayName,
+                    currentDefinition.type(), currentDefinition.worlds(), currentDefinition.x(), currentDefinition.y(),
+                    currentDefinition.z(), currentDefinition.yaw(), currentDefinition.pitch(), currentDefinition.skin()));
+        }
         String yamlId = findYamlId(id);
         if (yamlId != null) {
             yaml.set("npcs." + yamlId + ".display-name", displayName);
@@ -310,6 +353,7 @@ public final class NPCManager {
     }
 
     private void saveDefinition(NPCDefinition definition) {
+        definitions.put(definition.id().toLowerCase(Locale.ROOT), definition);
         if (yaml == null) return;
         String path = "npcs." + definition.id() + ".";
         yaml.set(path + "display-name", definition.displayName());
@@ -345,6 +389,7 @@ public final class NPCManager {
         }
         npcs.values().forEach(ManagedNPC::close);
         npcs.clear();
+        definitions.clear();
     }
 
     public void shutdown() {
