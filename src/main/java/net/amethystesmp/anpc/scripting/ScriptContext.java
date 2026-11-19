@@ -24,6 +24,8 @@ public final class ScriptContext {
     private boolean finished;
     private boolean suspended;
     private final Deque<Runnable> continuations = new ArrayDeque<>();
+    private Runnable completionCallback;
+    private boolean completionNotified;
     private long lastChangeAt=System.currentTimeMillis();
     private long lastWarningAt;
     private String scriptId="";
@@ -43,7 +45,12 @@ public final class ScriptContext {
     public void endWait() { pendingWaits = Math.max(0, pendingWaits - 1); }
     public boolean hasPendingWaits() { return pendingWaits > 0; }
     public boolean finished() { return finished; }
-    public void finish() { finished = true; suspended = false; continuations.clear(); }
+    public void finish() {
+        if(finished)return;
+        finished = true; suspended = false; continuations.clear();
+        if(!completionNotified&&completionCallback!=null){completionNotified=true;completionCallback.run();}
+    }
+    public void setCompletionCallback(Runnable callback) { completionCallback=callback; }
     public boolean suspended() { return suspended; }
     public void suspend() { suspended = true; }
     public void resume() { suspended = false; }
