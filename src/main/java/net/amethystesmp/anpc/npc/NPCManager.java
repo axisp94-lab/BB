@@ -225,6 +225,12 @@ public final class NPCManager {
             String owner = net.amethystesmp.anpc.storage.VariableStore.localOwner(id, worldName);
             plugin.variables().delete("npc-runtime", owner, "primary-state");
             plugin.variables().delete("npc-runtime", owner, "secondary-states");
+            plugin.variables().delete("npc-runtime", owner, "follow-target");
+            plugin.variables().delete("npc-runtime", owner, "follow-min");
+            plugin.variables().delete("npc-runtime", owner, "follow-max");
+        plugin.variables().delete("npc-runtime", owner, "follow-target");
+        plugin.variables().delete("npc-runtime", owner, "follow-min");
+        plugin.variables().delete("npc-runtime", owner, "follow-max");
         }
         for (String mapKey : matchingKeys(id)) {
             ManagedNPC npc = npcs.remove(mapKey);
@@ -264,6 +270,9 @@ public final class NPCManager {
         plugin.variables().set("npc-runtime", owner, "primary-state", npc.primaryState());
         plugin.variables().set("npc-runtime", owner, "secondary-states",
                 String.join(",", npc.secondaryStates()));
+        plugin.variables().set("npc-runtime", owner, "follow-target", npc.followTarget());
+        plugin.variables().set("npc-runtime", owner, "follow-min", npc.followMin());
+        plugin.variables().set("npc-runtime", owner, "follow-max", npc.followMax());
     }
 
     private void restoreRuntimeState(ManagedNPC npc) {
@@ -274,6 +283,10 @@ public final class NPCManager {
         npc.setPrimaryState(primary);
         npc.clearSecondaryStates();
         if (!secondary.isBlank()) for (String state : secondary.split(",")) npc.addSecondaryState(state);
+        String followTarget = plugin.variables().get("npc-runtime", owner, "follow-target", "");
+        double followMin = Double.parseDouble(plugin.variables().get("npc-runtime", owner, "follow-min", "2.0"));
+        double followMax = Double.parseDouble(plugin.variables().get("npc-runtime", owner, "follow-max", "5.0"));
+        if (!followTarget.isBlank()) npc.setFollowState(followTarget, followMin, followMax);
     }
 
     private void clearRuntimeState(ManagedNPC npc) {
