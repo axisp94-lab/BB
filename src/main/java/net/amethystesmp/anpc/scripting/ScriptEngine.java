@@ -642,28 +642,195 @@ public final class ScriptEngine implements Listener {
         }
     }
     private int findEnd(List<Instruction> c,int from,int parent){int i=from;while(i<c.size()&&c.get(i).indent()>parent)i++;return i;}
-    private boolean test(ScriptContext c,String expression){String e=expression.trim();if(e.startsWith("flag (")&&e.contains(") is ")){String name=e.substring(6,e.indexOf(')'));boolean v=Boolean.parseBoolean(variables.getLocal(c.npc().id(),c.npc().location().getWorld().getName(),"flag:"+name,"false"));return e.endsWith("on")?v:!v;}String[] ops={" >= "," <= "," != "," == "," > "," < "," contains "};for(String op:ops){int p=e.indexOf(op);if(p>0){Object a=resolve(c,e.substring(0,p)),b=resolve(c,e.substring(p+op.length()));if(op.equals(" contains "))return String.valueOf(a).contains(String.valueOf(b));double x=num(a),y=num(b);return switch(op.trim()){case ">"->x>y;case "<"->x<y;case ">="->x>=y;case "<="->x<=y;case "!="->!Objects.equals(String.valueOf(a),String.valueOf(b));default->Objects.equals(String.valueOf(a),String.valueOf(b))||x==y;};}}if(e.equalsIgnoreCase("player is sneaking"))return c.player()!=null&&c.player().isSneaking();if(e.toLowerCase(Locale.ROOT).startsWith("player has permission "))return c.player()!=null&&c.player().hasPermission(unquote(e.substring(22).trim()));if(e.toLowerCase(Locale.ROOT).startsWith("player has item ")){if(c.player()==null)return false;try{return c.player().getInventory().contains(org.bukkit.Material.valueOf(e.substring(16).trim().toUpperCase(Locale.ROOT)));}catch(IllegalArgumentException ex){return false;}}String lower=e.toLowerCase(Locale.ROOT);
+    private boolean test(ScriptContext context,String expression){
+        String value=stripOuterParentheses(expression.trim());
+        int split=findTopLevelKeyword(value,"or");
+        if(split>=0)return test(context,value.substring(0,split))||test(context,value.substring(split+2));
+        split=findTopLevelKeyword(value,"and");
+        if(split>=0)return test(context,value.substring(0,split))&&test(context,value.substring(split+3));
+        if(value.toLowerCase(Locale.ROOT).startsWith("not "))return !test(context,value.substring(4));
+        String lower=value.toLowerCase(Locale.ROOT);
+
+        if(lower.startsWith("flag (")&&lower.contains(") is ")){
+            String name=value.substring(6,value.indexOf(')')).trim();
+            boolean enabled=Boolean.parseBoolean(variables.getLocal(context.npc().id(),context.npc().location().getWorld().getName(),"flag:"+name,"false"));
+            return lower.endsWith(" on")?enabled:lower.endsWith(" off")&&!enabled;
+        }
+        if(lower.startsWith("block below is ")){
+            String expected=value.substring(15).trim();
+            Material actual=context.npc().location().getBlock().getRelative(0,-1,0).getType();
+            if(expected.toLowerCase(Locale.ROOT).startsWith("not "))
+                return !matchesMaterial(actual,expected.substring(4).trim());
+            if(expected.toLowerCase(Locale.ROOT).startsWith("one of ")){
+                String list=expected.substring(7).trim();
+                if(list.startsWith("(")&&list.endsWith(")"))list=list.substring(1,list.length()-1);
+                for(String item:splitArguments(list))if(matchesMaterial(actual,item.trim()))return true;
+                return false;
+            }
+            return matchesMaterial(actual,expected);
+        }
+        if(lower.startsWith("ray = ")||lower.startsWith("sphere = ")){
+            java.util.regex.Matcher matcher=java.util.regex.Pattern.compile("^(ray|sphere)\\\\s*=\\\\s*(\\\\d+)\\\\s+contains\\\\s+([a-z0-9_:-]+)$",java.util.regex.Pattern.CASE_INSENSITIVE).matcher(value);
+            if(matcher.matches()){
+                Material material=Material.matchMaterial(matcher.group(3));
+                int radius=parseSafeRadius(matcher.group(2));
+                return material!=null&&radius>=0&&countBlocks(context,material,radius,matcher.group(1).equalsIgnoreCase("sphere"))>0;
+            }
+        }
+        if(lower.startsWith("player is sneaking"))return context.player()!=null&&context.player().isSneaking();
+        if(lower.startsWith("player has permission "))return context.player()!=null&&context.player().hasPermission(unquote(value.substring(22).trim()));
+        if(lower.startsWith("player has item ")){
+            if(context.player()==null)return false;
+            Material material=Material.matchMaterial(value.substring(16).trim());
+            return material!=null&&context.player().getInventory().contains(material);
+        }
         if(lower.startsWith("cooldown ")&&lower.endsWith(" is ready")){
-            String name=unquote(e.substring(9,e.length()-9).trim());return !c.npc().hasCooldown(name);
+            String name=unquote(value.substring(9,value.length()-9).trim());return !context.npc().hasCooldown(name);
         }
         if(lower.startsWith("cooldown ")&&lower.endsWith(" is active")){
-            String name=unquote(e.substring(9,e.length()-10).trim());return c.npc().hasCooldown(name);
+            String name=unquote(value.substring(9,value.length()-10).trim());return context.npc().hasCooldown(name);
         }
-        if(e.toLowerCase(Locale.ROOT).startsWith("block below is ")){
-            Material expected=Material.matchMaterial(e.substring(15).trim());
-            Location location=c.npc().location();
-            return expected!=null&&location.getWorld().getBlockAt(location.getBlockX(),location.getBlockY()-1,location.getBlockZ()).getType()==expected;
+        if(lower.equals("npc is under attack"))return context.npc().lastAttacker()!=null;
+        if(lower.equals("npc is hostile"))return context.npc().hostile();
+        if(lower.startsWith("npc state is "))return context.npc().primaryState().equalsIgnoreCase(unquote(value.substring(13).trim()));
+        if(lower.startsWith("state of npc is ")||lower.startsWith("state is ")){
+            int offset=lower.startsWith("state is ")?9:16;
+            return context.npc().primaryState().equalsIgnoreCase(unquote(value.substring(offset).trim()));
         }
-        if(e.equalsIgnoreCase("npc is under attack"))return c.npc().lastAttacker()!=null;
-        if(e.equalsIgnoreCase("npc is hostile"))return c.npc().hostile();
-        if(e.toLowerCase(Locale.ROOT).startsWith("npc state is "))return c.npc().primaryState().equalsIgnoreCase(unquote(e.substring(13).trim()));
-        if(e.toLowerCase(Locale.ROOT).startsWith("state of npc is "))return c.npc().primaryState().equalsIgnoreCase(unquote(e.substring(16).trim()));
-        if(e.toLowerCase(Locale.ROOT).startsWith("npc has state "))return c.npc().secondaryStates().contains(unquote(e.substring(14).trim()).toLowerCase(Locale.ROOT));Object resolved=resolve(c,e);return resolved instanceof Boolean value&&value;}
+        if(lower.startsWith("npc has state "))return context.npc().secondaryStates().contains(unquote(value.substring(14).trim()).toLowerCase(Locale.ROOT));
+
+        int contains=findTopLevelKeyword(value,"contains");
+        if(contains>=0){
+            Object source=resolve(context,value.substring(0,contains).trim());
+            String tail=value.substring(contains+8).trim();
+            java.util.regex.Matcher countMatcher=java.util.regex.Pattern.compile("^(.*?)\\\\s+(more than|less than)\\\\s+(\\\\d+)\\\\s+times$",java.util.regex.Pattern.CASE_INSENSITIVE).matcher(tail);
+            if(countMatcher.matches()){
+                Object needle=resolve(context,countMatcher.group(1).trim());
+                int expected=Integer.parseInt(countMatcher.group(3));
+                int actual=countOccurrences(source,needle);
+                return countMatcher.group(2).equalsIgnoreCase("more than")?actual>expected:actual<expected;
+            }
+            return countOccurrences(source,resolve(context,tail))>0;
+        }
+
+        String[] operators={"==","!=",">=","<=",">","<"};
+        for(String operator:operators){
+            int position=findTopLevelToken(value,operator);
+            if(position<0)continue;
+            Object left=resolve(context,value.substring(0,position).trim());
+            Object right=resolve(context,value.substring(position+operator.length()).trim());
+            return compareValues(left,right,operator);
+        }
+        Object resolved=resolve(context,value);
+        return resolved instanceof Boolean bool&&bool;
+    }
+
+    private String stripOuterParentheses(String value){
+        String result=value;
+        while(result.startsWith("(")&&result.endsWith(")")&&balancedOuterParentheses(result))
+            result=result.substring(1,result.length()-1).trim();
+        return result;
+    }
+
+    private int findTopLevelKeyword(String expression,String keyword){
+        boolean quoted=false;int depth=0;
+        for(int i=0;i<=expression.length()-keyword.length();i++){
+            char ch=expression.charAt(i);
+            if(ch=='"'&&(i==0||expression.charAt(i-1)!='\\\\'))quoted=!quoted;
+            if(quoted)continue;
+            if(ch=='('){depth++;continue;}
+            if(ch==')'){depth--;continue;}
+            if(depth!=0||!expression.regionMatches(true,i,keyword,0,keyword.length()))continue;
+            boolean left=i==0||Character.isWhitespace(expression.charAt(i-1));
+            int after=i+keyword.length();
+            boolean right=after==expression.length()||Character.isWhitespace(expression.charAt(after));
+            if(left&&right)return i;
+        }
+        return -1;
+    }
+
+    private int findTopLevelToken(String expression,String token){
+        boolean quoted=false;int depth=0;
+        for(int i=0;i<=expression.length()-token.length();i++){
+            char ch=expression.charAt(i);
+            if(ch=='"'&&(i==0||expression.charAt(i-1)!='\\\\'))quoted=!quoted;
+            if(quoted)continue;
+            if(ch=='('){depth++;continue;}
+            if(ch==')'){depth--;continue;}
+            if(depth==0&&expression.startsWith(token,i))return i;
+        }
+        return -1;
+    }
+
+    private boolean compareValues(Object left,Object right,String operator){
+        if(operator.equals("==")||operator.equals("!=")){
+            boolean equal;
+            if(left instanceof Number&&right instanceof Number)equal=Double.compare(num(left),num(right))==0;
+            else equal=Objects.equals(String.valueOf(left),String.valueOf(right))
+                    ||(left!=null&&right!=null&&String.valueOf(left).equalsIgnoreCase(String.valueOf(right)));
+            return operator.equals("==")?equal:!equal;
+        }
+        double a=num(left),b=num(right);
+        return switch(operator){case ">"->a>b;case "<"->a<b;case ">="->a>=b;case "<="->a<=b;default->false;};
+    }
+
+    private int countOccurrences(Object source,Object needle){
+        if(source==null||needle==null)return 0;
+        if(source instanceof Iterable<?> iterable){
+            int count=0;for(Object item:iterable)if(Objects.equals(item,needle)||String.valueOf(item).equalsIgnoreCase(String.valueOf(needle)))count++;
+            return count;
+        }
+        if(source.getClass().isArray()){
+            int count=0;int length=java.lang.reflect.Array.getLength(source);
+            for(int i=0;i<length;i++){Object item=java.lang.reflect.Array.get(source,i);if(Objects.equals(item,needle)||String.valueOf(item).equalsIgnoreCase(String.valueOf(needle)))count++;}
+            return count;
+        }
+        String text=String.valueOf(source),target=String.valueOf(needle);
+        if(target.isEmpty())return 0;
+        int count=0,from=0;
+        while((from=text.indexOf(target,from))>=0){count++;from+=target.length();}
+        if(count==0&&text.contains(",")){
+            for(String item:text.split(","))if(item.trim().equalsIgnoreCase(target.trim()))count++;
+        }
+        return count;
+    }
+
+    private boolean matchesMaterial(Material actual,String raw){
+        Material expected=Material.matchMaterial(unquote(raw).trim());
+        return expected!=null&&actual==expected;
+    }
+
+    private int parseSafeRadius(String raw){
+        try{int radius=Integer.parseInt(raw);return radius>=0&&radius<=32?radius:-1;}
+        catch(NumberFormatException exception){return -1;}
+    }
+
+    private int countBlocks(ScriptContext context,Material material,int radius,boolean sphere){
+        Location center=context.npc().location();
+        int cx=center.getBlockX(),cy=center.getBlockY(),cz=center.getBlockZ(),count=0;
+        int radiusSquared=radius*radius;
+        for(int dx=-radius;dx<=radius;dx++)for(int dz=-radius;dz<=radius;dz++){
+            if(dx*dx+dz*dz>radiusSquared)continue;
+            int minY=sphere?-radius:0,maxY=sphere?radius:0;
+            for(int dy=minY;dy<=maxY;dy++){
+                if(sphere&&dx*dx+dy*dy+dz*dz>radiusSquared)continue;
+                if(center.getWorld().getBlockAt(cx+dx,cy+dy,cz+dz).getType()==material)count++;
+            }
+        }
+        return count;
+    }
+
     private Object resolve(ScriptContext c,String raw){
         String value=raw.trim();
         if(value.length()>1&&value.startsWith("(")&&value.endsWith(")")&&balancedOuterParentheses(value))value=value.substring(1,value.length()-1).trim();
         if(c.locals().containsKey(value))return c.locals().get(value);
         if(value.toLowerCase(Locale.ROOT).startsWith("call "))return callFunction(c,value.substring(5).trim(),false);
+        java.util.regex.Matcher blockCount=java.util.regex.Pattern.compile("^number of ([a-z0-9_:-]+) in (range|sphere)\\\\s+(\\\\d+)$",java.util.regex.Pattern.CASE_INSENSITIVE).matcher(value);
+        if(blockCount.matches()){
+            Material material=Material.matchMaterial(blockCount.group(1));
+            int radius=parseSafeRadius(blockCount.group(3));
+            return material==null||radius<0?0:countBlocks(c,material,radius,blockCount.group(2).equalsIgnoreCase("sphere"));
+        }
          if(isFunctionInvocation(value))return callFunction(c,value,false);
         if(value.startsWith("\"")&&value.endsWith("\""))return unquote(value);
         if(value.equalsIgnoreCase("true")||value.equalsIgnoreCase("false"))return Boolean.parseBoolean(value);
