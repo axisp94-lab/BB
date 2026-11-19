@@ -128,6 +128,11 @@ public final class ScriptEngine implements Listener {
             variables.setLocal(c.npc().id(),c.npc().location().getWorld().getName(),name,value);
         }
     }
+    private Object parseStored(String value){
+        if(value==null)return null;
+        if(value.equalsIgnoreCase("true")||value.equalsIgnoreCase("false"))return Boolean.parseBoolean(value);
+        try{return Double.parseDouble(value);}catch(NumberFormatException ignored){return value;}
+    }
     private double num(Object o){try{return Double.parseDouble(String.valueOf(o));}catch(Exception e){return 0;}}
     private String unquote(String s){s=s.trim();return s.length()>=2&&s.startsWith("\"")&&s.endsWith("\"")?s.substring(1,s.length()-1):s;}
     private Player nearest(Location l){return l.getWorld().getPlayers().stream().min(Comparator.comparingDouble(p->p.getLocation().distanceSquared(l))).orElse(null);}
