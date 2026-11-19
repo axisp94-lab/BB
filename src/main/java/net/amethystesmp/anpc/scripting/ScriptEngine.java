@@ -382,7 +382,7 @@ public final class ScriptEngine implements Listener {
         if(s.equals("return")){c.setReturnValue(null);return code.size();}
         if(s.startsWith("return ")){c.setReturnValue(resolve(c,s.substring(7).trim()));return code.size();}
         if(s.startsWith("call ")){callFunction(c,s.substring(5).trim());index++;continue;}
-        if(s.startsWith("loop ")&&s.endsWith(":")){int end=findEnd(code,index+1,in.indent());int child=index+1<code.size()?code.get(index+1).indent():in.indent()+4;executeLoop(c,code,index+1,child,s.substring(5,s.length()-1).trim());index=end;continue;}
+        if(s.startsWith("loop ")&&s.endsWith(":")){int end=findEnd(code,index+1,in.indent());int child=index+1<code.size()?code.get(index+1).indent():in.indent()+4;executeLoop(c,code,index+1,child,s.substring(5,s.length()-1).trim());if(c.suspended()){int resumeAt=end;c.addContinuation(()->runBlock(c,code,resumeAt,indent));return code.size();}index=end;continue;}
         if(s.equals("stop loop")){c.stopLoop();return code.size();}
         if(s.equals("skip loop")){c.skipLoop();return code.size();}
         if(s.startsWith("if ")&&s.endsWith(":")){int end=findEnd(code,index+1,in.indent());if(test(c,s.substring(3,s.length()-1))){int child=index+1<code.size()?code.get(index+1).indent():in.indent()+4;runBlock(c,code,index+1,child);if(c.suspended()){int resumeAt=end;c.addContinuation(()->runBlock(c,code,resumeAt,indent));return code.size();}}index=end;continue;}
@@ -600,31 +600,40 @@ public final class ScriptEngine implements Listener {
             if(context.locals().containsKey(key)){existingLoopLocals.add(key);previousLoopLocals.put(key,context.locals().get(key));}
         }
         context.pushLoop();
-        try{
-            int number=0;
-            for(Object value:values){
-                number++;
-                context.locals().remove("loop-player");
-                context.locals().remove("loop-npc");
-                context.locals().put("loop-value",value);
-                context.locals().put("loop-number",number);
-                context.setNpc(value instanceof ManagedNPC targetNpc?targetNpc:previousNpc);
-                context.setPlayer(value instanceof Player targetPlayer?targetPlayer:previousPlayer);
-                if(value instanceof Player player)context.locals().put("loop-player",player);
-                if(value instanceof ManagedNPC npc)context.locals().put("loop-npc",npc);
-                context.clearLoopSkip();
-                runBlock(context,code,bodyStart,bodyIndent);
-                if(context.returned()||context.loopStopped())break;
-                if(context.loopSkipped())context.clearLoopSkip();
+        runLoopIterations(context,values,code,bodyStart,bodyIndent,0,previousNpc,previousPlayer,previousLoopLocals,existingLoopLocals);
+    }
+
+    private void runLoopIterations(ScriptContext context,List<Object> values,List<Instruction> code,int bodyStart,int bodyIndent,
+                                  int completed,ManagedNPC previousNpc,Player previousPlayer,
+                                  Map<String,Object> previousLoopLocals,Set<String> existingLoopLocals){
+        int number=completed;
+        while(number<values.size()&&!context.returned()&&!context.loopStopped()){
+            Object value=values.get(number++);
+            context.locals().remove("loop-player");
+            context.locals().remove("loop-npc");
+            context.locals().put("loop-value",value);
+            context.locals().put("loop-number",number);
+            context.setNpc(value instanceof ManagedNPC targetNpc?targetNpc:previousNpc);
+            context.setPlayer(value instanceof Player targetPlayer?targetPlayer:previousPlayer);
+            if(value instanceof Player player)context.locals().put("loop-player",player);
+            if(value instanceof ManagedNPC npc)context.locals().put("loop-npc",npc);
+            context.clearLoopSkip();
+            runBlock(context,code,bodyStart,bodyIndent);
+            if(context.suspended()){
+                int resumeAt=number;
+                context.addContinuation(()->runLoopIterations(context,values,code,bodyStart,bodyIndent,resumeAt,
+                        previousNpc,previousPlayer,previousLoopLocals,existingLoopLocals));
+                return;
             }
-        }finally{
-            context.popLoop();
-            context.setNpc(previousNpc);
-            context.setPlayer(previousPlayer);
-            for(String key:List.of("loop-value","loop-number","loop-player","loop-npc")){
-                if(existingLoopLocals.contains(key))context.locals().put(key,previousLoopLocals.get(key));
-                else context.locals().remove(key);
-            }
+            if(context.returned()||context.loopStopped())break;
+            if(context.loopSkipped())context.clearLoopSkip();
+        }
+        context.popLoop();
+        context.setNpc(previousNpc);
+        context.setPlayer(previousPlayer);
+        for(String key:List.of("loop-value","loop-number","loop-player","loop-npc")){
+            if(existingLoopLocals.contains(key))context.locals().put(key,previousLoopLocals.get(key));
+            else context.locals().remove(key);
         }
     }
     private int findEnd(List<Instruction> c,int from,int parent){int i=from;while(i<c.size()&&c.get(i).indent()>parent)i++;return i;}
