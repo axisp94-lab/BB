@@ -62,7 +62,7 @@ public final class ANPCCommand implements TabExecutor {
                     return true;
                 }
                 if (args.length < 3) {
-                    msg(sender, "Usage : /anpc create <id> <modele|limb:nom>");
+                    msg(sender, "Usage : /anpc create <id> <modele|limb:nom|mythicmob:id>");
                     return true;
                 }
                 if (plugin.npcs().create(args[1], args[2], player.getLocation())) {
