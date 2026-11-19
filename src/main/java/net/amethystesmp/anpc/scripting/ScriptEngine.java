@@ -512,6 +512,19 @@ public final class ScriptEngine implements Listener {
             if(at!=null){at.getWorld().spawnParticle(Particle.CRIT,at.clone().add(0.5,0.5,0.5),8,0.2,0.2,0.2,0.02);at.getWorld().playSound(at,Sound.UI_BUTTON_CLICK,0.8f,1.0f);}
             index++;continue;
         }
+        if(s.startsWith("setblock ")){
+            String body=s.substring(9).trim();
+            int close=body.indexOf(')');
+            if(body.startsWith("(")&&close>0){
+                Location at=parseLocation(c,body.substring(0,close+1));
+                String materialText=body.substring(close+1).trim();
+                if(materialText.startsWith("(")&&materialText.endsWith(")"))materialText=materialText.substring(1,materialText.length()-1).trim();
+                Material material=Material.matchMaterial(materialText);
+                if(at!=null&&material!=null)at.getBlock().setType(material,false);
+                else plugin.getLogger().warning("Syntaxe setblock invalide ligne "+line+" : setblock (x, y, z) stone.");
+            }else plugin.getLogger().warning("Syntaxe setblock invalide ligne "+line+" : utilise setblock (position) (bloc).");
+            markChanged(c);index++;continue;
+        }
         if(s.startsWith("set block ")){markChanged(c);
             int atIndex=s.toLowerCase(Locale.ROOT).indexOf(" at ");
             if(atIndex>10){
@@ -643,7 +656,7 @@ public final class ScriptEngine implements Listener {
                 ||text.startsWith("set checkpoint ")||text.startsWith("remove checkpoint ")
                 ||text.startsWith("move to checkpoint ")||text.startsWith("reset cooldown ")||text.startsWith("simulate break block at ")
                 ||text.startsWith("simulate place ")||text.startsWith("simulate interact with block at ")
-                ||text.startsWith("set block ")||text.startsWith("break block at ")||text.startsWith("wait ")
+                ||text.startsWith("set block ")||text.startsWith("setblock ")||text.startsWith("break block at ")||text.startsWith("wait ")
                 ||text.startsWith("run command ")||text.equals("stop loop")||text.equals("skip loop")
                 ||text.equals("return")||text.startsWith("return ")||text.startsWith("call ");
     }
@@ -1382,6 +1395,10 @@ public final class ScriptEngine implements Listener {
         if(expression.equalsIgnoreCase("event place"))return context.eventPlace();
         if(expression.equalsIgnoreCase("event entity")){Entity entity=context.eventEntity();return entity==null?null:entity.getLocation();}
         if(expression.equalsIgnoreCase("location of npc"))return context.npc().location();
+        if(expression.toLowerCase(Locale.ROOT).startsWith("nearest block ")){
+            Material material=Material.matchMaterial(expression.substring(14).trim());
+            return material==null?null:findNearestBlock(context.npc().location(),material);
+        }
         Object target=resolve(context,expression);
         if(target instanceof Location location)return location.clone();
         if(target instanceof ManagedNPC npc)return npc.location();
@@ -1556,6 +1573,22 @@ public final class ScriptEngine implements Listener {
         }catch(IllegalArgumentException exception){
             plugin.getLogger().warning("Son inconnu : "+soundName);
         }
+    }
+
+    private Location findNearestBlock(Location origin,Material material){
+        int radius=Math.max(1,Math.min(32,plugin.getConfig().getInt("movement.block-search-radius",16)));
+        int cx=origin.getBlockX(),cy=origin.getBlockY(),cz=origin.getBlockZ();
+        Location nearest=null;double best=Double.POSITIVE_INFINITY;
+        for(int dx=-radius;dx<=radius;dx++)for(int dy=-radius;dy<=radius;dy++)for(int dz=-radius;dz<=radius;dz++){
+            double distance=dx*dx+dy*dy+dz*dz;
+            if(distance>radius*radius||distance>=best)continue;
+            int x=cx+dx,y=cy+dy,z=cz+dz;
+            if(!origin.getWorld().isChunkLoaded(x>>4,z>>4))continue;
+            if(origin.getWorld().getBlockAt(x,y,z).getType()!=material)continue;
+            best=distance;
+            nearest=new Location(origin.getWorld(),x+0.5,y,z+0.5);
+        }
+        return nearest;
     }
 
     private void simulateBreakBlock(Location location){
