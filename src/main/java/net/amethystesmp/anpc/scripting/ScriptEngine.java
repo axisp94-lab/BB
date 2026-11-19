@@ -404,7 +404,7 @@ public final class ScriptEngine implements Listener {
         if(s.startsWith("set ")){String body=s.substring(4).trim();int q=body.indexOf('"',1);if(body.startsWith("\"")&&q>0){String name=body.substring(1,q);String val=body.substring(q+1).trim();if(val.startsWith("(" )&&val.endsWith(")"))val=val.substring(1,val.length()-1);Object value=resolve(c,val);c.locals().put(name.toLowerCase(Locale.ROOT),value);if(!c.isTransientLocal(name))storeVariable(c,name,value);markChanged(c);}index++;continue;}
         if(s.startsWith("create variable ")){createVariable(c,s.substring(15).trim());markChanged(c);index++;continue;}
         if(s.startsWith("say local ")||s.startsWith("say global ")){boolean global=s.startsWith("say global ");Object message=resolve(c,s.substring(global?11:10).trim());String rendered=ChatColor.translateAlternateColorCodes('&',c.npc().definition().displayName()+" » "+String.valueOf(message));if(global)Bukkit.broadcastMessage(rendered);else if(c.player()!=null)c.player().sendMessage(rendered);else for(Player p:c.npc().location().getWorld().getPlayers())if(p.getLocation().distanceSquared(c.npc().location())<32*32)p.sendMessage(rendered);index++;continue;}
-        if(s.startsWith("send to ")){int pos=s.indexOf(' ',8);if(pos>0){String target=s.substring(8,pos);Object targetValue=resolve(c,target);String msg=String.valueOf(resolve(c,s.substring(pos+1).trim()));Player p=targetValue instanceof Player selected?selected:(target.equals("@p")?nearest(c.npc().location()):Bukkit.getPlayerExact(target));if(p!=null)p.sendMessage(ChatColor.translateAlternateColorCodes('&',msg));}index++;continue;}
+        if(s.startsWith("send to ")){int pos=s.indexOf(' ',8);if(pos>0){String target=s.substring(8,pos);Object targetValue=resolve(c,target);String msg=String.valueOf(resolve(c,s.substring(pos+1).trim()));sendToTarget(c,target,targetValue,msg);}index++;continue;}
         if(s.startsWith("simulate break block at ")){
             Location at=parseLocation(c,s.substring(23).trim());
             if(at!=null)simulateBreakBlock(at);
@@ -477,7 +477,7 @@ public final class ScriptEngine implements Listener {
             tasks.add(scheduled[0]);return code.size();
         }
         if(s.startsWith("run command ")){String cmd=unquote(s.substring(12));Bukkit.dispatchCommand(Bukkit.getConsoleSender(),cmd.replace("%player%",c.player()==null?"":c.player().getName()));index++;continue;}
-        if(s.startsWith("look at ")&&(c.player()!=null||c.eventNpc()!=null)){Location at=c.player()!=null?c.player().getLocation():c.eventNpc().location();Location from=c.npc().location();from.setDirection(at.toVector().subtract(from.toVector()));c.npc().move(from);markChanged(c);index++;continue;}
+        if(s.startsWith("look at ")){Location at=parseLocation(c,s.substring(8).trim());if(at!=null){Location from=c.npc().location();from.setDirection(at.toVector().subtract(from.toVector()));c.npc().move(from);markChanged(c);}index++;continue;}
         if(s.startsWith("follow ")){startFollow(c.npc(),s.substring(7).trim());markChanged(c);index++;continue;}
         if(s.startsWith("keep distance ")){startKeepDistance(c.npc(),s.substring(14).trim());markChanged(c);index++;continue;}
         if(s.equals("stop follow")||s.equals("stop movement")){stopFollow(c.npc());markChanged(c);index++;continue;}
@@ -1121,7 +1121,63 @@ public final class ScriptEngine implements Listener {
     private double num(Object o){try{return Double.parseDouble(String.valueOf(o));}catch(Exception e){return 0;}}
     private String unquote(String s){s=s.trim();return s.length()>=2&&s.startsWith("\"")&&s.endsWith("\"")?s.substring(1,s.length()-1):s;}
     private Player nearest(Location l){return l.getWorld().getPlayers().stream().min(Comparator.comparingDouble(p->p.getLocation().distanceSquared(l))).orElse(null);}
-    private Location parseLocation(ScriptContext c,String s){if(s.equalsIgnoreCase("event npc")||s.equalsIgnoreCase("location of event npc"))return c.eventNpc()==null?null:c.eventNpc().location();if(s.equals("@p")){Player p=nearest(c.npc().location());return p==null?null:p.getLocation();}if(s.equalsIgnoreCase("location of npc"))return c.npc().location();if(s.startsWith("(")&&s.endsWith(")")){String[] a=s.substring(1,s.length()-1).split(",");if(a.length==3)try{return new Location(c.npc().location().getWorld(),Double.parseDouble(a[0].trim()),Double.parseDouble(a[1].trim()),Double.parseDouble(a[2].trim()));}catch(NumberFormatException ignored){}}return null;}
+    private Location parseLocation(ScriptContext context,String raw){
+        String expression=raw.trim();
+        int offset=findTopLevelToken(expression,"+");
+        if(offset<0)offset=findTopLevelToken(expression,"-");
+        if(offset>0){
+            Location base=parseLocation(context,expression.substring(0,offset).trim());
+            if(base==null)return null;
+            String vector=expression.substring(offset+1).trim();
+            double sign=expression.charAt(offset)=='-'?-1.0:1.0;
+            if(vector.startsWith("(")&&vector.endsWith(")")){
+                String[] parts=vector.substring(1,vector.length()-1).split(",");
+                if(parts.length!=3)return null;
+                base.add(sign*num(resolve(context,parts[0])),sign*num(resolve(context,parts[1])),sign*num(resolve(context,parts[2])));
+            }else{
+                base.add(sign*num(resolve(context,vector)),0,0);
+            }
+            return base;
+        }
+        if(expression.startsWith("(")&&expression.endsWith(")")){
+            String[] parts=expression.substring(1,expression.length()-1).split(",");
+            if(parts.length==3){
+                try{return new Location(context.npc().location().getWorld(),num(resolve(context,parts[0])),num(resolve(context,parts[1])),num(resolve(context,parts[2])));}
+                catch(NumberFormatException ignored){return null;}
+            }
+        }
+        if(expression.equalsIgnoreCase("event npc")||expression.equalsIgnoreCase("location of event npc"))
+            return context.eventNpc()==null?null:context.eventNpc().location();
+        if(expression.equalsIgnoreCase("event entity")&&context.player()!=null)return context.player().getLocation();
+        if(expression.equalsIgnoreCase("location of npc"))return context.npc().location();
+        Object target=resolve(context,expression);
+        if(target instanceof Location location)return location.clone();
+        if(target instanceof ManagedNPC npc)return npc.location();
+        if(target instanceof Entity entity)return entity.getLocation();
+        if(target instanceof Iterable<?> iterable){
+            Location origin=context.npc().location();
+            return java.util.stream.StreamSupport.stream(iterable.spliterator(),false)
+                    .filter(Entity.class::isInstance).map(Entity.class::cast)
+                    .min(Comparator.comparingDouble(entity->entity.getLocation().distanceSquared(origin)))
+                    .map(Entity::getLocation).orElse(null);
+        }
+        return null;
+    }
+
+    private void sendToTarget(ScriptContext context,String selector,Object resolved,String message){
+        String rendered=ChatColor.translateAlternateColorCodes('&',message);
+        if(resolved instanceof Player player){player.sendMessage(rendered);return;}
+        if(resolved instanceof Iterable<?> iterable){
+            for(Object value:iterable)if(value instanceof Player player)player.sendMessage(rendered);
+            return;
+        }
+        if(resolved instanceof Entity entity){
+            if(entity instanceof Player player)player.sendMessage(rendered);
+            return;
+        }
+        Player player=selector.equalsIgnoreCase("@p")?nearest(context.npc().location()):Bukkit.getPlayerExact(selector);
+        if(player!=null)player.sendMessage(rendered);
+    }
     private boolean move(ManagedNPC npc,Location target){
         Location start=npc.location();
         if(start.getWorld()==null||target.getWorld()==null||start.getWorld()!=target.getWorld())return false;
