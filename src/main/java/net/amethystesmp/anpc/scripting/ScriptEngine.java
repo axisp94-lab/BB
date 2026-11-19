@@ -332,7 +332,11 @@ public final class ScriptEngine implements Listener {
             if(at!=null)at.getBlock().breakNaturally();
             index++;continue;
         }
-        if(s.startsWith("play anime ")){c.npc().animate(unquote(s.substring(11)));c.markChanged();index++;continue;}
+        if(s.startsWith("play anime ")||s.startsWith("emote ")){
+            int offset=s.startsWith("emote ")?6:11;
+            c.npc().animate(unquote(s.substring(offset)));c.markChanged();index++;continue;
+        }
+        if(s.equals("stop animation")){c.npc().animate("idle");c.markChanged();index++;continue;}
         if(s.startsWith("play sound ")){playScriptSound(c,s.substring(11).trim());index++;continue;}
         if(s.startsWith("reset cooldown ")){c.npc().resetCooldown(unquote(s.substring(15).trim()));c.markChanged();index++;continue;}
         if(s.startsWith("set checkpoint ")){c.npc().setCheckpoint(unquote(s.substring(15).trim()),c.npc().location());c.markChanged();index++;continue;}
@@ -407,7 +411,7 @@ public final class ScriptEngine implements Listener {
         return text.startsWith("say local ")||text.startsWith("say global ")||text.startsWith("send to ")
                 ||text.startsWith("create variable ")||text.startsWith("add state ")
                 ||text.startsWith("remove state ")||text.equals("clear states")||text.startsWith("flag on ")
-                ||text.startsWith("flag off ")||text.startsWith("play sound ")||text.startsWith("play anime ")
+                ||text.startsWith("flag off ")||text.startsWith("play sound ")||text.startsWith("play anime ")||text.startsWith("emote ")||text.equals("stop animation")
                 ||text.startsWith("move to ")||text.startsWith("fly to ")||text.startsWith("follow ")
                 ||text.startsWith("keep distance ")||text.equals("stop follow")||text.startsWith("target ")
                 ||text.startsWith("attack ")||text.equals("stop attack")||text.startsWith("look at ")
