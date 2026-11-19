@@ -460,7 +460,7 @@ public final class ScriptEngine implements Listener {
                 tasks.remove(scheduled[0]);
                 c.endWait();
                 boolean sameScript=scriptGenerations.getOrDefault(c.scriptId(),0L)==expectedGeneration;
-                if(!sameScript||!c.npc().scriptsEnabled()||c.npc().tracker().isClosed()){
+                if(c.finished()||!sameScript||!c.npc().scriptsEnabled()||c.npc().tracker().isClosed()){
                     c.finish();
                     stopWatchdog(c);
                     return;
