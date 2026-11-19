@@ -43,7 +43,7 @@ public final class ScriptEngine implements Listener {
         for(ManagedNPC managed:targets)if(managed.scriptsEnabled())execute(managed,player,code,0);
     }
     private void execute(ManagedNPC npc,Player player,List<Instruction> code,int baseIndent){ScriptContext ctx=new ScriptContext(npc,player);runBlock(ctx,code,0,baseIndent);}
-    private int runBlock(ScriptContext c,List<Instruction> code,int index,int indent){if(!c.npc().scriptsEnabled())return code.size();while(index<code.size()){if(!c.npc().scriptsEnabled())return code.size();Instruction in=code.get(index);if(in.indent()<indent)break;if(in.indent()>indent){index++;continue;}String s=in.text();int line=in.line();
+    private int runBlock(ScriptContext c,List<Instruction> code,int index,int indent){if(!c.npc().scriptsEnabled())return code.size();while(index<code.size()){if(!c.npc().scriptsEnabled())return code.size();if(c.loopControlRequested())return code.size();Instruction in=code.get(index);if(in.indent()<indent)break;if(in.indent()>indent){index++;continue;}String s=in.text();int line=in.line();
         if(s.startsWith("loop ")&&s.endsWith(":")){int end=findEnd(code,index+1,in.indent());int child=index+1<code.size()?code.get(index+1).indent():in.indent()+4;executeLoop(c,code,index+1,child,s.substring(5,s.length()-1).trim());index=end;continue;}
         if(s.equals("stop loop")){c.stopLoop();return code.size();}
         if(s.equals("skip loop")){c.skipLoop();return code.size();}
