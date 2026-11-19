@@ -948,7 +948,7 @@ public final class ScriptEngine implements Listener {
                 continue;
             }
 
-            if (line.startsWith("set ")) {
+            if (line.startsWith("set \"")) {
                 String body = line.substring(4).trim();
                 int closingQuote = body.indexOf('"', 1);
                 if (body.startsWith("\"") && closingQuote > 0) {
