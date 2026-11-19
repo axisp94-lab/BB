@@ -165,8 +165,8 @@ public final class ScriptEngine implements Listener {
         File directory=new File(plugin.getDataFolder(),"scripts");
         File[] files=directory.listFiles((folder,name)->name.toLowerCase(Locale.ROOT).endsWith(".aa"));
         if(files==null)return false;
-        File selected=new File(directory,id+".aa");
-        if(!selected.isFile())return false;
+        File selected=Arrays.stream(files).filter(file->file.getName().equalsIgnoreCase(id+".aa")).findFirst().orElse(null);
+        if(selected==null)return false;
         try{
             Map<String,Map<String,List<Instruction>>> parsedScripts=new HashMap<>();
             Map<String,FunctionDefinition> parsedFunctions=new LinkedHashMap<>();
