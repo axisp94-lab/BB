@@ -16,7 +16,7 @@ Plugin Paper 1.21.11 / Java 21. BetterModel 2.2.0 est requis pour afficher les m
 npcs:
   gardien:
     display-name: "&6Gardien"
-    type: "limb:steve" # ou un nom de modèle BetterModel
+    type: "limb:steve" # ou mythicmob:identifiant pour un mob MythicMobs
     world: [world]
     x: 0.5
     y: 65
@@ -26,7 +26,7 @@ npcs:
     skin: "file:gardiens.png"
 ```
 
-`type: player` sélectionne le limb `steve`. Pour les modèles classiques, `type` est le nom BetterModel. `world` accepte un nom, une liste de noms ou `all`.
+`type: player` sélectionne le limb `steve`. Pour les modèles classiques, `type` est le nom BetterModel. `type: mythicmob:gardien` crée une entité MythicMobs (MythicMobs doit être installé) ; son IA et sa gravité sont désactivées afin que le script contrôle son déplacement. `world` accepte un nom, une liste de noms ou `all`. Les NPC configurés dans des mondes Multiverse apparaissent et disparaissent avec le chargement/déchargement du monde.
 
 ### Skins des NPC joueur
 Le champ `skin` accepte :
@@ -71,7 +71,7 @@ on interval:
 - blocs `if`, variables locales/partagées/globales et fonctions avec paramètres et `return` ;
 - boucles `loop all players`, `loop all npcs`, `loop all (liste)` et `loop N times`, avec `stop loop` et `skip loop` ;
 - sélecteurs `@p`, `@a`, `@n`, `@e[type=...]`, `player:<pseudo>` et `npc:<id>` pour les cibles compatibles ;
-- actions de message, son, animation, déplacement, téléportation, suivi, maintien de distance, déplacement aérien direct, variables, drapeaux et commande console.
+- actions de message, son vanilla ou identifiant custom `namespace:sound` (ItemsAdder), animation BetterModel, déplacement, téléportation, suivi, maintien de distance, déplacement aérien direct, variables, drapeaux et commande console.
 
 Les fonctions sont synchrones : `wait` n'est pas accepté dans une fonction qui retourne une valeur. Les sélecteurs d'entités sont limités au rayon défini par `selector-range` (64 blocs par défaut). Les listes sauvegardées sont actuellement interprétées depuis une chaîne séparée par des virgules.
 
@@ -97,4 +97,4 @@ Le socle comprend le chargement de `npc.yml`, les NPC BetterModel basés sur `Du
 
 La stabilisation du cycle de vie, des commandes et du rechargement a été compilée avec succès par GitHub Actions. La prise en charge des skins PNG locaux, la correction du parseur, les variables, fonctions, boucles, sélecteurs, le pathfinding, les déplacements aériens directs et le suivi ont également été compilés. Les essais en jeu avec Paper 1.21.11 et BetterModel 2.2.0 restent à effectuer.
 
-Les interactions NPC-NPC de proximité et les événements `on npc approach` / `on npc leave` sont disponibles sans mécanisme de combat. Les intégrations MythicMobs, ItemsAdder et Multiverse ainsi que les autres modes avancés restent à développer.
+Les interactions NPC-NPC de proximité et les événements `on npc approach` / `on npc leave` sont disponibles sans mécanisme de combat. Les types `mythicmob:<id>`, les sons custom namespacés et le chargement dynamique des mondes sont ajoutés ; leur validation en jeu reste nécessaire.
