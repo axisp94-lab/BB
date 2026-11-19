@@ -209,6 +209,16 @@ public final class ScriptEngine implements Listener {
                     valid=false;
                 }
             }
+            String currentText=current.text().trim().toLowerCase(Locale.ROOT);
+            if(currentText.equals("else:")||currentText.startsWith("else if ")){
+                int previousAtLevel=i-1;
+                while(previousAtLevel>=0&&code.get(previousAtLevel).indent()>current.indent())previousAtLevel--;
+                if(previousAtLevel<0||code.get(previousAtLevel).indent()!=current.indent()
+                        ||!(code.get(previousAtLevel).text().startsWith("if ")||code.get(previousAtLevel).text().startsWith("else if "))){
+                    plugin.getLogger().warning("Branche else sans if correspondant ligne "+current.line()+" dans "+owner+".");
+                    valid=false;
+                }
+            }
         }
         Instruction last=code.get(code.size()-1);
         if(isBlockHeader(last.text())){
@@ -732,9 +742,19 @@ public final class ScriptEngine implements Listener {
         if(next<code.size()&&code.get(next).indent()==indent){
             String nextText=code.get(next).text().trim();
             if(nextText.equals("else:")||nextText.startsWith("else if ")){
-                if(matches)return findEnd(code,next+1,indent);
+                if(matches)return skipConditionalChain(code,next,indent);
                 return executeConditional(context,code,next,indent);
             }
+        }
+        return next;
+    }
+
+    private int skipConditionalChain(List<Instruction> code,int index,int indent){
+        int next=index;
+        while(next<code.size()&&code.get(next).indent()==indent){
+            String text=code.get(next).text().trim();
+            if(!text.equals("else:")&&!text.startsWith("else if "))break;
+            next=findEnd(code,next+1,indent);
         }
         return next;
     }
