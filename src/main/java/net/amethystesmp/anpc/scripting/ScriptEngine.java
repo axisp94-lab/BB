@@ -130,8 +130,8 @@ public final class ScriptEngine implements Listener {
         if(s.startsWith("if ")&&s.endsWith(":")){int end=findEnd(code,index+1,in.indent());if(test(c,s.substring(3,s.length()-1))){int child=index+1<code.size()?code.get(index+1).indent():in.indent()+4;runBlock(c,code,index+1,child);}index=end;continue;}
         if(s.startsWith("set ")){String body=s.substring(4).trim();int q=body.indexOf('"',1);if(body.startsWith("\"")&&q>0){String name=body.substring(1,q);String val=body.substring(q+1).trim();if(val.startsWith("(" )&&val.endsWith(")"))val=val.substring(1,val.length()-1);Object value=resolve(c,val);c.locals().put(name,value);if(!c.isTransientLocal(name))storeVariable(c,name,value);}index++;continue;}
         if(s.startsWith("create variable ")){createVariable(c,s.substring(15).trim());index++;continue;}
-        if(s.startsWith("say local ")||s.startsWith("say global ")){boolean global=s.startsWith("say global ");String msg=unquote(s.substring(global?11:10));String rendered=ChatColor.translateAlternateColorCodes('&',c.npc().definition().displayName()+" » "+msg);if(global)Bukkit.broadcastMessage(rendered);else if(c.player()!=null)c.player().sendMessage(rendered);else for(Player p:c.npc().location().getWorld().getPlayers())if(p.getLocation().distanceSquared(c.npc().location())<32*32)p.sendMessage(rendered);index++;continue;}
-        if(s.startsWith("send to ")){int pos=s.indexOf(' ',8);if(pos>0){String target=s.substring(8,pos);String msg=unquote(s.substring(pos+1));Player p=target.equals("@p")?nearest(c.npc().location()):Bukkit.getPlayerExact(target);if(p!=null)p.sendMessage(ChatColor.translateAlternateColorCodes('&',msg));}index++;continue;}
+        if(s.startsWith("say local ")||s.startsWith("say global ")){boolean global=s.startsWith("say global ");Object message=resolve(c,s.substring(global?11:10).trim());String rendered=ChatColor.translateAlternateColorCodes('&',c.npc().definition().displayName()+" » "+String.valueOf(message));if(global)Bukkit.broadcastMessage(rendered);else if(c.player()!=null)c.player().sendMessage(rendered);else for(Player p:c.npc().location().getWorld().getPlayers())if(p.getLocation().distanceSquared(c.npc().location())<32*32)p.sendMessage(rendered);index++;continue;}
+        if(s.startsWith("send to ")){int pos=s.indexOf(' ',8);if(pos>0){String target=s.substring(8,pos);Object targetValue=resolve(c,target);String msg=String.valueOf(resolve(c,s.substring(pos+1).trim()));Player p=targetValue instanceof Player selected?selected:(target.equals("@p")?nearest(c.npc().location()):Bukkit.getPlayerExact(target));if(p!=null)p.sendMessage(ChatColor.translateAlternateColorCodes('&',msg));}index++;continue;}
         if(s.startsWith("play anime ")){c.npc().animate(unquote(s.substring(11)));index++;continue;}
         if(s.startsWith("play sound ")){String name=unquote(s.substring(11));try{Sound sound=Sound.valueOf(name.toUpperCase(Locale.ROOT).replace('.','_'));c.npc().location().getWorld().playSound(c.npc().location(),sound,1f,1f);}catch(IllegalArgumentException ignored){}index++;continue;}
         if(s.startsWith("move to ")){Location target=parseLocation(c,s.substring(8).trim());if(target!=null)move(c.npc(),target);index++;continue;}
@@ -206,6 +206,14 @@ public final class ScriptEngine implements Listener {
         if(value.startsWith("\"")&&value.endsWith("\""))return unquote(value);
         if(value.equalsIgnoreCase("true")||value.equalsIgnoreCase("false"))return Boolean.parseBoolean(value);
         try{return Double.parseDouble(value);}catch(NumberFormatException ignored){}
+        int operator=findTopLevelOperator(value,'+');
+        if(operator>0){Object left=resolve(c,value.substring(0,operator)),right=resolve(c,value.substring(operator+1));if(left instanceof String||right instanceof String)return String.valueOf(left)+right;return num(left)+num(right);}
+        operator=findTopLevelOperator(value,'-');
+        if(operator>0)return num(resolve(c,value.substring(0,operator)))-num(resolve(c,value.substring(operator+1)));
+        operator=findTopLevelOperator(value,'*');
+        if(operator>0)return num(resolve(c,value.substring(0,operator)))*num(resolve(c,value.substring(operator+1)));
+        operator=findTopLevelOperator(value,'/');
+        if(operator>0){double divisor=num(resolve(c,value.substring(operator+1)));return divisor==0?0:num(resolve(c,value.substring(0,operator)))/divisor;}
         String meta=variables.get("meta",c.npc().id(),value,null);
         if(meta==null)meta=variables.get("meta","",value,null);
         if(meta!=null){
@@ -310,6 +318,19 @@ public final class ScriptEngine implements Listener {
         }
         if(!current.isEmpty())result.add(current.toString().trim());
         return result;
+    }
+
+    private int findTopLevelOperator(String expression,char wanted){
+        boolean quoted=false;int depth=0;int found=-1;
+        for(int i=0;i<expression.length();i++){
+            char ch=expression.charAt(i);
+            if(ch=='"'&&(i==0||expression.charAt(i-1)!='\\\\'))quoted=!quoted;
+            if(quoted)continue;
+            if(ch=='('){depth++;continue;}
+            if(ch==')'){depth--;continue;}
+            if(depth==0&&ch==wanted&&i>0)found=i;
+        }
+        return found;
     }
 
     private Object parseStored(String value){
