@@ -1131,17 +1131,28 @@ public final class ScriptEngine implements Listener {
     }
     private void createVariable(ScriptContext c,String declaration){
         String input=declaration.trim();
-        int separator=input.indexOf(' ');
-        if(separator<=0){
-            plugin.getLogger().warning("Déclaration de variable invalide : "+declaration);
-            return;
+        String name,remainder;
+        if(input.startsWith("(")){
+            int close=input.indexOf(')');
+            if(close<2){
+                plugin.getLogger().warning("Nom de variable invalide dans la déclaration : "+declaration);
+                return;
+            }
+            name=input.substring(1,close).trim();
+            remainder=input.substring(close+1).trim();
+        }else{
+            int separator=input.indexOf(' ');
+            if(separator<=0){
+                plugin.getLogger().warning("Déclaration de variable invalide : "+declaration);
+                return;
+            }
+            name=input.substring(0,separator).trim();
+            remainder=input.substring(separator+1).trim();
         }
-        String name=input.substring(0,separator).trim();
         if(!name.matches("[A-Za-z_][A-Za-z0-9_-]*")){
             plugin.getLogger().warning("Nom de variable invalide : "+name);
             return;
         }
-        String remainder=input.substring(separator+1).trim();
         String rawValue;
         if(remainder.startsWith("(")){
             int depth=0;boolean quoted=false;int closing=-1;
