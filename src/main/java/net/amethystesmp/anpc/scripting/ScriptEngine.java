@@ -174,6 +174,33 @@ public final class ScriptEngine implements Listener {
         intervalTasks.put(id,task);tasks.add(task);
     }
 
+    public void unloadScript(String requestedId){
+        String id=requestedId.toLowerCase(Locale.ROOT).replaceFirst("\\.aa$","");
+        if(!id.matches("[a-z0-9_-]+"))return;
+        scripts.remove(id);
+        BukkitTask interval=intervalTasks.remove(id);
+        if(interval!=null){interval.cancel();tasks.remove(interval);}
+        scriptLastRun.keySet().removeIf(key->key.startsWith(id+"@"));
+        scriptLastChange.keySet().removeIf(key->key.startsWith(id+"@"));
+        scriptLastWarning.keySet().removeIf(key->key.startsWith(id+"@"));
+        File directory=new File(plugin.getDataFolder(),"scripts");
+        File[] files=directory.listFiles((folder,name)->name.toLowerCase(Locale.ROOT).endsWith(".aa"));
+        functions.clear();
+        if(files==null)return;
+        Arrays.sort(files,Comparator.comparing(File::getName,String.CASE_INSENSITIVE_ORDER));
+        for(File file:files){
+            try{
+                List<String> lines=Files.readAllLines(file.toPath());
+                for(var function:parseFunctions(lines).entrySet()){
+                    if(functions.putIfAbsent(function.getKey(),function.getValue())!=null)
+                        plugin.getLogger().warning("Fonction globale dupliquée '"+function.getKey()+"' dans "+file.getName()+" (déclaration ignorée).");
+                }
+            }catch(Exception exception){
+                plugin.getLogger().warning("Lecture des fonctions de "+file.getName()+" impossible : "+exception.getMessage());
+            }
+        }
+    }
+
     public List<String> scriptIds(){
         File directory=new File(plugin.getDataFolder(),"scripts");
         File[] files=directory.listFiles((folder,name)->name.toLowerCase(Locale.ROOT).endsWith(".aa"));
