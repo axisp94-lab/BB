@@ -46,7 +46,7 @@ public final class ScriptEngine implements Listener {
         if(s.startsWith("play sound ")){String name=unquote(s.substring(11));try{Sound sound=Sound.valueOf(name.toUpperCase(Locale.ROOT).replace('.','_'));c.npc().location().getWorld().playSound(c.npc().location(),sound,1f,1f);}catch(IllegalArgumentException ignored){}index++;continue;}
         if(s.startsWith("move to ")){Location target=parseLocation(c,s.substring(8).trim());if(target!=null)move(c.npc(),target);index++;continue;}
         if(s.startsWith("tp ")){Location target=parseLocation(c,s.substring(3).trim());if(target!=null)move(c.npc(),target);index++;continue;}
-        if(s.startsWith("flag on ")||s.startsWith("flag off ")){boolean on=s.startsWith("flag on ");String name=s.substring(on?8:9).replace("(","").replace(")","").trim();variables.set("npc",c.npc().id(),"flag:"+name,on);index++;continue;}
+        if(s.startsWith("flag on ")||s.startsWith("flag off ")){boolean on=s.startsWith("flag on ");String name=s.substring(on?8:9).replace("(","").replace(")","").trim();variables.setLocal(c.npc().id(),c.npc().location().getWorld().getName(),"flag:"+name,on);index++;continue;}
         if(s.startsWith("wait ")){long ticks=parseDurationTicks(s.substring(5));List<Instruction> remaining=new ArrayList<>(code.subList(index+1,code.size()));BukkitTask task=Bukkit.getScheduler().runTaskLater(plugin,()->runBlock(c,remaining,0,indent),ticks);tasks.add(task);return code.size();}
         if(s.startsWith("run command ")){String cmd=unquote(s.substring(12));Bukkit.dispatchCommand(Bukkit.getConsoleSender(),cmd.replace("%player%",c.player()==null?"":c.player().getName()));index++;continue;}
         if(s.startsWith("look at ")&&c.player()!=null){Location at=c.player().getLocation();Location from=c.npc().location();from.setDirection(at.toVector().subtract(from.toVector()));c.npc().move(from);index++;continue;}
@@ -55,11 +55,79 @@ public final class ScriptEngine implements Listener {
         index++;
     }return index;}
     private int findEnd(List<Instruction> c,int from,int parent){int i=from;while(i<c.size()&&c.get(i).indent()>parent)i++;return i;}
-    private boolean test(ScriptContext c,String expression){String e=expression.trim();if(e.startsWith("flag (")&&e.contains(") is ")){String name=e.substring(6,e.indexOf(')'));boolean v=Boolean.parseBoolean(variables.get("npc",c.npc().id(),"flag:"+name,"false"));return e.endsWith("on")?v:!v;}String[] ops={" >= "," <= "," != "," == "," > "," < "," contains "};for(String op:ops){int p=e.indexOf(op);if(p>0){Object a=resolve(c,e.substring(0,p)),b=resolve(c,e.substring(p+op.length()));if(op.equals(" contains "))return String.valueOf(a).contains(String.valueOf(b));double x=num(a),y=num(b);return switch(op.trim()){case ">"->x>y;case "<"->x<y;case ">="->x>=y;case "<="->x<=y;case "!="->!Objects.equals(String.valueOf(a),String.valueOf(b));default->Objects.equals(String.valueOf(a),String.valueOf(b))||x==y;};}}if(e.equalsIgnoreCase("player is sneaking"))return c.player()!=null&&c.player().isSneaking();if(e.toLowerCase(Locale.ROOT).startsWith("player has permission "))return c.player()!=null&&c.player().hasPermission(unquote(e.substring(22).trim()));if(e.toLowerCase(Locale.ROOT).startsWith("player has item ")){if(c.player()==null)return false;try{return c.player().getInventory().contains(org.bukkit.Material.valueOf(e.substring(16).trim().toUpperCase(Locale.ROOT)));}catch(IllegalArgumentException ex){return false;}}if(e.equalsIgnoreCase("npc is under attack"))return false;return false;}
-    private Object resolve(ScriptContext c,String raw){String s=raw.trim();if(s.startsWith("\"")&&s.endsWith("\""))return unquote(s);if(s.equalsIgnoreCase("true")||s.equalsIgnoreCase("false"))return Boolean.parseBoolean(s);try{return Double.parseDouble(s);}catch(NumberFormatException ignored){}String meta=variables.get("meta",c.npc().id(),s,null);if(meta==null)meta=variables.get("meta","",s,null);if(meta!=null){String[] parts=meta.split("\\|",2);String scope=parts[0],owner=parts.length>1?parts[1]:c.npc().id();String value=variables.get(scope,owner,s,null);if(value!=null)return parseStored(value);}return c.value(s);}
-    private Object parseStored(String s){if(s.equalsIgnoreCase("true")||s.equalsIgnoreCase("false"))return Boolean.parseBoolean(s);try{return Double.parseDouble(s);}catch(Exception e){return s;}}
-    private void createVariable(ScriptContext c,String declaration){String d=declaration.replace("(","").replace(")","").trim();String[] a=d.split("\\s+");if(a.length<2)return;String name=a[0];String value=a[1];String scope=a.length>2?a[2].toLowerCase(Locale.ROOT):"local";String owner=c.npc().id();if(scope.equals("global")){owner="";variables.set("meta","",name,"global|@");}else if(scope.equals("shared")){owner=a.length>3?a[3].replace("[","").replace("]",""):"shared";String[] members=owner.split(",");for(String member:members)variables.set("meta",member.trim(),name,"shared|"+owner);}else{scope="local";variables.set("meta",c.npc().id(),name,"local|"+owner);}variables.set(scope,owner,name,value);c.locals().put(name,parseStored(value));}
-    private void storeVariable(ScriptContext c,String name,Object value){String meta=variables.get("meta",c.npc().id(),name,null);if(meta==null)meta=variables.get("meta","",name,"local|"+c.npc().id());String[] parts=meta.split("\\|",2);String scope=parts[0],owner=parts.length>1?parts[1]:c.npc().id();variables.set(scope,owner,name,value);}
+    private boolean test(ScriptContext c,String expression){String e=expression.trim();if(e.startsWith("flag (")&&e.contains(") is ")){String name=e.substring(6,e.indexOf(')'));boolean v=Boolean.parseBoolean(variables.getLocal(c.npc().id(),c.npc().location().getWorld().getName(),"flag:"+name,"false"));return e.endsWith("on")?v:!v;}String[] ops={" >= "," <= "," != "," == "," > "," < "," contains "};for(String op:ops){int p=e.indexOf(op);if(p>0){Object a=resolve(c,e.substring(0,p)),b=resolve(c,e.substring(p+op.length()));if(op.equals(" contains "))return String.valueOf(a).contains(String.valueOf(b));double x=num(a),y=num(b);return switch(op.trim()){case ">"->x>y;case "<"->x<y;case ">="->x>=y;case "<="->x<=y;case "!="->!Objects.equals(String.valueOf(a),String.valueOf(b));default->Objects.equals(String.valueOf(a),String.valueOf(b))||x==y;};}}if(e.equalsIgnoreCase("player is sneaking"))return c.player()!=null&&c.player().isSneaking();if(e.toLowerCase(Locale.ROOT).startsWith("player has permission "))return c.player()!=null&&c.player().hasPermission(unquote(e.substring(22).trim()));if(e.toLowerCase(Locale.ROOT).startsWith("player has item ")){if(c.player()==null)return false;try{return c.player().getInventory().contains(org.bukkit.Material.valueOf(e.substring(16).trim().toUpperCase(Locale.ROOT)));}catch(IllegalArgumentException ex){return false;}}if(e.equalsIgnoreCase("npc is under attack"))return false;return false;}
+    private Object resolve(ScriptContext c,String raw){
+        String value=raw.trim();
+        if(value.startsWith("\"")&&value.endsWith("\""))return unquote(value);
+        if(value.equalsIgnoreCase("true")||value.equalsIgnoreCase("false"))return Boolean.parseBoolean(value);
+        try{return Double.parseDouble(value);}catch(NumberFormatException ignored){}
+        String meta=variables.get("meta",c.npc().id(),value,null);
+        if(meta==null)meta=variables.get("meta","",value,null);
+        if(meta!=null){
+            String[] parts=meta.split("\\|",2);
+            String scope=parts[0].toLowerCase(Locale.ROOT);
+            String owner=parts.length>1?parts[1]:"";
+            if(scope.equals("global"))return parseStored(variables.getGlobal(value,""));
+            if(scope.equals("shared")){
+                if(!isSharedMember(owner,c.npc().id())){
+                    plugin.getLogger().warning("Accès refusé : le NPC "+c.npc().id()+" ne peut pas lire la variable shared '"+value+"'.");
+                    return null;
+                }
+                return parseStored(variables.get("shared",owner,value,""));
+            }
+            if(scope.equals("local"))return parseStored(variables.getLocal(c.npc().id(),c.npc().location().getWorld().getName(),value,null));
+        }
+        return c.value(value);
+    }
+    private boolean isSharedMember(String members,String npcId){
+        return Arrays.stream(members.split(",")).map(String::trim).anyMatch(member->member.equalsIgnoreCase(npcId));
+    }
+    private void createVariable(ScriptContext c,String declaration){
+        String d=declaration.replace("(","").replace(")","").trim();
+        String[] a=d.split("\\s+");
+        if(a.length<2)return;
+        String name=a[0],value=a[1];
+        String scope=a.length>2?a[2].toLowerCase(Locale.ROOT):"local";
+        if(scope.equals("global")){
+            variables.set("meta","",name,"global|@");
+            variables.setGlobal(name,value);
+        }else if(scope.equals("shared")){
+            if(a.length<4){
+                plugin.getLogger().warning("Déclaration shared invalide pour '"+name+"' : liste de NPC autorisés manquante.");
+                return;
+            }
+            String members=a[3].replace("[","").replace("]","").trim();
+            if(!isSharedMember(members,c.npc().id())){
+                plugin.getLogger().warning("Le NPC "+c.npc().id()+" doit faire partie des membres autorisés pour créer la variable shared '"+name+"'.");
+                return;
+            }
+            variables.set("meta",c.npc().id(),name,"shared|"+members);
+            for(String member:members.split(","))variables.set("meta",member.trim(),name,"shared|"+members);
+            variables.set("shared",members,name,value);
+        }else{
+            variables.set("meta",c.npc().id(),name,"local|"+c.npc().id());
+            variables.setLocal(c.npc().id(),c.npc().location().getWorld().getName(),name,value);
+        }
+        c.locals().put(name,parseStored(value));
+    }
+    private void storeVariable(ScriptContext c,String name,Object value){
+        String meta=variables.get("meta",c.npc().id(),name,null);
+        if(meta==null)meta=variables.get("meta","",name,"local|"+c.npc().id());
+        String[] parts=meta.split("\\|",2);
+        String scope=parts[0].toLowerCase(Locale.ROOT);
+        String owner=parts.length>1?parts[1]:"";
+        if(scope.equals("global")){
+            variables.setGlobal(name,value);
+        }else if(scope.equals("shared")){
+            if(!isSharedMember(owner,c.npc().id())){
+                plugin.getLogger().warning("Écriture refusée : le NPC "+c.npc().id()+" n'est pas autorisé à modifier la variable shared '"+name+"'.");
+                return;
+            }
+            variables.set("shared",owner,name,value);
+        }else{
+            variables.setLocal(c.npc().id(),c.npc().location().getWorld().getName(),name,value);
+        }
+    }
     private double num(Object o){try{return Double.parseDouble(String.valueOf(o));}catch(Exception e){return 0;}}
     private String unquote(String s){s=s.trim();return s.length()>=2&&s.startsWith("\"")&&s.endsWith("\"")?s.substring(1,s.length()-1):s;}
     private Player nearest(Location l){return l.getWorld().getPlayers().stream().min(Comparator.comparingDouble(p->p.getLocation().distanceSquared(l))).orElse(null);}
