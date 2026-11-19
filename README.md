@@ -217,8 +217,21 @@ Les propriétés `health of npc`, `max health of npc`, `speed of npc` et `attack
 
 Permission : `anpc.admin` (opérateur par défaut).
 
-## Périmètre restant
+## État d'avancement
 
-Cette branche met en place le stockage par portée, les règles d'accès `shared`, le cycle de vie des NPC, les instances multi-mondes, la récupération sur 24 h, les commandes d'activation, les états, les fonctions et les boucles.
+**Implémenté dans le code et compilé :**
+- Stockage SQLite des variables `local`, `global` et `shared`, avec contrôle des membres autorisés et isolation locale par monde.
+- Instances multi-mondes, commandes `enable/disable`, masquage/restauration, suppression confirmée et récupération 24 h des définitions, scripts et variables locales, y compris pour les mondes non chargés.
+- Navigation au sol et en vol, pathfinding limité par `movement.max-path-attempts`, checkpoints, suivi et maintien de distance.
+- Combat avec sélection de cibles, priorité au dernier attaquant, dégâts configurables et dégâts propres à chaque NPC.
+- Simulation de blocs, sons vanilla/ItemsAdder, animations, états, cooldowns, fonctions globales, paramètres/retours, boucles et plusieurs événements/conditions.
+- Skins PNG locaux et profils par UUID/pseudo.
 
-La liste complète des fonctionnalités validées n'est pas encore terminée : pathfinding et suivi avancés, combat/hostilité, interactions complètes entre NPC, simulation de blocs, tous les événements/conditions/actions du langage, gestion des skins par fichier local, intégrations MythicMobs/ItemsAdder et tests en jeu restent à implémenter ou vérifier. Ne pas considérer ces éléments comme disponibles tant qu'ils ne sont pas ajoutés et testés.
+**Encore incomplet ou à valider en jeu :**
+- Interactions complètes entre NPC, notamment les combats NPC contre NPC et les règles de ciblage des mobs vers les NPC.
+- Équipement visuel des NPC et couverture complète des attributs/items.
+- Couverture exhaustive des événements, conditions et actions `.aa`. En particulier, les continuations `wait` dans des blocs imbriqués ou des fonctions doivent encore être fiabilisées.
+- Validation réelle sur Paper 1.21.11 avec BetterModel 2.2.0, puis tests des intégrations MythicMobs et ItemsAdder sur serveur.
+- Tests d'intégration en jeu : les tests automatisés actuels couvrent le stockage SQLite, pas le comportement complet de Paper/BetterModel.
+
+La réussite du workflow Maven confirme la compilation et les tests automatisés ; elle ne remplace pas les essais sur un serveur Minecraft réel.
