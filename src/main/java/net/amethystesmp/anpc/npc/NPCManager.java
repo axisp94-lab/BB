@@ -263,9 +263,6 @@ public final class NPCManager {
             restoreDeletedScript(id);
             plugin.variables().set("npc-lifecycle", id, "removed", false);
             yaml.set("npcs." + id + ".scripts-enabled", true);
-            List<String> recoveryWorlds = backup.getStringList("recovery-worlds");
-            if (recoveryWorlds.isEmpty()) recoveryWorlds = definition.worlds().stream().anyMatch(name -> name.equalsIgnoreCase("all"))
-                    ? Bukkit.getWorlds().stream().map(World::getName).toList() : definition.worlds();
             plugin.variables().restoreAllLocalVariables(id);
             deletedYaml.set("npcs." + id, null);
             saveDeleted();
