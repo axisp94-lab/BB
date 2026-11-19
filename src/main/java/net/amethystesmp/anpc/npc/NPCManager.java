@@ -254,6 +254,12 @@ public final class NPCManager implements Listener {
         return Collections.unmodifiableList(result);
     }
 
+    public Collection<NPCDefinition> definitions() {
+        List<NPCDefinition> result = new ArrayList<>(definitions.values());
+        result.sort(Comparator.comparing(NPCDefinition::id, String.CASE_INSENSITIVE_ORDER));
+        return Collections.unmodifiableList(result);
+    }
+
     public int size() {
         return npcs.values().stream().map(ManagedNPC::id).map(id -> id.toLowerCase(Locale.ROOT)).distinct().toList().size();
     }
