@@ -204,7 +204,7 @@ public final class NPCManager {
         if (!exists(id)) return false;
         for (String mapKey : matchingKeys(id)) {
             ManagedNPC npc = npcs.remove(mapKey);
-            if (npc != null) npc.close();
+            if (npc != null) { saveRuntimeState(npc); npc.close(); }
         }
         plugin.variables().set("npc-lifecycle", id, "removed", true);
         return true;
@@ -219,6 +219,7 @@ public final class NPCManager {
             try {
                 NPCDefinition definition = NPCDefinition.read(id, yaml.getConfigurationSection("npcs." + id));
                 createFrom(definition);
+                for (ManagedNPC npc : instances(id)) restoreRuntimeState(npc);
                 refreshVisibility();
                 return true;
             } catch (Exception exception) {
