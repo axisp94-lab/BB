@@ -353,7 +353,15 @@ public final class NPCManager implements Listener {
         List<ManagedNPC> matches = npcs.values().stream()
                 .filter(npc -> npc.id().equalsIgnoreCase(id))
                 .toList();
-        if (matches.isEmpty()) return false;
+        if (matches.isEmpty()) {
+            NPCDefinition definition = definitions.get(id.toLowerCase(Locale.ROOT));
+            if (definition == null) return false;
+            NPCDefinition centered = new NPCDefinition(definition.id(), definition.displayName(), definition.type(),
+                    definition.worlds(), Math.floor(definition.x()) + 0.5, definition.y(),
+                    Math.floor(definition.z()) + 0.5, definition.yaw(), definition.pitch(), definition.skin());
+            saveDefinition(centered);
+            return true;
+        }
 
         for (ManagedNPC npc : matches) {
             Location centered = npc.location();
