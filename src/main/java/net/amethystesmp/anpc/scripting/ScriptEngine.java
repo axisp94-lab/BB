@@ -122,6 +122,9 @@ public final class ScriptEngine implements Listener {
                 result.get(event).add(new Instruction(indent,text,i+1));
             }
         }
+        for(String event:new ArrayList<>(result.keySet())){
+            if(!validateBlockStructure(result.get(event),"événement '"+event+"'"))result.remove(event);
+        }
         return result;
     }
     private Map<String,FunctionDefinition> parseFunctions(List<String> lines){
@@ -170,7 +173,7 @@ public final class ScriptEngine implements Listener {
                 if(indent%4!=0){plugin.getLogger().warning("Indentation invalide dans la fonction '"+name+"' ligne "+(j+1)+" : fonction ignorée.");invalidIndent=true;}
                 body.add(new Instruction(indent,line.trim(),j+1));
             }
-            boolean invalidBody=invalidIndent;
+            boolean invalidBody=invalidIndent||!validateBlockStructure(body,"fonction '"+name+"'");
             for(Instruction instruction:body)if(!isKnownInstruction(instruction.text())){
                 warnUnknownInstruction(instruction.line(),instruction.text());
                 invalidBody=true;break;
@@ -181,6 +184,45 @@ public final class ScriptEngine implements Listener {
         }
         return result;
     }
+    private boolean validateBlockStructure(List<Instruction> code,String owner){
+        if(code.isEmpty())return true;
+        boolean valid=true;
+        if(code.get(0).indent()!=4){
+            plugin.getLogger().warning("Indentation invalide dans "+owner+" ligne "+code.get(0).line()+" : le premier niveau doit utiliser 4 espaces.");
+            valid=false;
+        }
+        for(int i=0;i<code.size();i++){
+            Instruction current=code.get(i);
+            if(current.indent()<4||current.indent()%4!=0){
+                plugin.getLogger().warning("Indentation invalide dans "+owner+" ligne "+current.line()+".");
+                valid=false;
+            }
+            if(i==0)continue;
+            Instruction previous=code.get(i-1);
+            if(isBlockHeader(previous.text())&&current.indent()<=previous.indent()){
+                plugin.getLogger().warning("Bloc vide ou indentation manquante après la ligne "+previous.line()+" dans "+owner+".");
+                valid=false;
+            }
+            if(current.indent()>previous.indent()){
+                if(!isBlockHeader(previous.text())||current.indent()!=previous.indent()+4){
+                    plugin.getLogger().warning("Niveau d'indentation inattendu ligne "+current.line()+" dans "+owner+".");
+                    valid=false;
+                }
+            }
+        }
+        Instruction last=code.get(code.size()-1);
+        if(isBlockHeader(last.text())){
+            plugin.getLogger().warning("Bloc sans contenu après la ligne "+last.line()+" dans "+owner+".");
+            valid=false;
+        }
+        return valid;
+    }
+
+    private boolean isBlockHeader(String instruction){
+        String text=instruction.trim().toLowerCase(Locale.ROOT);
+        return (text.startsWith("if ")||text.startsWith("loop "))&&text.endsWith(":");
+    }
+
     private void scheduleIntervals(){
         for(var entry:scripts.entrySet()){
             List<Instruction> code=entry.getValue().get("interval");
