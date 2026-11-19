@@ -234,12 +234,9 @@ public final class NPCManager {
             plugin.variables().delete("npc-runtime", owner, "follow-target");
             plugin.variables().delete("npc-runtime", owner, "follow-min");
             plugin.variables().delete("npc-runtime", owner, "follow-max");
-        plugin.variables().delete("npc-runtime", owner, "hostile");
-        plugin.variables().delete("npc-runtime", owner, "target-selector");
-        plugin.variables().delete("npc-runtime", owner, "last-attacker");
-        plugin.variables().delete("npc-runtime", owner, "follow-target");
-        plugin.variables().delete("npc-runtime", owner, "follow-min");
-        plugin.variables().delete("npc-runtime", owner, "follow-max");
+            plugin.variables().delete("npc-runtime", owner, "hostile");
+            plugin.variables().delete("npc-runtime", owner, "target-selector");
+            plugin.variables().delete("npc-runtime", owner, "last-attacker");
         }
         for (String mapKey : matchingKeys(id)) {
             ManagedNPC npc = npcs.remove(mapKey);
@@ -312,6 +309,12 @@ public final class NPCManager {
                 npc.id(), npc.location().getWorld().getName());
         plugin.variables().delete("npc-runtime", owner, "primary-state");
         plugin.variables().delete("npc-runtime", owner, "secondary-states");
+        plugin.variables().delete("npc-runtime", owner, "follow-target");
+        plugin.variables().delete("npc-runtime", owner, "follow-min");
+        plugin.variables().delete("npc-runtime", owner, "follow-max");
+        plugin.variables().delete("npc-runtime", owner, "hostile");
+        plugin.variables().delete("npc-runtime", owner, "target-selector");
+        plugin.variables().delete("npc-runtime", owner, "last-attacker");
     }
 
     public void rename(String id, String display) {
