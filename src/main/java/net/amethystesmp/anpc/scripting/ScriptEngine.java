@@ -571,7 +571,7 @@ public final class ScriptEngine implements Listener {
                 if(value instanceof ManagedNPC npc)context.locals().put("loop-npc",npc);
                 context.clearLoopSkip();
                 runBlock(context,code,bodyStart,bodyIndent);
-                if(context.loopStopped())break;
+                if(context.returned()||context.loopStopped())break;
                 if(context.loopSkipped())context.clearLoopSkip();
             }
         }finally{
