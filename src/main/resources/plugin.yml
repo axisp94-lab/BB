@@ -12,3 +12,6 @@ commands:
 permissions:
   anpc.admin:
     default: op
+
+  anpc.script.warning:
+    default: op
