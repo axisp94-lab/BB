@@ -59,6 +59,7 @@ public final class NPCManager {
                 continue;
             }
             ManagedNPC managed = new ManagedNPC(def, renderer, def.location(world), skinProfile(def));
+            managed.setSpeed(plugin.getConfig().getDouble("movement.default-speed", 4.0));
             boolean scriptsEnabled = yaml.getBoolean("npcs." + def.id() + ".scripts-enabled", true);
             managed.setScriptsEnabled(scriptsEnabled);
             if (!scriptsEnabled) restoreRuntimeState(managed);
@@ -153,6 +154,7 @@ public final class NPCManager {
         ModelRenderer renderer = resolveRenderer(type);
         if (renderer == null) return false;
         ManagedNPC managed = new ManagedNPC(definition, renderer, location, skinProfile(definition));
+        managed.setSpeed(plugin.getConfig().getDouble("movement.default-speed", 4.0));
         managed.setScriptsEnabled(true);
         npcs.put(key(id, location.getWorld().getName()), managed);
         saveDefinition(definition);
@@ -241,6 +243,9 @@ public final class NPCManager {
             plugin.variables().delete("npc-runtime", owner, "hostile");
             plugin.variables().delete("npc-runtime", owner, "target-selector");
             plugin.variables().delete("npc-runtime", owner, "last-attacker");
+            plugin.variables().delete("npc-runtime", owner, "health");
+            plugin.variables().delete("npc-runtime", owner, "max-health");
+            plugin.variables().delete("npc-runtime", owner, "speed");
         }
         for (String mapKey : matchingKeys(id)) {
             ManagedNPC npc = npcs.remove(mapKey);
@@ -287,6 +292,9 @@ public final class NPCManager {
         plugin.variables().set("npc-runtime", owner, "hostile", npc.hostile());
         plugin.variables().set("npc-runtime", owner, "target-selector", npc.targetSelector());
         plugin.variables().set("npc-runtime", owner, "last-attacker", npc.lastAttacker() == null ? "" : npc.lastAttacker().toString());
+        plugin.variables().set("npc-runtime", owner, "health", npc.health());
+        plugin.variables().set("npc-runtime", owner, "max-health", npc.maxHealth());
+        plugin.variables().set("npc-runtime", owner, "speed", npc.speed());
     }
 
     private void restoreRuntimeState(ManagedNPC npc) {
@@ -306,6 +314,9 @@ public final class NPCManager {
         String lastAttacker = plugin.variables().get("npc-runtime", owner, "last-attacker", "");
         try { if (!lastAttacker.isBlank()) npc.setLastAttacker(UUID.fromString(lastAttacker)); }
         catch (IllegalArgumentException ignored) { }
+        npc.setMaxHealth(Double.parseDouble(plugin.variables().get("npc-runtime", owner, "max-health", "20.0")));
+        npc.setHealth(Double.parseDouble(plugin.variables().get("npc-runtime", owner, "health", "20.0")));
+        npc.setSpeed(Double.parseDouble(plugin.variables().get("npc-runtime", owner, "speed", String.valueOf(plugin.getConfig().getDouble("movement.default-speed", 4.0)))));
     }
 
     private void clearRuntimeState(ManagedNPC npc) {
@@ -319,6 +330,9 @@ public final class NPCManager {
         plugin.variables().delete("npc-runtime", owner, "hostile");
         plugin.variables().delete("npc-runtime", owner, "target-selector");
         plugin.variables().delete("npc-runtime", owner, "last-attacker");
+        plugin.variables().delete("npc-runtime", owner, "health");
+        plugin.variables().delete("npc-runtime", owner, "max-health");
+        plugin.variables().delete("npc-runtime", owner, "speed");
     }
 
     public void rename(String id, String display) {
