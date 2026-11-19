@@ -33,7 +33,7 @@ public final class ANPCCommand implements TabExecutor {
         }
 
         if (args.length == 0 || args[0].equalsIgnoreCase("help")) {
-            msg(sender, "/anpc list | create <id> <modele> | tp <id> | center <id> | rename <id> <nom> | kill <id> | reload");
+            msg(sender, "/anpc list | create <id> <modele|limb:nom|mythicmob:id> | tp <id> | center <id> | rename <id> <nom> | kill <id> | reload");
             return true;
         }
 
