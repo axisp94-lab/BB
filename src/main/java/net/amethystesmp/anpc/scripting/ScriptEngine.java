@@ -503,7 +503,7 @@ public final class ScriptEngine implements Listener {
         if(points.isEmpty()||points.get(points.size()-1).distanceSquared(target)>0.05)points.add(target.clone());
         if(points.size()==1)points.add(target.clone());
         int period=Math.max(1,plugin.getConfig().getInt("movement.update-ticks",1));
-        double speed=Math.max(0.1,plugin.getConfig().getDouble("movement.default-speed",4.0));
+        double speed=npc.speed();
         int[] segment={0};
         int[] lastBlock={npc.location().getBlockX(),npc.location().getBlockY(),npc.location().getBlockZ()};
         BukkitTask[] holder=new BukkitTask[1];
