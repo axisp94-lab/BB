@@ -1,6 +1,7 @@
 # Configuration générale d'AmethyysNPCs
 script-default-interval: 20
 script-approach-radius: 3.0
+script-npc-approach-radius: 3.0
 tracking-range: 64
 selector-range: 64
 movement:
