@@ -65,7 +65,7 @@ public final class ScriptEngine implements Listener {
         int bodyIndent = -1;
 
         for (int i = 0; i < lines.size(); i++) {
-            String raw = lines.get(i).replace("\\t", "    ");
+            String raw = lines.get(i).replace("\t", "    ");
             if (raw.isBlank() || raw.stripLeading().startsWith("#")) continue;
 
             int indent = raw.length() - raw.stripLeading().length();
