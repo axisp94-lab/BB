@@ -68,6 +68,7 @@ public final class NPCManager {
             }
             ManagedNPC managed = new ManagedNPC(def, renderer, def.location(world), skinProfile(def));
             managed.setSpeed(plugin.getConfig().getDouble("movement.default-speed", 4.0));
+            managed.setAttackDamage(plugin.getConfig().getDouble("combat.damage", 2.0));
             boolean scriptsEnabled = yaml.getBoolean("npcs." + def.id() + ".scripts-enabled", true);
             managed.setScriptsEnabled(scriptsEnabled);
             if (!scriptsEnabled) restoreRuntimeState(managed);
@@ -203,6 +204,7 @@ public final class NPCManager {
         if (renderer == null) return false;
         ManagedNPC managed = new ManagedNPC(definition, renderer, location, skinProfile(definition));
         managed.setSpeed(plugin.getConfig().getDouble("movement.default-speed", 4.0));
+        managed.setAttackDamage(plugin.getConfig().getDouble("combat.damage", 2.0));
         managed.setScriptsEnabled(true);
         npcs.put(key(id, location.getWorld().getName()), managed);
         saveDefinition(definition);
@@ -298,6 +300,7 @@ public final class NPCManager {
             plugin.variables().delete("npc-runtime", owner, "health");
             plugin.variables().delete("npc-runtime", owner, "max-health");
             plugin.variables().delete("npc-runtime", owner, "speed");
+        plugin.variables().delete("npc-runtime", owner, "attack-damage");
         }
         backupDeletedNPC(definition, worldNames);
         backupDeletedScript(id);
@@ -349,6 +352,7 @@ public final class NPCManager {
         plugin.variables().set("npc-runtime", owner, "health", npc.health());
         plugin.variables().set("npc-runtime", owner, "max-health", npc.maxHealth());
         plugin.variables().set("npc-runtime", owner, "speed", npc.speed());
+        plugin.variables().set("npc-runtime", owner, "attack-damage", npc.attackDamage());
     }
 
     private void restoreRuntimeState(ManagedNPC npc) {
@@ -371,6 +375,7 @@ public final class NPCManager {
         npc.setMaxHealth(Double.parseDouble(plugin.variables().get("npc-runtime", owner, "max-health", "20.0")));
         npc.setHealth(Double.parseDouble(plugin.variables().get("npc-runtime", owner, "health", "20.0")));
         npc.setSpeed(Double.parseDouble(plugin.variables().get("npc-runtime", owner, "speed", String.valueOf(plugin.getConfig().getDouble("movement.default-speed", 4.0)))));
+        npc.setAttackDamage(Double.parseDouble(plugin.variables().get("npc-runtime", owner, "attack-damage", String.valueOf(plugin.getConfig().getDouble("combat.damage", 2.0)))));
     }
 
     private void clearRuntimeState(ManagedNPC npc) {
