@@ -11,6 +11,7 @@ import java.util.Deque;
 public final class ScriptContext {
     private static final class LoopFrame { boolean stopped; boolean skipped; }
     private final ManagedNPC npc; private final Player player; private final Map<String,Object> locals=new HashMap<>();
+    private final java.util.Set<String> transientLocals=new java.util.HashSet<>();
     private final Deque<LoopFrame> loops = new ArrayDeque<>();
     private boolean returned;
     private Object returnValue;
