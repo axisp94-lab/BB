@@ -28,6 +28,10 @@ import java.util.concurrent.ConcurrentHashMap;
 
 public final class ScriptEngine implements Listener {
     private record Instruction(int indent, String text, int line) {}
+    private static final Set<String> SUPPORTED_EVENTS = Set.of(
+            "spawn", "interval", "entity approach", "entity leave",
+            "npc approach", "npc leave", "right click", "right click while sneaking",
+            "left click", "left click while sneaking", "item click", "damage");
     private record LoopPlan(String variable, List<Object> values) {}
     private record FunctionDefinition(List<String> parameters, List<Instruction> code) {}
     private record ScriptData(Map<String, List<Instruction>> events, Map<String, FunctionDefinition> functions) {}
@@ -88,7 +92,13 @@ public final class ScriptEngine implements Listener {
 
             if (indent == 0 && lower.startsWith("on ") && text.endsWith(":")) {
                 currentEvent = text.substring(3, text.length() - 1).trim().toLowerCase(Locale.ROOT);
-                currentBody = events.computeIfAbsent(currentEvent, ignored -> new ArrayList<>());
+                if (SUPPORTED_EVENTS.contains(currentEvent)) {
+                    currentBody = events.computeIfAbsent(currentEvent, ignored -> new ArrayList<>());
+                } else {
+                    plugin.getLogger().warning(source + ":" + (i + 1)
+                            + " : événement inconnu '" + currentEvent + "' ; bloc ignoré.");
+                    currentBody = new ArrayList<>();
+                }
                 bodyIndent = -1;
                 continue;
             }
