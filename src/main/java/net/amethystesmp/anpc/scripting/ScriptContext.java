@@ -19,6 +19,10 @@ public final class ScriptContext {
     private int callDepth;
     private String eventData="";
     private ManagedNPC eventNpc;
+    private int pendingWaits;
+    private boolean finished;
+    private long lastChangeAt=System.currentTimeMillis();
+    private long lastWarningAt;
     public ScriptContext(ManagedNPC npc,Player player){this.npc=npc;this.player=player;}
     public ManagedNPC npc(){return npc;} public void setNpc(ManagedNPC npc){this.npc=npc;} public Player player(){return player;} public void setPlayer(Player player){this.player=player;} public Map<String,Object> locals(){return locals;}
     public void markTransientLocal(String name){transientLocals.add(name.toLowerCase(java.util.Locale.ROOT));}
@@ -30,6 +34,18 @@ public final class ScriptContext {
     public void setEventNpc(ManagedNPC npc) { eventNpc = npc; }
     public ManagedNPC eventNpc() { return eventNpc; }
     public String eventData() { return eventData; }
+    public void beginWait() { pendingWaits++; }
+    public void endWait() { pendingWaits = Math.max(0, pendingWaits - 1); }
+    public boolean hasPendingWaits() { return pendingWaits > 0; }
+    public boolean finished() { return finished; }
+    public void finish() { finished = true; }
+    public void markChanged() { lastChangeAt = System.currentTimeMillis(); }
+    public boolean shouldWarnNoChange() {
+        long now = System.currentTimeMillis();
+        if (now - lastChangeAt < 5_000L || now - lastWarningAt < 5_000L) return false;
+        lastWarningAt = now;
+        return true;
+    }
     public int callDepth() { return callDepth; }
     public void setCallDepth(int depth) { callDepth = depth; }
     public void pushLoop() { loops.push(new LoopFrame()); }
