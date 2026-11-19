@@ -50,8 +50,10 @@ public final class ANPCCommand implements TabExecutor {
                     msg(sender, "Usage : /anpc create <id> <modele|limb:skin>");
                     return true;
                 }
-                if (plugin.npcs().create(args[1], args[2], player.getLocation()))
+                if (plugin.npcs().create(args[1], args[2], player.getLocation())) {
+                    plugin.scripts().fire(args[1], "spawn", null);
                     msg(sender, "NPC créé : " + args[1]);
+                }
                 else msg(sender, "Création impossible : ID déjà utilisé ou modèle BetterModel introuvable.");
             }
             case "tp" -> {
@@ -92,7 +94,10 @@ public final class ANPCCommand implements TabExecutor {
             }
             case "restore" -> {
                 if (args.length < 2) { msg(sender, "Usage : /anpc restore <id>"); return true; }
-                if (plugin.npcs().restore(args[1])) msg(sender, "NPC restauré.");
+                if (plugin.npcs().restore(args[1])) {
+                    plugin.scripts().fire(args[1], "spawn", null);
+                    msg(sender, "NPC restauré.");
+                }
                 else msg(sender, "Restauration impossible : NPC inconnu ou modèle indisponible.");
             }
             case "delete" -> handleDelete(sender, args);
