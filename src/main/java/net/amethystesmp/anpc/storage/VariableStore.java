@@ -37,6 +37,14 @@ public final class VariableStore implements AutoCloseable {
                 )
                 """);
             statement.executeUpdate("CREATE INDEX IF NOT EXISTS idx_deleted_npc_variables_time ON deleted_npc_variables(deleted_at)");
+            statement.executeUpdate("""
+                INSERT INTO variables(scope,owner,name,value)
+                SELECT 'global','',name,value FROM variables
+                WHERE scope='global' AND owner='@'
+                ON CONFLICT(scope,owner,name) DO NOTHING
+                """);
+            statement.executeUpdate("DELETE FROM variables WHERE scope='global' AND owner='@'");
+
         }
         purgeExpiredRecoveries();
     }
@@ -88,7 +96,7 @@ public final class VariableStore implements AutoCloseable {
     public synchronized String getLocal(String npcId, String worldName, String name, String fallback) {
         String value = get("local", localOwner(npcId, worldName), name, null);
         // Compatibilité avec les variables locales créées avant l'isolation par monde.
-        return value != null ? value : get("local", npcId, name, fallback);
+        if (value != null) return value;\n        value = get("local", npcId, name, null);\n        return value != null ? value : get("npc", npcId, name, fallback);
     }
 
     public synchronized void setGlobal(String name, Object value) {
@@ -110,12 +118,12 @@ public final class VariableStore implements AutoCloseable {
                     INSERT INTO deleted_npc_variables(npc_id,world,name,value,deleted_at)
                     SELECT ?, ?, name, value, ?
                     FROM variables
-                    WHERE scope='local' AND owner IN (?, ?)
+                    WHERE scope IN ('local','npc') AND owner IN (?, ?)
                     ON CONFLICT(npc_id,world,name) DO UPDATE SET
                         value=excluded.value, deleted_at=excluded.deleted_at
                     """);
                  PreparedStatement delete = connection.prepareStatement(
-                    "DELETE FROM variables WHERE scope='local' AND owner IN (?, ?)")) {
+                    "DELETE FROM variables WHERE scope IN ('local','npc') AND owner IN (?, ?)")) {
                 archive.setString(1, id);
                 archive.setString(2, world);
                 archive.setLong(3, now);
