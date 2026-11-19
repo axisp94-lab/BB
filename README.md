@@ -63,10 +63,18 @@ on interval:
 - événements de clic, d'approche, de départ, d'intervalle et de spawn ;
 - blocs `if`, variables locales/partagées/globales et fonctions avec paramètres et `return` ;
 - boucles `loop all players`, `loop all npcs`, `loop all (liste)` et `loop N times`, avec `stop loop` et `skip loop` ;
-- sélecteurs `@p`, `@a`, `@n`, `@e[type=...] `, `player:<pseudo>` et `npc:<id>` pour les cibles compatibles ;
-- actions de message, son, animation, déplacement, téléportation, variables, drapeaux et commande console.
+- sélecteurs `@p`, `@a`, `@n`, `@e[type=...]`, `player:<pseudo>` et `npc:<id>` pour les cibles compatibles ;
+- actions de message, son, animation, déplacement, téléportation, suivi, maintien de distance, déplacement aérien direct, variables, drapeaux et commande console.
 
 Les fonctions sont synchrones : `wait` n'est pas accepté dans une fonction qui retourne une valeur. Les sélecteurs d'entités sont limités au rayon défini par `selector-range` (64 blocs par défaut). Les listes sauvegardées sont actuellement interprétées depuis une chaîne séparée par des virgules.
+
+### Déplacements
+- `move to <cible>` utilise A* sur les blocs praticables et des checkpoints.
+- `tp <cible>` téléporte immédiatement le NPC.
+- `fly to <cible>` effectue un déplacement direct en trois dimensions.
+- `follow <cible>`, `keep distance <cible> <distance>` et `stop follow` contrôlent le suivi.
+
+Le pathfinding est réglable dans `config.yml` : activation, nombre maximal de nœuds, distance maximale, vitesse et espacement des checkpoints. Il ne recherche que dans les chunks déjà chargés.
 
 ## Commandes disponibles
 - `/anpc list`
@@ -80,6 +88,6 @@ Les fonctions sont synchrones : `wait` n'est pas accepté dans une fonction qui 
 ## État de cette livraison (0.1.0)
 Le socle comprend le chargement de `npc.yml`, les NPC BetterModel basés sur `DummyTracker`, les hitboxes d'interaction, le suivi des joueurs visibles, les commandes de base, les événements/conditions/actions de première tranche et le stockage SQLite.
 
-La stabilisation du cycle de vie, des commandes et du rechargement a été compilée avec succès par GitHub Actions. La prise en charge des skins PNG locaux, la correction du parseur et les premières fonctionnalités de variables, fonctions, boucles et sélecteurs ont également été compilées. Les essais en jeu avec Paper 1.21.11 et BetterModel 2.2.0 restent à effectuer.
+La stabilisation du cycle de vie, des commandes et du rechargement a été compilée avec succès par GitHub Actions. La prise en charge des skins PNG locaux, la correction du parseur, les variables, fonctions, boucles, sélecteurs, le pathfinding, les déplacements aériens directs et le suivi ont également été compilés. Les essais en jeu avec Paper 1.21.11 et BetterModel 2.2.0 restent à effectuer.
 
-Les intégrations MythicMobs, ItemsAdder et Multiverse ainsi que les modes avancés de déplacement restent à développer.
+Les intégrations MythicMobs, ItemsAdder et Multiverse ainsi que les autres modes avancés restent à développer.
