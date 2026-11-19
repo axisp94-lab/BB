@@ -670,7 +670,7 @@ public final class ScriptEngine implements Listener {
             return matchesMaterial(actual,expected);
         }
         if(lower.startsWith("ray = ")||lower.startsWith("sphere = ")){
-            java.util.regex.Matcher matcher=java.util.regex.Pattern.compile("^(ray|sphere)\\\\s*=\\\\s*(\\\\d+)\\\\s+contains\\\\s+([a-z0-9_:-]+)$",java.util.regex.Pattern.CASE_INSENSITIVE).matcher(value);
+            java.util.regex.Matcher matcher=java.util.regex.Pattern.compile("^(ray|sphere)\\s*=\\s*(\\d+)\\s+contains\\s+([a-z0-9_:-]+)$",java.util.regex.Pattern.CASE_INSENSITIVE).matcher(value);
             if(matcher.matches()){
                 Material material=Material.matchMaterial(matcher.group(3));
                 int radius=parseSafeRadius(matcher.group(2));
@@ -703,7 +703,7 @@ public final class ScriptEngine implements Listener {
         if(contains>=0){
             Object source=resolve(context,value.substring(0,contains).trim());
             String tail=value.substring(contains+8).trim();
-            java.util.regex.Matcher countMatcher=java.util.regex.Pattern.compile("^(.*?)\\\\s+(more than|less than)\\\\s+(\\\\d+)\\\\s+times$",java.util.regex.Pattern.CASE_INSENSITIVE).matcher(tail);
+            java.util.regex.Matcher countMatcher=java.util.regex.Pattern.compile("^(.*?)\\s+(more than|less than)\\s+(\\d+)\\s+times$",java.util.regex.Pattern.CASE_INSENSITIVE).matcher(tail);
             if(countMatcher.matches()){
                 Object needle=resolve(context,countMatcher.group(1).trim());
                 int expected=Integer.parseInt(countMatcher.group(3));
@@ -736,7 +736,7 @@ public final class ScriptEngine implements Listener {
         boolean quoted=false;int depth=0;
         for(int i=0;i<=expression.length()-keyword.length();i++){
             char ch=expression.charAt(i);
-            if(ch=='"'&&(i==0||expression.charAt(i-1)!='\\\\'))quoted=!quoted;
+            if(ch=='"'&&(i==0||expression.charAt(i-1)!='\\'))quoted=!quoted;
             if(quoted)continue;
             if(ch=='('){depth++;continue;}
             if(ch==')'){depth--;continue;}
@@ -753,7 +753,7 @@ public final class ScriptEngine implements Listener {
         boolean quoted=false;int depth=0;
         for(int i=0;i<=expression.length()-token.length();i++){
             char ch=expression.charAt(i);
-            if(ch=='"'&&(i==0||expression.charAt(i-1)!='\\\\'))quoted=!quoted;
+            if(ch=='"'&&(i==0||expression.charAt(i-1)!='\\'))quoted=!quoted;
             if(quoted)continue;
             if(ch=='('){depth++;continue;}
             if(ch==')'){depth--;continue;}
@@ -825,7 +825,7 @@ public final class ScriptEngine implements Listener {
         if(value.length()>1&&value.startsWith("(")&&value.endsWith(")")&&balancedOuterParentheses(value))value=value.substring(1,value.length()-1).trim();
         if(c.locals().containsKey(value))return c.locals().get(value);
         if(value.toLowerCase(Locale.ROOT).startsWith("call "))return callFunction(c,value.substring(5).trim(),false);
-        java.util.regex.Matcher blockCount=java.util.regex.Pattern.compile("^number of ([a-z0-9_:-]+) in (range|sphere)\\\\s+(\\\\d+)$",java.util.regex.Pattern.CASE_INSENSITIVE).matcher(value);
+        java.util.regex.Matcher blockCount=java.util.regex.Pattern.compile("^number of ([a-z0-9_:-]+) in (range|sphere)\\s+(\\d+)$",java.util.regex.Pattern.CASE_INSENSITIVE).matcher(value);
         if(blockCount.matches()){
             Material material=Material.matchMaterial(blockCount.group(1));
             int radius=parseSafeRadius(blockCount.group(3));
