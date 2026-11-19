@@ -265,6 +265,7 @@ public final class ScriptEngine implements Listener {
         if(s.startsWith("add state ")){c.npc().addSecondaryState(unquote(s.substring(10)));index++;continue;}
         if(s.startsWith("remove state ")){c.npc().removeSecondaryState(unquote(s.substring(13)));index++;continue;}
         if(s.equals("clear states")){c.npc().setPrimaryState("idle");c.npc().clearSecondaryStates();index++;continue;}
+        warnUnknownInstruction(line,s);
         index++;
     }return index;}
     private void warnUnknownInstruction(int line,String text){
