@@ -67,15 +67,15 @@ public final class ScriptEngine implements Listener {
             String[] parts=meta.split("\\|",2);
             String scope=parts[0].toLowerCase(Locale.ROOT);
             String owner=parts.length>1?parts[1]:"";
-            if(scope.equals("global"))return parseStored(variables.getGlobal(value,""));
+            if(scope.equals("global")){String stored=variables.getGlobal(value,null);return stored==null?c.value(value):parseStored(stored);}
             if(scope.equals("shared")){
                 if(!isSharedMember(owner,c.npc().id())){
                     plugin.getLogger().warning("Accès refusé : le NPC "+c.npc().id()+" ne peut pas lire la variable shared '"+value+"'.");
                     return null;
                 }
-                return parseStored(variables.get("shared",owner,value,""));
+                String stored=variables.get("shared",owner,value,null);return stored==null?c.value(value):parseStored(stored);
             }
-            if(scope.equals("local"))return parseStored(variables.getLocal(c.npc().id(),c.npc().location().getWorld().getName(),value,null));
+            if(scope.equals("local")){String stored=variables.getLocal(c.npc().id(),c.npc().location().getWorld().getName(),value,null);return stored==null?c.value(value):parseStored(stored);}
         }
         return c.value(value);
     }
