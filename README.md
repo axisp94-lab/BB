@@ -306,13 +306,13 @@ Permission : `anpc.admin` (opérateur par défaut).
 - Instances multi-mondes, commandes `enable/disable`, masquage/restauration, suppression confirmée et récupération 24 h des définitions, scripts et variables locales, y compris pour les mondes non chargés.
 - Navigation au sol et en vol, pathfinding limité par `movement.max-path-attempts`, checkpoints, suivi et maintien de distance.
 - Combat avec sélection de cibles, priorité au dernier attaquant, dégâts configurables et dégâts propres à chaque NPC.
-- Simulation de blocs, sons vanilla/ItemsAdder, animations, états, cooldowns, fonctions globales, paramètres/retours, boucles et plusieurs événements/conditions.
+- Simulation et modification explicite de blocs, recherche de blocs proches, sons vanilla/ItemsAdder, animations, états, cooldowns, fonctions globales `def`/`function`, appels directs/`call`, retours, boucles, conditions logiques, `else`, rayons/sphères, flags, sélecteurs et événements courants.
 - Skins PNG locaux et profils par UUID/pseudo.
 
 **Encore incomplet ou à valider en jeu :**
 - Interactions complètes entre NPC, notamment les combats NPC contre NPC et les règles de ciblage des mobs vers les NPC.
 - Équipement visuel des NPC et couverture complète des attributs/items.
-- Couverture exhaustive des événements, conditions et actions `.aa`. Les événements de zone `entity enter/exit` et certains événements de placement restent à préciser ; les appels de fonction contenant `wait` dans une expression restent volontairement non pris en charge.
+- Langage `.aa` encore incomplet : événements de zone `entity enter/exit` (rayon à confirmer), événement `place` (portée à préciser), modes de déplacement grimpeur/nageur/amphibie, parcours enregistrés, attributs personnalisés et couverture native des commandes Minecraft. Les appels de fonction contenant `wait` dans une expression restent volontairement non pris en charge.
 - Validation réelle sur Paper 1.21.11 avec BetterModel 2.2.0, puis tests des intégrations MythicMobs et ItemsAdder sur serveur.
 - Tests d'intégration en jeu : les tests automatisés actuels couvrent le stockage SQLite, pas le comportement complet de Paper/BetterModel.
 
