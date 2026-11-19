@@ -277,7 +277,7 @@ public final class ScriptEngine implements Listener {
         String key=npcInstanceKey(npc);
         long now=System.currentTimeMillis();
         Long previousRun=scriptLastRun.put(key,now);
-        if(previousRun==null||now-previousRun>5_000L)scriptLastChange.put(key,now);
+        if(previousRun==null||now-previousRun>60_000L)scriptLastChange.put(key,now);
         ScriptContext ctx=new ScriptContext(npc,player);
         ctx.setEventData(eventData);
         ctx.setEventNpc(eventNpc);
