@@ -55,12 +55,15 @@ public final class ScriptEngine implements Listener {
     private final Map<String,Long> scriptLastChange=new ConcurrentHashMap<>();
     private final Map<String,Long> scriptLastWarning=new ConcurrentHashMap<>();
     private BukkitTask scriptWatchdogTask;
+    private BukkitTask proximityTask;
     private final Map<String,Set<UUID>> nearbyEntities=new ConcurrentHashMap<>();
     private final Map<String,Set<String>> nearbyNpcs=new ConcurrentHashMap<>();
     public ScriptEngine(ANPCPlugin plugin,NPCManager npcs,VariableStore variables){this.plugin=plugin;this.npcs=npcs;this.variables=variables;}
     public void loadAll(){
         scriptGenerations.replaceAll((id,generation)->generation+1L);
-        scripts.clear(); functions.clear(); intervalTasks.clear(); scriptLastRun.clear(); scriptLastChange.clear(); scriptLastWarning.clear();
+        for(BukkitTask interval:intervalTasks.values()){interval.cancel();tasks.remove(interval);}
+        intervalTasks.clear();
+        scripts.clear(); functions.clear(); scriptLastRun.clear(); scriptLastChange.clear(); scriptLastWarning.clear();
         File dir=new File(plugin.getDataFolder(),"scripts");
         File[] fs=dir.listFiles((d,n)->n.toLowerCase(Locale.ROOT).endsWith(".aa"));
         if(fs==null)return;
@@ -336,6 +339,7 @@ public final class ScriptEngine implements Listener {
         }
     }
     private void scheduleProximity(){
+        if(proximityTask!=null){proximityTask.cancel();tasks.remove(proximityTask);}
         BukkitTask task=Bukkit.getScheduler().runTaskTimer(plugin,()->{
             double radius=plugin.getConfig().getDouble("script-approach-radius",3.0),r2=radius*radius;
             List<ManagedNPC> all=new ArrayList<>(npcs.all());
@@ -374,6 +378,7 @@ public final class ScriptEngine implements Listener {
                 }
             }
         },10L,10L);
+        proximityTask=task;
         tasks.add(task);
     }
 
@@ -1888,5 +1893,5 @@ public final class ScriptEngine implements Listener {
             npc.hide(e.getPlayer());
         }
     }
-    public void shutdown(){tasks.forEach(BukkitTask::cancel);tasks.clear();movementTasks.clear();followTasks.clear();combatTasks.clear();lastAttackTimes.clear();intervalTasks.clear();watchdogTasks.clear();scriptLastRun.clear();scriptLastChange.clear();scriptLastWarning.clear();scriptWatchdogTask=null;scripts.clear();functions.clear();nearbyEntities.clear();nearbyNpcs.clear();}
+    public void shutdown(){tasks.forEach(BukkitTask::cancel);tasks.clear();movementTasks.clear();followTasks.clear();combatTasks.clear();lastAttackTimes.clear();intervalTasks.clear();watchdogTasks.clear();scriptLastRun.clear();scriptLastChange.clear();scriptLastWarning.clear();scriptWatchdogTask=null;proximityTask=null;scripts.clear();functions.clear();nearbyEntities.clear();nearbyNpcs.clear();}
 }
