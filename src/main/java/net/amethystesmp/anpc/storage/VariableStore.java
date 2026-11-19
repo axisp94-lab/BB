@@ -38,6 +38,7 @@ public final class VariableStore implements AutoCloseable {
                 """);
             statement.executeUpdate("CREATE INDEX IF NOT EXISTS idx_deleted_npc_variables_time ON deleted_npc_variables(deleted_at)");
         }
+        purgeExpiredRecoveries();
     }
 
     private String normalize(String value) {
