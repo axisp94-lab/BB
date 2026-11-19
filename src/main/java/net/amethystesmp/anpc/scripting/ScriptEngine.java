@@ -1173,6 +1173,7 @@ public final class ScriptEngine implements Listener {
 
     public void resumeNpc(String id){
         for(ManagedNPC npc:npcs.instances(id)){
+            if(!npc.scriptsEnabled())continue;
             if(!npc.followTarget().isBlank())startFollow(npc,npc.followTarget(),npc.followMin(),npc.followMax());
             if(npc.hostile())startCombat(npc);
         }
