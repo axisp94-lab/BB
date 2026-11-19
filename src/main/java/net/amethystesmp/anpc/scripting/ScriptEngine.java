@@ -9,6 +9,10 @@ import org.bukkit.ChatColor;
 import org.bukkit.Location;
 import org.bukkit.Sound;
 import org.bukkit.entity.Player;
+import org.bukkit.entity.LivingEntity;
+import org.bukkit.entity.Monster;
+import org.bukkit.entity.Animals;
+import org.bukkit.entity.EntityType;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
 import org.bukkit.event.player.PlayerInteractAtEntityEvent;
@@ -36,6 +40,8 @@ public final class ScriptEngine implements Listener {
     private final Set<BukkitTask> tasks=ConcurrentHashMap.newKeySet();
     private final Map<ManagedNPC,BukkitTask> movementTasks=new ConcurrentHashMap<>();
     private final Map<ManagedNPC,BukkitTask> followTasks=new ConcurrentHashMap<>();
+    private final Map<ManagedNPC,BukkitTask> combatTasks=new ConcurrentHashMap<>();
+    private final Map<ManagedNPC,Long> lastAttackTimes=new ConcurrentHashMap<>();
     private final Map<String,Set<UUID>> nearbyPlayers=new ConcurrentHashMap<>();
     private final Map<String,Set<String>> nearbyNpcs=new ConcurrentHashMap<>();
     public ScriptEngine(ANPCPlugin plugin,NPCManager npcs,VariableStore variables){this.plugin=plugin;this.npcs=npcs;this.variables=variables;}
@@ -203,7 +209,10 @@ public final class ScriptEngine implements Listener {
         if(s.startsWith("follow ")){startFollow(c.npc(),s.substring(7).trim());index++;continue;}
         if(s.startsWith("keep distance ")){startKeepDistance(c.npc(),s.substring(14).trim());index++;continue;}
         if(s.equals("stop follow")){stopFollow(c.npc());index++;continue;}
-        if(s.equals("stop attack")){index++;continue;}
+        if(s.startsWith("set hostile ")){boolean hostile=s.substring(12).trim().equalsIgnoreCase("on");setHostile(c.npc(),hostile);index++;continue;}
+        if(s.startsWith("target ")){setTargetSelector(c.npc(),s.substring(7).trim());index++;continue;}
+        if(s.startsWith("attack ")){setTargetSelector(c.npc(),s.substring(7).trim());setHostile(c.npc(),true);index++;continue;}
+        if(s.equals("stop attack")){setHostile(c.npc(),false);index++;continue;}
         if(s.startsWith("set state ")){c.npc().setPrimaryState(unquote(s.substring(10)));index++;continue;}
         if(s.startsWith("add state ")){c.npc().addSecondaryState(unquote(s.substring(10)));index++;continue;}
         if(s.startsWith("remove state ")){c.npc().removeSecondaryState(unquote(s.substring(13)));index++;continue;}
@@ -258,7 +267,7 @@ public final class ScriptEngine implements Listener {
         }
     }
     private int findEnd(List<Instruction> c,int from,int parent){int i=from;while(i<c.size()&&c.get(i).indent()>parent)i++;return i;}
-    private boolean test(ScriptContext c,String expression){String e=expression.trim();if(e.startsWith("flag (")&&e.contains(") is ")){String name=e.substring(6,e.indexOf(')'));boolean v=Boolean.parseBoolean(variables.getLocal(c.npc().id(),c.npc().location().getWorld().getName(),"flag:"+name,"false"));return e.endsWith("on")?v:!v;}String[] ops={" >= "," <= "," != "," == "," > "," < "," contains "};for(String op:ops){int p=e.indexOf(op);if(p>0){Object a=resolve(c,e.substring(0,p)),b=resolve(c,e.substring(p+op.length()));if(op.equals(" contains "))return String.valueOf(a).contains(String.valueOf(b));double x=num(a),y=num(b);return switch(op.trim()){case ">"->x>y;case "<"->x<y;case ">="->x>=y;case "<="->x<=y;case "!="->!Objects.equals(String.valueOf(a),String.valueOf(b));default->Objects.equals(String.valueOf(a),String.valueOf(b))||x==y;};}}if(e.equalsIgnoreCase("player is sneaking"))return c.player()!=null&&c.player().isSneaking();if(e.toLowerCase(Locale.ROOT).startsWith("player has permission "))return c.player()!=null&&c.player().hasPermission(unquote(e.substring(22).trim()));if(e.toLowerCase(Locale.ROOT).startsWith("player has item ")){if(c.player()==null)return false;try{return c.player().getInventory().contains(org.bukkit.Material.valueOf(e.substring(16).trim().toUpperCase(Locale.ROOT)));}catch(IllegalArgumentException ex){return false;}}if(e.equalsIgnoreCase("npc is under attack"))return false;
+    private boolean test(ScriptContext c,String expression){String e=expression.trim();if(e.startsWith("flag (")&&e.contains(") is ")){String name=e.substring(6,e.indexOf(')'));boolean v=Boolean.parseBoolean(variables.getLocal(c.npc().id(),c.npc().location().getWorld().getName(),"flag:"+name,"false"));return e.endsWith("on")?v:!v;}String[] ops={" >= "," <= "," != "," == "," > "," < "," contains "};for(String op:ops){int p=e.indexOf(op);if(p>0){Object a=resolve(c,e.substring(0,p)),b=resolve(c,e.substring(p+op.length()));if(op.equals(" contains "))return String.valueOf(a).contains(String.valueOf(b));double x=num(a),y=num(b);return switch(op.trim()){case ">"->x>y;case "<"->x<y;case ">="->x>=y;case "<="->x<=y;case "!="->!Objects.equals(String.valueOf(a),String.valueOf(b));default->Objects.equals(String.valueOf(a),String.valueOf(b))||x==y;};}}if(e.equalsIgnoreCase("player is sneaking"))return c.player()!=null&&c.player().isSneaking();if(e.toLowerCase(Locale.ROOT).startsWith("player has permission "))return c.player()!=null&&c.player().hasPermission(unquote(e.substring(22).trim()));if(e.toLowerCase(Locale.ROOT).startsWith("player has item ")){if(c.player()==null)return false;try{return c.player().getInventory().contains(org.bukkit.Material.valueOf(e.substring(16).trim().toUpperCase(Locale.ROOT)));}catch(IllegalArgumentException ex){return false;}}if(e.equalsIgnoreCase("npc is under attack"))return c.npc().lastAttacker()!=null;\n        if(e.equalsIgnoreCase("npc is hostile"))return c.npc().hostile();
         if(e.toLowerCase(Locale.ROOT).startsWith("npc state is "))return c.npc().primaryState().equalsIgnoreCase(unquote(e.substring(13).trim()));
         if(e.toLowerCase(Locale.ROOT).startsWith("state of npc is "))return c.npc().primaryState().equalsIgnoreCase(unquote(e.substring(16).trim()));
         if(e.toLowerCase(Locale.ROOT).startsWith("npc has state "))return c.npc().secondaryStates().contains(unquote(e.substring(14).trim()).toLowerCase(Locale.ROOT));return false;}
@@ -574,6 +583,114 @@ public final class ScriptEngine implements Listener {
         followTasks.put(npc,task);tasks.add(task);
     }
 
+    private void setHostile(ManagedNPC npc,boolean hostile){
+        npc.setHostile(hostile);
+        if(hostile)startCombat(npc);else stopCombat(npc);
+    }
+
+    private void setTargetSelector(ManagedNPC npc,String selector){
+        npc.setTargetSelector(selector);
+        if(npc.hostile()){stopCombatTask(npc);startCombat(npc);}
+    }
+
+    private void startCombat(ManagedNPC npc){
+        stopCombatTask(npc);
+        BukkitTask task=Bukkit.getScheduler().runTaskTimer(plugin,()->{
+            if(!npc.hostile()||npc.tracker().isClosed()){stopCombat(npc);return;}
+            LivingEntity target=chooseCombatTarget(npc);
+            if(target==null){npc.setCombatTarget(null);return;}
+            npc.setCombatTarget(target.getUniqueId());
+            double distance=target.getLocation().distance(npc.location());
+            double range=plugin.getConfig().getDouble("combat.attack-range",2.5);
+            if(distance>range){
+                if(!movementTasks.containsKey(npc))move(npc,target.getLocation());
+                return;
+            }
+            long now=System.currentTimeMillis();
+            long cooldown=plugin.getConfig().getLong("combat.cooldown-ticks",20)*50L;
+            if(now-lastAttackTimes.getOrDefault(npc,0L)<cooldown)return;
+            lastAttackTimes.put(npc,now);
+            npc.animate("attack");
+            npc.location().getWorld().playSound(npc.location(),Sound.ENTITY_PLAYER_ATTACK_STRONG,0.8f,1.0f);
+            target.damage(plugin.getConfig().getDouble("combat.damage",2.0),npc.hitbox());
+        },0L,10L);
+        combatTasks.put(npc,task);tasks.add(task);
+    }
+
+    private LivingEntity chooseCombatTarget(ManagedNPC npc){
+        double maxRange=plugin.getConfig().getDouble("combat.target-range",24.0);
+        UUID attacker=npc.lastAttacker();
+        if(attacker!=null){
+            org.bukkit.entity.Entity entity=Bukkit.getEntity(attacker);
+            if(entity instanceof LivingEntity living&&isEligibleTarget(npc,living)
+                    &&living.getLocation().distanceSquared(npc.location())<=maxRange*maxRange)return living;
+        }
+        return npc.location().getWorld().getLivingEntities().stream()
+                .filter(entity->entity!=npc.hitbox()&&entity.isValid()&&!entity.isDead())
+                .filter(entity->entity.getLocation().distanceSquared(npc.location())<=maxRange*maxRange)
+                .filter(entity->isEligibleTarget(npc,entity))
+                .min(Comparator.comparingDouble(entity->entity.getLocation().distanceSquared(npc.location())))
+                .orElse(null);
+    }
+
+    private boolean isEligibleTarget(ManagedNPC npc,LivingEntity entity){
+        if(entity.getUniqueId().equals(npc.hitbox().getUniqueId()))return false;
+        for(String raw:npc.targetSelector().split(",")){
+            String selector=raw.trim().toLowerCase(Locale.ROOT);
+            if(selector.equals("all players")||selector.equals("players")){if(entity instanceof Player)return true;}
+            else if(selector.startsWith("player:")||selector.startsWith("player ")){
+                String name=raw.substring(7).trim();if(entity instanceof Player player&&player.getName().equalsIgnoreCase(name))return true;
+            }else if(selector.equals("all mobs")||selector.equals("mobs")){
+                if(!(entity instanceof Player))return true;
+            }else if(selector.equals("all entities")||selector.equals("entities")){
+                return true;
+            }else if(selector.equals("monsters")||selector.equals("category:monsters")){
+                if(entity instanceof Monster)return true;
+            }else if(selector.equals("animals")||selector.equals("category:animals")){
+                if(entity instanceof Animals)return true;
+            }else if(selector.startsWith("mob:")||selector.startsWith("mob ")){
+                String type=raw.substring(4).trim().toUpperCase(Locale.ROOT);
+                if(entity.getType().name().equals(type))return true;
+            }else if(selector.startsWith("entity:")){
+                String type=raw.substring(7).trim().toUpperCase(Locale.ROOT);
+                if(entity.getType().name().equals(type))return true;
+            }else if(selector.startsWith("mythic:")){
+                if(isMythicMob(entity,raw.substring(7).trim()))return true;
+            }else if(selector.startsWith("category:")){
+                String category=selector.substring(9);
+                if(category.equals("players")&&entity instanceof Player)return true;
+                if(category.equals("mobs")&&!(entity instanceof Player))return true;
+                if(category.equals("monsters")&&entity instanceof Monster)return true;
+                if(category.equals("animals")&&entity instanceof Animals)return true;
+            }
+        }
+        return false;
+    }
+
+    private boolean isMythicMob(LivingEntity entity,String expectedId){
+        try{
+            Class<?> apiClass=Class.forName("io.lumine.mythic.bukkit.MythicBukkit");
+            Object mythic=apiClass.getMethod("inst").invoke(null);
+            Object helper=apiClass.getMethod("getAPIHelper").invoke(mythic);
+            Object instance=helper.getClass().getMethod("getMythicMobInstance",org.bukkit.entity.Entity.class).invoke(helper,entity);
+            if(instance==null)return false;
+            Object type=instance.getClass().getMethod("getType").invoke(instance);
+            Object internal=type.getClass().getMethod("getInternalName").invoke(type);
+            return expectedId.equalsIgnoreCase(String.valueOf(internal));
+        }catch(Exception ignored){return false;}
+    }
+
+    private void stopCombatTask(ManagedNPC npc){
+        BukkitTask task=combatTasks.remove(npc);
+        if(task!=null){task.cancel();tasks.remove(task);}
+    }
+
+    private void stopCombat(ManagedNPC npc){
+        stopCombatTask(npc);
+        npc.setCombatTarget(null);
+        if(npc.followTarget().isBlank())stopMovement(npc);
+    }
+
     private void stopFollowTask(ManagedNPC npc){
         BukkitTask task=followTasks.remove(npc);
         if(task!=null){task.cancel();tasks.remove(task);}
@@ -588,11 +705,14 @@ public final class ScriptEngine implements Listener {
     private void stopFollow(ManagedNPC npc){stopFollowTask(npc);stopMovement(npc);npc.clearFollowState();}
 
     public void pauseNpc(String id){
-        for(ManagedNPC npc:npcs.instances(id)){stopFollowTask(npc);stopMovement(npc);}
+        for(ManagedNPC npc:npcs.instances(id)){stopFollowTask(npc);stopCombatTask(npc);stopMovement(npc);}
     }
 
     public void resumeNpc(String id){
-        for(ManagedNPC npc:npcs.instances(id))if(!npc.followTarget().isBlank())startFollow(npc,npc.followTarget(),npc.followMin(),npc.followMax());
+        for(ManagedNPC npc:npcs.instances(id)){
+            if(!npc.followTarget().isBlank())startFollow(npc,npc.followTarget(),npc.followMin(),npc.followMax());
+            if(npc.hostile())startCombat(npc);
+        }
     }
 
     private List<Location> findPath(Location start,Location target){
@@ -655,7 +775,7 @@ public final class ScriptEngine implements Listener {
     @EventHandler public void onNpcLeftClick(EntityDamageByEntityEvent e){
         if(!(e.getDamager() instanceof Player p))return;
         String id=e.getEntity().getScoreboardTags().stream().filter(t->t.startsWith("anpc:")).map(t->t.substring(5)).findFirst().orElse(null);
-        if(id!=null){e.setCancelled(true);fire(id,p.isSneaking()?"left click while sneaking":"left click",p);fire(id,"damage",p);}
+        if(id!=null){e.setCancelled(true);ManagedNPC npc=npcs.get(id,p.getWorld());if(npc!=null)npc.setLastAttacker(p.getUniqueId());fire(id,p.isSneaking()?"left click while sneaking":"left click",p);fire(id,"damage",p);}
     }
     @EventHandler public void onPlayerCommand(PlayerCommandPreprocessEvent event){
         Player player=event.getPlayer();
@@ -690,5 +810,5 @@ public final class ScriptEngine implements Listener {
             npc.hide(e.getPlayer());
         }
     }
-    public void shutdown(){tasks.forEach(BukkitTask::cancel);tasks.clear();movementTasks.clear();followTasks.clear();scripts.clear();functions.clear();nearbyPlayers.clear();nearbyNpcs.clear();}
+    public void shutdown(){tasks.forEach(BukkitTask::cancel);tasks.clear();movementTasks.clear();followTasks.clear();combatTasks.clear();lastAttackTimes.clear();scripts.clear();functions.clear();nearbyPlayers.clear();nearbyNpcs.clear();}
 }
