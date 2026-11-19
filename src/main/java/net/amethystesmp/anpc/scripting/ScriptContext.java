@@ -4,6 +4,8 @@ import net.amethystesmp.anpc.npc.ManagedNPC;
 import org.bukkit.Bukkit;
 import org.bukkit.attribute.Attribute;
 import org.bukkit.entity.Player;
+import org.bukkit.entity.Entity;
+import org.bukkit.Location;
 import org.bukkit.inventory.ItemStack;
 import java.util.HashMap;
 import java.util.Map;
@@ -20,6 +22,9 @@ public final class ScriptContext {
     private int callDepth;
     private String eventData="";
     private ManagedNPC eventNpc;
+    private Entity eventEntity;
+    private ItemStack eventItem;
+    private Location eventPlace;
     private int pendingWaits;
     private boolean finished;
     private boolean suspended;
@@ -40,6 +45,12 @@ public final class ScriptContext {
     public void setEventData(String data) { eventData = data == null ? "" : data; }
     public void setEventNpc(ManagedNPC npc) { eventNpc = npc; }
     public ManagedNPC eventNpc() { return eventNpc; }
+    public void setEventEntity(Entity entity) { eventEntity=entity; }
+    public Entity eventEntity() { return eventEntity; }
+    public void setEventItem(ItemStack item) { eventItem=item==null?null:item.clone(); }
+    public ItemStack eventItem() { return eventItem==null?null:eventItem.clone(); }
+    public void setEventPlace(Location place) { eventPlace=place==null?null:place.clone(); }
+    public Location eventPlace() { return eventPlace==null?null:eventPlace.clone(); }
     public String eventData() { return eventData; }
     public void beginWait() { pendingWaits++; }
     public void endWait() { pendingWaits = Math.max(0, pendingWaits - 1); }
@@ -79,8 +90,11 @@ public final class ScriptContext {
     public void clearLoopSkip() { if (!loops.isEmpty()) loops.peek().skipped = false; }
     public Object value(String key){
         String k=key.trim().toLowerCase(java.util.Locale.ROOT);
-        if(k.equals("event entity")||k.equals("player"))return player;
+        if(k.equals("event entity"))return eventEntity!=null?eventEntity:player;
+        if(k.equals("player"))return player;
         if(k.equals("event message")||k.equals("event command"))return eventData;
+        if(k.equals("event place"))return eventPlace;
+        if(k.equals("event item"))return eventItem==null?(player==null?null:player.getInventory().getItemInMainHand()):eventItem.clone();
         if(k.equals("event npc"))return eventNpc;
         if(k.equals("name of npc"))return npc.definition().displayName();
         if(k.equals("id of npc"))return npc.id();
