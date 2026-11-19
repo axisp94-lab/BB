@@ -1595,7 +1595,19 @@ public final class ScriptEngine implements Listener {
             firePlayerEvent(managed, "damage", attacker);
         }
     }
-    @EventHandler public void onJoin(PlayerJoinEvent e){for(ManagedNPC npc:npcs.all())if(e.getPlayer().getWorld().equals(npc.location().getWorld())&&e.getPlayer().getLocation().distanceSquared(npc.location())<64*64)npc.show(e.getPlayer());}
+    @EventHandler
+    public void onJoin(PlayerJoinEvent event) {
+        Player player = event.getPlayer();
+        double range = Math.max(0.0, plugin.getConfig().getDouble("tracking-range", 64.0));
+        double rangeSquared = range * range;
+        for (ManagedNPC npc : npcs.all()) {
+            Location location = npc.location();
+            if (player.getWorld().equals(location.getWorld())
+                    && player.getLocation().distanceSquared(location) <= rangeSquared) {
+                npc.show(player);
+            }
+        }
+    }
     @EventHandler public void onQuit(PlayerQuitEvent e){for(ManagedNPC npc:npcs.all())npc.hide(e.getPlayer());}
     private void cancelTasks() {
         tasks.forEach(BukkitTask::cancel);
