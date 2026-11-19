@@ -1137,7 +1137,7 @@ public final class ScriptEngine implements Listener {
     private long parseDurationTicks(String raw){long millis=parseDurationMillis(raw);return Math.max(1L,(millis+49L)/50L);}
     @EventHandler public void onNpcRightClick(PlayerInteractAtEntityEvent e){
         String id=e.getRightClicked().getScoreboardTags().stream().filter(t->t.startsWith("anpc:")).map(t->t.substring(5)).findFirst().orElse(null);
-        if(id!=null){e.setCancelled(true);fire(id,e.getPlayer().isSneaking()?"right click while sneaking":"right click",e.getPlayer());if(!e.getPlayer().getInventory().getItemInMainHand().getType().isAir())fire(id,"item click",e.getPlayer());}
+        if(id!=null){e.setCancelled(true);fire(id,e.getPlayer().isSneaking()?"right click while sneaking":"right click",e.getPlayer());fire(id,"click",e.getPlayer());fire(id,"interact",e.getPlayer());if(!e.getPlayer().getInventory().getItemInMainHand().getType().isAir())fire(id,"item click",e.getPlayer());}
     }
     @EventHandler public void onNpcLeftClick(EntityDamageByEntityEvent e){
         if(!(e.getDamager() instanceof Player p))return;
