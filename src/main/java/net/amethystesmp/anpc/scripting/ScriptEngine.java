@@ -16,6 +16,9 @@ import org.bukkit.event.entity.EntityDamageByEntityEvent;
 import org.bukkit.entity.Entity;
 import org.bukkit.event.player.PlayerJoinEvent;
 import org.bukkit.event.player.PlayerQuitEvent;
+import org.bukkit.event.player.PlayerCommandPreprocessEvent;
+import io.papermc.paper.event.player.AsyncChatEvent;
+import net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer;
 import org.bukkit.scheduler.BukkitTask;
 
 import java.io.File;
@@ -111,15 +114,22 @@ public final class ScriptEngine implements Listener {
     }
     private void scheduleIntervals(){for(var entry:scripts.entrySet()){List<Instruction> code=entry.getValue().get("interval");if(code==null)continue;long period=plugin.getConfig().getLong("script-default-interval",20);BukkitTask task=Bukkit.getScheduler().runTaskTimer(plugin,()->{for(ManagedNPC npc:npcs.instances(entry.getKey()))if(npc.scriptsEnabled())execute(npc,null,code,0);},period,period);tasks.add(task);}}
     private void scheduleProximity(){BukkitTask task=Bukkit.getScheduler().runTaskTimer(plugin,()->{double radius=plugin.getConfig().getDouble("script-approach-radius",3.0);double r2=radius*radius;for(ManagedNPC npc:npcs.all()){String id=npc.id().toLowerCase(Locale.ROOT)+"@"+npc.location().getWorld().getName().toLowerCase(Locale.ROOT);Set<UUID> current=new HashSet<>();for(Player p:npc.location().getWorld().getPlayers())if(p.getLocation().distanceSquared(npc.location())<=r2){current.add(p.getUniqueId());if(nearbyPlayers.computeIfAbsent(id,k->ConcurrentHashMap.newKeySet()).add(p.getUniqueId()))fire(npc.id(),"entity approach",p);}Set<UUID> previous=nearbyPlayers.computeIfAbsent(id,k->ConcurrentHashMap.newKeySet());for(UUID uuid:new HashSet<>(previous))if(!current.contains(uuid)){Player p=Bukkit.getPlayer(uuid);previous.remove(uuid);if(p!=null)fire(npc.id(),"entity leave",p);}}},10L,10L);tasks.add(task);}
-    public void fire(String npc,String event,Player player){
+    public void fire(String npc,String event,Player player){fire(npc,event,player,"");}
+    private void fire(String npc,String event,Player player,String eventData){
         Map<String,List<Instruction>> map=scripts.get(npc.toLowerCase(Locale.ROOT));
         if(map==null)return;
         List<Instruction> code=map.get(event.toLowerCase(Locale.ROOT));
         if(code==null)return;
         Collection<ManagedNPC> targets=player==null?npcs.instances(npc):Optional.ofNullable(npcs.get(npc,player.getWorld())).map(List::of).orElse(List.of());
-        for(ManagedNPC managed:targets)if(managed.scriptsEnabled())execute(managed,player,code,0);
+        for(ManagedNPC managed:targets)if(managed.scriptsEnabled())execute(managed,player,code,0,eventData);
     }
-    private void execute(ManagedNPC npc,Player player,List<Instruction> code,int baseIndent){ScriptContext ctx=new ScriptContext(npc,player);int indent=code.isEmpty()?baseIndent:code.get(0).indent();runBlock(ctx,code,0,indent);}
+    private void execute(ManagedNPC npc,Player player,List<Instruction> code,int baseIndent){execute(npc,player,code,baseIndent,"");}
+    private void execute(ManagedNPC npc,Player player,List<Instruction> code,int baseIndent,String eventData){
+        ScriptContext ctx=new ScriptContext(npc,player);
+        ctx.setEventData(eventData);
+        int indent=code.isEmpty()?baseIndent:code.get(0).indent();
+        runBlock(ctx,code,0,indent);
+    }
     private int runBlock(ScriptContext c,List<Instruction> code,int index,int indent){if(!c.npc().scriptsEnabled())return code.size();while(index<code.size()){if(!c.npc().scriptsEnabled()||c.returned())return code.size();if(c.loopControlRequested())return code.size();Instruction in=code.get(index);if(in.indent()<indent)break;if(in.indent()>indent){index++;continue;}String s=in.text();int line=in.line();
         if(s.equals("return")){c.setReturnValue(null);return code.size();}
         if(s.startsWith("return ")){c.setReturnValue(resolve(c,s.substring(7).trim()));return code.size();}
@@ -369,6 +379,21 @@ public final class ScriptEngine implements Listener {
         String id=e.getEntity().getScoreboardTags().stream().filter(t->t.startsWith("anpc:")).map(t->t.substring(5)).findFirst().orElse(null);
         if(id!=null){e.setCancelled(true);fire(id,p.isSneaking()?"left click while sneaking":"left click",p);fire(id,"damage",p);}
     }
+    @EventHandler public void onPlayerCommand(PlayerCommandPreprocessEvent event){
+        Player player=event.getPlayer();
+        String commandText=event.getMessage();
+        for(ManagedNPC npc:npcs.all())if(npc.location().getWorld().equals(player.getWorld()))
+            fire(npc.id(),"player command",player,commandText);
+    }
+    @EventHandler public void onPlayerChat(AsyncChatEvent event){
+        Player player=event.getPlayer();
+        String message=PlainTextComponentSerializer.plainText().serialize(event.message());
+        Bukkit.getScheduler().runTask(plugin,()->{
+            for(ManagedNPC npc:npcs.all())if(npc.location().getWorld().equals(player.getWorld()))
+                fire(npc.id(),"player chat",player,message);
+        });
+    }
+
     @EventHandler public void onJoin(PlayerJoinEvent e){
         for(ManagedNPC npc:npcs.all()){
             if(e.getPlayer().getWorld().equals(npc.location().getWorld())&&e.getPlayer().getLocation().distanceSquared(npc.location())<64*64)npc.show(e.getPlayer());
