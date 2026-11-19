@@ -16,6 +16,7 @@ public final class ANPCPlugin extends JavaPlugin {
         saveResource("npc.yml", false);
         getDataFolder().toPath().resolve("scripts").toFile().mkdirs();
         getDataFolder().toPath().resolve("npcs").toFile().mkdirs();
+        getDataFolder().toPath().resolve("skins").toFile().mkdirs();
         if (getServer().getPluginManager().getPlugin("BetterModel") == null) {
             getLogger().severe("BetterModel 2.2.0 est requis pour afficher les NPC. Plugin désactivé.");
             getServer().getPluginManager().disablePlugin(this);
