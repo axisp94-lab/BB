@@ -256,7 +256,7 @@ public final class ScriptEngine implements Listener {
         int indent=code.isEmpty()?baseIndent:code.get(0).indent();
         runBlock(ctx,code,0,indent);
     }
-    private int runBlock(ScriptContext c,List<Instruction> code,int index,int indent){if(!c.npc().scriptsEnabled())return code.size();while(index<code.size()){if(!c.npc().scriptsEnabled()||c.returned())return code.size();if(c.loopControlRequested())return code.size();Instruction in=code.get(index);if(in.indent()<indent)break;if(in.indent()>indent){index++;continue;}String s=in.text();int line=in.line();
+    private int runBlock(ScriptContext c,List<Instruction> code,int index,int indent){if(!c.npc().scriptsEnabled()||c.npc().tracker().isClosed())return code.size();while(index<code.size()){if(!c.npc().scriptsEnabled()||c.npc().tracker().isClosed()||c.returned())return code.size();if(c.loopControlRequested())return code.size();Instruction in=code.get(index);if(in.indent()<indent)break;if(in.indent()>indent){index++;continue;}String s=in.text();int line=in.line();
         if(s.equals("return")){c.setReturnValue(null);return code.size();}
         if(s.startsWith("return ")){c.setReturnValue(resolve(c,s.substring(7).trim()));return code.size();}
         if(s.startsWith("call ")){callFunction(c,s.substring(5).trim());index++;continue;}
@@ -269,8 +269,8 @@ public final class ScriptEngine implements Listener {
         if(s.startsWith("set max health of npc to ")){c.npc().setMaxHealth(num(resolve(c,s.substring(25).trim())));index++;continue;}
         if(s.startsWith("set speed of npc to ")){c.npc().setSpeed(num(resolve(c,s.substring(20).trim())));index++;continue;}
         if(s.startsWith("set target of npc to ")){setTargetSelector(c.npc(),s.substring(21).trim());index++;continue;}
-        if(s.startsWith("set ")){String body=s.substring(4).trim();int q=body.indexOf('"',1);if(body.startsWith("\"")&&q>0){String name=body.substring(1,q);String val=body.substring(q+1).trim();if(val.startsWith("(" )&&val.endsWith(")"))val=val.substring(1,val.length()-1);Object value=resolve(c,val);c.locals().put(name,value);if(!c.isTransientLocal(name))storeVariable(c,name,value);}index++;continue;}
-        if(s.startsWith("create variable ")){createVariable(c,s.substring(15).trim());index++;continue;}
+        if(s.startsWith("set ")){String body=s.substring(4).trim();int q=body.indexOf('"',1);if(body.startsWith("\"")&&q>0){String name=body.substring(1,q);String val=body.substring(q+1).trim();if(val.startsWith("(" )&&val.endsWith(")"))val=val.substring(1,val.length()-1);Object value=resolve(c,val);c.locals().put(name,value);if(!c.isTransientLocal(name))storeVariable(c,name,value);c.markChanged();}index++;continue;}
+        if(s.startsWith("create variable ")){createVariable(c,s.substring(15).trim());c.markChanged();index++;continue;}
         if(s.startsWith("say local ")||s.startsWith("say global ")){boolean global=s.startsWith("say global ");Object message=resolve(c,s.substring(global?11:10).trim());String rendered=ChatColor.translateAlternateColorCodes('&',c.npc().definition().displayName()+" » "+String.valueOf(message));if(global)Bukkit.broadcastMessage(rendered);else if(c.player()!=null)c.player().sendMessage(rendered);else for(Player p:c.npc().location().getWorld().getPlayers())if(p.getLocation().distanceSquared(c.npc().location())<32*32)p.sendMessage(rendered);index++;continue;}
         if(s.startsWith("send to ")){int pos=s.indexOf(' ',8);if(pos>0){String target=s.substring(8,pos);Object targetValue=resolve(c,target);String msg=String.valueOf(resolve(c,s.substring(pos+1).trim()));Player p=targetValue instanceof Player selected?selected:(target.equals("@p")?nearest(c.npc().location()):Bukkit.getPlayerExact(target));if(p!=null)p.sendMessage(ChatColor.translateAlternateColorCodes('&',msg));}index++;continue;}
         if(s.startsWith("simulate break block at ")){
@@ -292,7 +292,7 @@ public final class ScriptEngine implements Listener {
             if(at!=null){at.getWorld().spawnParticle(Particle.CRIT,at.clone().add(0.5,0.5,0.5),8,0.2,0.2,0.2,0.02);at.getWorld().playSound(at,Sound.UI_BUTTON_CLICK,0.8f,1.0f);}
             index++;continue;
         }
-        if(s.startsWith("set block ")){
+        if(s.startsWith("set block ")){c.markChanged();
             int atIndex=s.toLowerCase(Locale.ROOT).indexOf(" at ");
             if(atIndex>10){
                 Material material=Material.matchMaterial(s.substring(10,atIndex).trim());
@@ -301,17 +301,17 @@ public final class ScriptEngine implements Listener {
             }
             index++;continue;
         }
-        if(s.startsWith("break block at ")){
+        if(s.startsWith("break block at ")){c.markChanged();
             Location at=parseLocation(c,s.substring(15).trim());
             if(at!=null)at.getBlock().breakNaturally();
             index++;continue;
         }
         if(s.startsWith("play anime ")){c.npc().animate(unquote(s.substring(11)));index++;continue;}
         if(s.startsWith("play sound ")){playScriptSound(c,s.substring(11).trim());index++;continue;}
-        if(s.startsWith("move to ")){stopFollow(c.npc());Location target=parseLocation(c,s.substring(8).trim());if(target!=null)move(c.npc(),target);index++;continue;}
-        if(s.startsWith("fly to ")){stopFollow(c.npc());Location target=parseLocation(c,s.substring(7).trim());if(target!=null)moveFlying(c.npc(),target);index++;continue;}
+        if(s.startsWith("move to ")){stopFollow(c.npc());Location target=parseLocation(c,s.substring(8).trim());if(target!=null)move(c.npc(),target);c.markChanged();index++;continue;}
+        if(s.startsWith("fly to ")){stopFollow(c.npc());Location target=parseLocation(c,s.substring(7).trim());if(target!=null)moveFlying(c.npc(),target);c.markChanged();index++;continue;}
         if(s.startsWith("tp ")){stopFollow(c.npc());Location target=parseLocation(c,s.substring(3).trim());if(target!=null)move(c.npc(),target);index++;continue;}
-        if(s.startsWith("flag on ")||s.startsWith("flag off ")){boolean on=s.startsWith("flag on ");String name=s.substring(on?8:9).replace("(","").replace(")","").trim();variables.setLocal(c.npc().id(),c.npc().location().getWorld().getName(),"flag:"+name,on);index++;continue;}
+        if(s.startsWith("flag on ")||s.startsWith("flag off ")){boolean on=s.startsWith("flag on ");String name=s.substring(on?8:9).replace("(","").replace(")","").trim();variables.setLocal(c.npc().id(),c.npc().location().getWorld().getName(),"flag:"+name,on);c.markChanged();index++;continue;}
         if(s.startsWith("wait ")){
             long ticks=parseDurationTicks(s.substring(5));
             List<Instruction> remaining=new ArrayList<>(code.subList(index+1,code.size()));
@@ -331,10 +331,10 @@ public final class ScriptEngine implements Listener {
         if(s.startsWith("target ")){setTargetSelector(c.npc(),s.substring(7).trim());index++;continue;}
         if(s.startsWith("attack ")){setTargetSelector(c.npc(),s.substring(7).trim());setHostile(c.npc(),true);index++;continue;}
         if(s.equals("stop attack")){setHostile(c.npc(),false);index++;continue;}
-        if(s.startsWith("set state ")){c.npc().setPrimaryState(unquote(s.substring(10)));index++;continue;}
-        if(s.startsWith("add state ")){c.npc().addSecondaryState(unquote(s.substring(10)));index++;continue;}
-        if(s.startsWith("remove state ")){c.npc().removeSecondaryState(unquote(s.substring(13)));index++;continue;}
-        if(s.equals("clear states")){c.npc().setPrimaryState("idle");c.npc().clearSecondaryStates();index++;continue;}
+        if(s.startsWith("set state ")){c.npc().setPrimaryState(unquote(s.substring(10)));c.markChanged();index++;continue;}
+        if(s.startsWith("add state ")){c.npc().addSecondaryState(unquote(s.substring(10)));c.markChanged();index++;continue;}
+        if(s.startsWith("remove state ")){c.npc().removeSecondaryState(unquote(s.substring(13)));c.markChanged();index++;continue;}
+        if(s.equals("clear states")){c.npc().setPrimaryState("idle");c.npc().clearSecondaryStates();c.markChanged();index++;continue;}
         warnUnknownInstruction(line,s);
         index++;
     }return index;}
