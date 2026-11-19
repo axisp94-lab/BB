@@ -13,6 +13,7 @@ import org.bukkit.entity.Entity;
 
 import java.util.HashSet;
 import java.util.Set;
+import java.util.UUID;
 
 public final class ManagedNPC {
     private NPCDefinition definition;
@@ -27,6 +28,10 @@ public final class ManagedNPC {
     private String followTarget = "";
     private double followMin = 2.0;
     private double followMax = 5.0;
+    private boolean hostile;
+    private String targetSelector = "all players";
+    private UUID lastAttacker;
+    private UUID combatTarget;
 
     public ManagedNPC(NPCDefinition definition, ModelRenderer renderer, Location location) {
         this(definition, renderer, location, null);
@@ -86,6 +91,14 @@ public final class ManagedNPC {
         followMax = Math.max(followMin, max);
     }
     public void clearFollowState() { followTarget = ""; }
+    public boolean hostile() { return hostile; }
+    public void setHostile(boolean hostile) { this.hostile = hostile; }
+    public String targetSelector() { return targetSelector; }
+    public void setTargetSelector(String selector) { targetSelector = selector == null || selector.isBlank() ? "all players" : selector; }
+    public UUID lastAttacker() { return lastAttacker; }
+    public void setLastAttacker(UUID attacker) { lastAttacker = attacker; }
+    public UUID combatTarget() { return combatTarget; }
+    public void setCombatTarget(UUID target) { combatTarget = target; }
     public Entity hitbox() { return hitbox; }
     public void close() { if (!tracker.isClosed()) tracker.close(); if (hitbox.isValid()) hitbox.remove(); viewers.clear(); }
 }
