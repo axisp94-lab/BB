@@ -208,11 +208,11 @@ Les états sont réinitialisés au redémarrage normal. Si les scripts du NPC so
 - `/anpc center <id>`
 - `/anpc rename <id> <nom>`
 - `/anpc kill <id>` : retire temporairement les instances jusqu'au prochain rechargement.
-- `/anpc remove <id>` : masque le NPC sans supprimer sa définition.
+- `/anpc remove <id>` : masque le NPC et désactive ses interactions sans modifier `npc.yml` ni son script.
 - `/anpc restore <id>` : restaure un NPC masqué ou récupère une suppression datant de moins de 24 h.
-- `/anpc delete <id>`, puis `/anpc delete <id> confirm` : suppression définitive après confirmation sous 30 secondes. Les variables locales et la définition sont récupérables pendant 24 h.
+- `/anpc delete <id>`, puis `/anpc delete <id> confirm` : suppression définitive après confirmation sous 30 secondes. La définition, le script `.aa` et les variables locales sont récupérables pendant 24 h.
 - `/anpc disable <id>` et `/anpc enable <id>` : désactive/réactive les scripts sans retirer le modèle.
-- `/anpc reload` : recharge la configuration, les NPC et tous les scripts sans effacer les variables SQLite. ` /anpc reload <script>` recharge un fichier `.aa` précis et réindexe les fonctions globales.
+- `/anpc reload` : recharge la configuration, les NPC et tous les scripts sans effacer les variables SQLite. `/anpc reload <script>` recharge un fichier `.aa` précis et réindexe les fonctions globales.
 
 Permission : `anpc.admin` (opérateur par défaut).
 
