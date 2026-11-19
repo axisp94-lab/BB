@@ -232,6 +232,7 @@ public final class NPCManager {
         long deletedAt = backup.getLong("deleted-at", 0L);
         if (deletedAt <= 0L || System.currentTimeMillis() - deletedAt > 24L * 60L * 60L * 1000L) {
             deletedYaml.set("npcs." + id, null);
+            deleteBackupScript(id);
             saveDeleted();
             return false;
         }
