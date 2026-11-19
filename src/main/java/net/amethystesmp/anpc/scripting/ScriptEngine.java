@@ -1526,7 +1526,7 @@ public final class ScriptEngine implements Listener {
                 else if (parts[1].startsWith("second")) multiplier = 20L;
             }
             long maximum = 2_000_000_000L;
-            if (amount >= maximum / multiplier) return maximum;
+            if (amount > maximum / multiplier) return maximum;
             return Math.min(maximum, amount * multiplier);
         } catch (Exception exception) {
             return 1L;
