@@ -7,3 +7,9 @@ movement:
   default-speed: 4.0
   checkpoint-spacing: 2.0
   max-path-attempts: 100
+
+combat:
+  target-range: 24.0
+  attack-range: 2.5
+  damage: 2.0
+  cooldown-ticks: 20
