@@ -130,6 +130,20 @@ on left click:
 
 Le déplacement au sol utilise un pathfinding avec évitement des blocs solides. `fly to` utilise un chemin 3D avec évitement des blocs et une animation `fly` si le modèle la fournit. La limite est réglable dans `config.yml` via `movement.max-path-attempts` (100 par défaut). Le suivi s'arrête si la cible se déconnecte ou change de monde.
 
+### Blocs : simulation et modification explicite
+
+Les actions de simulation n'altèrent jamais les blocs du monde. Elles affichent uniquement les particules et sons correspondants.
+
+```python
+on walk:
+    if block below is stone:
+        simulate break block at (0, 64, 0)
+        simulate place stone at (1, 64, 0)
+        simulate interact with block at (2, 64, 0)
+```
+
+Pour modifier réellement le monde, le script doit employer explicitement `set block <matériau> at (x, y, z)` ou `break block at (x, y, z)`.
+
 ### Combat et hostilité
 
 L'hostilité est désactivée par défaut. Un script doit l'activer explicitement. Les sélecteurs de cible peuvent être combinés avec des virgules.
