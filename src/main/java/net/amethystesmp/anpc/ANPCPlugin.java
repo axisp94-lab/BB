@@ -46,6 +46,7 @@ public final class ANPCPlugin extends JavaPlugin {
             scriptEngine = new ScriptEngine(this, npcManager, variableStore);
 
             npcManager.load();
+            getServer().getPluginManager().registerEvents(npcManager, this);
             scriptEngine.loadAll();
 
             PluginCommand command = getCommand("anpc");
