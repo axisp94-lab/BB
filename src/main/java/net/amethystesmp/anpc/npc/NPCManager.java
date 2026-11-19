@@ -38,7 +38,7 @@ public final class NPCManager {
         ConfigurationSection root = yaml.getConfigurationSection("npcs");
         if (root != null) {
             for (String id : root.getKeys(false)) {
-                if (yaml.getBoolean("npcs." + id + ".removed", false)) continue;
+                if (isRemoved(id)) continue;
                 try {
                     createFrom(NPCDefinition.read(id, root.getConfigurationSection(id)));
                 } catch (Exception e) {
@@ -137,6 +137,11 @@ public final class NPCManager {
     public int size() { return npcs.size(); }
     public boolean exists(String id) { return yaml != null && yaml.isConfigurationSection("npcs." + id); }
 
+    private boolean isRemoved(String id) {
+        String stored = plugin.variables().get("npc-lifecycle", id, "removed", null);
+        return stored == null ? yaml.getBoolean("npcs." + id + ".removed", false) : Boolean.parseBoolean(stored);
+    }
+
     public boolean create(String id, String type, Location location) {
         if (exists(id) || location.getWorld() == null) return false;
         NPCDefinition definition = new NPCDefinition(id, id, type, List.of(location.getWorld().getName()),
@@ -147,7 +152,8 @@ public final class NPCManager {
         managed.setScriptsEnabled(true);
         npcs.put(key(id, location.getWorld().getName()), managed);
         saveDefinition(definition);
-        yaml.set("npcs." + id + ".removed", false);
+        plugin.variables().set("npc-lifecycle", id, "removed", false);
+        yaml.set("npcs." + id + ".removed", null);
         yaml.set("npcs." + id + ".scripts-enabled", true);
         save();
         plugin.variables().restoreLocalVariables(id, location.getWorld().getName());
@@ -162,15 +168,15 @@ public final class NPCManager {
             ManagedNPC npc = npcs.remove(mapKey);
             if (npc != null) npc.close();
         }
-        yaml.set("npcs." + id + ".removed", true);
-        save();
+        plugin.variables().set("npc-lifecycle", id, "removed", true);
         return true;
     }
 
     /** Recreates a soft-removed NPC from its unchanged definition. */
     public boolean restore(String id) {
         if (exists(id)) {
-            yaml.set("npcs." + id + ".removed", false);
+            plugin.variables().set("npc-lifecycle", id, "removed", false);
+            yaml.set("npcs." + id + ".removed", null);
             save();
             try {
                 NPCDefinition definition = NPCDefinition.read(id, yaml.getConfigurationSection("npcs." + id));
@@ -194,7 +200,7 @@ public final class NPCManager {
         try {
             NPCDefinition definition = NPCDefinition.read(id, backup);
             saveDefinition(definition);
-            yaml.set("npcs." + id + ".removed", false);
+            plugin.variables().set("npc-lifecycle", id, "removed", false);
             yaml.set("npcs." + id + ".scripts-enabled", true);
             List<String> recoveryWorlds = backup.getStringList("recovery-worlds");
             if (recoveryWorlds.isEmpty()) recoveryWorlds = definition.worlds().stream().anyMatch(name -> name.equalsIgnoreCase("all"))
@@ -237,6 +243,7 @@ public final class NPCManager {
             if (npc != null) npc.close();
         }
         yaml.set("npcs." + id, null);
+        plugin.variables().delete("npc-lifecycle", id, "removed");
         save();
         return true;
     }
@@ -252,7 +259,7 @@ public final class NPCManager {
     }
 
     public boolean setScriptsEnabled(String id, boolean enabled) {
-        if (!exists(id) || yaml.getBoolean("npcs." + id + ".removed", false)) return false;
+        if (!exists(id) || isRemoved(id)) return false;
         for (ManagedNPC npc : instances(id)) {
             if (!enabled) saveRuntimeState(npc);
             else restoreRuntimeState(npc);
