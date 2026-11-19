@@ -106,6 +106,8 @@ Le pathfinding terrestre, aérien et spécial est réglable dans `config.yml` : 
 - `/anpc kill <id>`
 - `/anpc reload`
 
+`/anpc list` affiche toutes les définitions de `npc.yml`, y compris celles dont le monde n'est pas chargé, avec leur statut. Les commandes de renommage, suppression et centrage fonctionnent également sur ces définitions non chargées.
+
 ## État de cette livraison (0.1.0)
 Le socle comprend le chargement de `npc.yml`, les NPC BetterModel basés sur `DummyTracker`, les hitboxes d'interaction, le suivi des joueurs visibles, les commandes de base, les événements/conditions/actions de première tranche et le stockage SQLite.
 
