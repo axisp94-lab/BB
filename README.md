@@ -36,21 +36,37 @@ Le champ `skin` accepte :
 
 Les PNG doivent mesurer 64×64 ou 64×32 pixels. Pour le modèle bras fins (slim), termine le nom par `_slim.png` ou `-slim.png`. Le serveur local de textures écoute uniquement sur l'interface de boucle locale et s'arrête avec le plugin.
 
-## Scripts
-Scripts : `plugins/AmethyysNPCs/scripts/<id>.aa`. Les événements et blocs utilisent une indentation de 4 espaces.
+## Scripts .aa
+Les scripts se trouvent dans `plugins/AmethyysNPCs/scripts/<id>.aa`. Les événements et blocs utilisent une indentation de quatre espaces.
 
 ```python
+def message_accueil(joueur):
+    return "Bienvenue sur le serveur !"
+
 on right click:
-    say local "Bonjour !"
-    play sound "entity.villager.yes"
+    set "message" message_accueil(event entity)
+    say local message
 
 on entity approach:
-    say local "Bienvenue près de moi !"
+    loop all players:
+        send to loop-player "Un NPC est proche de vous."
 
 on interval:
     if flag (ouvert) is on:
         say local "La porte est ouverte."
+
+    loop 3 times:
+        say local "Rappel numéro loop-number"
 ```
+
+Éléments pris en charge dans cette version :
+- événements de clic, d'approche, de départ, d'intervalle et de spawn ;
+- blocs `if`, variables locales/partagées/globales et fonctions avec paramètres et `return` ;
+- boucles `loop all players`, `loop all npcs`, `loop all (liste)` et `loop N times`, avec `stop loop` et `skip loop` ;
+- sélecteurs `@p`, `@a`, `@n`, `@e[type=...] `, `player:<pseudo>` et `npc:<id>` pour les cibles compatibles ;
+- actions de message, son, animation, déplacement, téléportation, variables, drapeaux et commande console.
+
+Les fonctions sont synchrones : `wait` n'est pas accepté dans une fonction qui retourne une valeur. Les sélecteurs d'entités sont limités au rayon défini par `selector-range` (64 blocs par défaut). Les listes sauvegardées sont actuellement interprétées depuis une chaîne séparée par des virgules.
 
 ## Commandes disponibles
 - `/anpc list`
@@ -62,8 +78,8 @@ on interval:
 - `/anpc reload`
 
 ## État de cette livraison (0.1.0)
-Le socle comprend le chargement de `npc.yml`, les NPC BetterModel basés sur `DummyTracker`, les hitboxes d'interaction, le suivi des joueurs visibles, le déplacement interpolé, les animations, les commandes de base, les premiers événements/conditions/actions et le stockage SQLite.
+Le socle comprend le chargement de `npc.yml`, les NPC BetterModel basés sur `DummyTracker`, les hitboxes d'interaction, le suivi des joueurs visibles, les commandes de base, les événements/conditions/actions de première tranche et le stockage SQLite.
 
-La stabilisation du cycle de vie, des commandes et du rechargement a été compilée avec succès par GitHub Actions. La prise en charge des skins PNG locaux vient d'être ajoutée ; elle reste à vérifier en jeu avec BetterModel 2.2.0.
+La stabilisation du cycle de vie, des commandes et du rechargement a été compilée avec succès par GitHub Actions. La prise en charge des skins PNG locaux, la correction du parseur et les premières fonctionnalités de variables, fonctions, boucles et sélecteurs ont également été compilées. Les essais en jeu avec Paper 1.21.11 et BetterModel 2.2.0 restent à effectuer.
 
-Le langage `.aa` reste une première tranche : fonctions, boucles, tous les types d'événements, l'ensemble des variables/conditions/actions et les modes avancés de déplacement ne sont pas encore implémentés. Les adaptateurs MythicMobs, ItemsAdder et Multiverse restent à développer.
+Les intégrations MythicMobs, ItemsAdder et Multiverse ainsi que les modes avancés de déplacement restent à développer.
