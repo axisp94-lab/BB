@@ -824,6 +824,22 @@ public final class ScriptEngine implements Listener {
         String value=raw.trim();
         if(value.length()>1&&value.startsWith("(")&&value.endsWith(")")&&balancedOuterParentheses(value))value=value.substring(1,value.length()-1).trim();
         if(c.locals().containsKey(value))return c.locals().get(value);
+        String lowerValue=value.toLowerCase(Locale.ROOT);
+        if(lowerValue.startsWith("npc:"))return npcs.get(value.substring(4).trim(),c.npc().location().getWorld());
+        if(lowerValue.startsWith("player:"))return Bukkit.getPlayerExact(value.substring(7).trim());
+        Object namedNpcValue=resolveNamedNpcProperty(c,value);
+        if(namedNpcValue!=UNRESOLVED)return namedNpcValue;
+        if(value.equalsIgnoreCase("@p"))return nearest(c.npc().location());
+        if(value.equalsIgnoreCase("@a"))return new ArrayList<>(c.npc().location().getWorld().getPlayers());
+        if(value.equalsIgnoreCase("@n"))return nearestEntity(c.npc().location(),null);
+        java.util.regex.Matcher selector=java.util.regex.Pattern.compile("^@(e|n)\\s*\\[\\s*type\\s*=\\s*([a-z0-9_:-]+)\\s*]$",java.util.regex.Pattern.CASE_INSENSITIVE).matcher(value);
+        if(selector.matches()){
+            EntityType type;
+            try{type=EntityType.valueOf(selector.group(2).toUpperCase(Locale.ROOT));}catch(IllegalArgumentException exception){return null;}
+            if(selector.group(1).equalsIgnoreCase("n"))return nearestEntity(c.npc().location(),type);
+            return c.npc().location().getWorld().getEntities().stream().filter(entity->entity.getType()==type&&entity!=c.npc().hitbox()).toList();
+        }
+        if(value.equalsIgnoreCase("@e"))return c.npc().location().getWorld().getEntities().stream().filter(entity->entity!=c.npc().hitbox()).toList();
         if(value.toLowerCase(Locale.ROOT).startsWith("call "))return callFunction(c,value.substring(5).trim(),false);
         java.util.regex.Matcher blockCount=java.util.regex.Pattern.compile("^number of ([a-z0-9_:-]+) in (range|sphere)\\s+(\\d+)$",java.util.regex.Pattern.CASE_INSENSITIVE).matcher(value);
         if(blockCount.matches()){
@@ -861,6 +877,45 @@ public final class ScriptEngine implements Listener {
         }
         return c.value(value);
     }
+    private static final Object UNRESOLVED=new Object();
+
+    private Object resolveNamedNpcProperty(ScriptContext context,String expression){
+        String lower=expression.toLowerCase(Locale.ROOT);
+        int marker=lower.indexOf(" of npc:");
+        if(marker<0)return UNRESOLVED;
+        String property=lower.substring(0,marker).trim();
+        String id=expression.substring(marker+8).trim();
+        if(id.isBlank())return UNRESOLVED;
+        ManagedNPC target=npcs.get(id,context.npc().location().getWorld());
+        if(target==null)return null;
+        return switch(property){
+            case "name"->target.definition().displayName();
+            case "id"->target.id();
+            case "type"->target.definition().type();
+            case "skin"->target.definition().skin();
+            case "world"->target.location().getWorld().getName();
+            case "location","position"->target.location();
+            case "x"->target.location().getX();
+            case "y"->target.location().getY();
+            case "z"->target.location().getZ();
+            case "yaw"->target.location().getYaw();
+            case "pitch"->target.location().getPitch();
+            case "health"->target.health();
+            case "max health"->target.maxHealth();
+            case "speed"->target.speed();
+            case "state","primary state"->target.primaryState();
+            default->UNRESOLVED;
+        };
+    }
+
+    private Entity nearestEntity(Location location,EntityType requiredType){
+        return location.getWorld().getEntities().stream()
+                .filter(entity->entity.isValid())
+                .filter(entity->requiredType==null||entity.getType()==requiredType)
+                .min(Comparator.comparingDouble(entity->entity.getLocation().distanceSquared(location)))
+                .orElse(null);
+    }
+
     private boolean isSharedMember(String members,String npcId){
         return Arrays.stream(members.split(",")).map(String::trim).anyMatch(member->member.equalsIgnoreCase(npcId));
     }
