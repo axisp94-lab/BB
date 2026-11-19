@@ -70,13 +70,13 @@ on npc approach:
 - `shared` : commune uniquement aux NPC listés dans la déclaration.
 
 ```python
-create variable compteur (0) local
-create variable serveur (1) global
-create variable stock (0) shared [marchand, gardien]
-
-set "compteur" (compteur + 1)
-flag on (ouvert)
-flag off (ouvert)
+on right click:
+    create variable compteur (0) local
+    create variable serveur (1) global
+    create variable stock (0) shared [marchand, gardien]
+    set "compteur" (compteur + 1)
+    flag on (ouvert)
+    flag off (ouvert)
 ```
 
 Les variables sont conservées dans SQLite. Les variables locales sont isolées par NPC et par monde. Les variables globales et partagées restent communes selon leur portée.
@@ -97,19 +97,20 @@ on right click:
 ### Boucles
 
 ```python
-loop all players:
-    send to loop-player "Un gardien vous observe."
+on interval:
+    loop all players:
+        send to loop-player "Un gardien vous observe."
 
-loop all npcs:
-    play anime "idle"
+    loop all npcs:
+        play anime "idle"
 
-loop 5 times:
-    say local "Patrouille"
+    loop 5 times:
+        say local "Patrouille"
 
-loop all (liste):
-    say local loop-value
-    if loop-number == 3:
-        skip loop
+    loop all (liste):
+        say local loop-value
+        if loop-number == 3:
+            skip loop
 ```
 
 `stop loop` arrête la boucle courante ; `skip loop` passe à l'itération suivante.
@@ -164,10 +165,14 @@ on left click:
 Un NPC possède un état principal et peut avoir plusieurs états secondaires.
 
 ```python
-set state "patrouille"
-add state "vigilant"
-remove state "vigilant"
-clear states
+on right click:
+    set state "patrouille"
+    add state "vigilant"
+    remove state "vigilant"
+    clear states
+    set health of npc to 20
+    set max health of npc to 30
+    set speed of npc to 3
 ```
 
 Les états sont réinitialisés au redémarrage normal. Si les scripts du NPC sont désactivés, leur état courant est sauvegardé et restauré lors de la réactivation, même après un redémarrage.
