@@ -1,34 +1,47 @@
 # AmethyysNPCs
 
-Plugin Paper 1.21.11 / Java 21. BetterModel 2.2.0 est une dépendance optionnelle à l'exécution mais nécessaire pour afficher les modèles BetterModel. MythicMobs, ItemsAdder et Multiverse sont détectés comme intégrations optionnelles.
+Plugin Paper 1.21.11 / Java 21. BetterModel 2.2.0 est requis pour afficher les modèles. MythicMobs, ItemsAdder et Multiverse sont détectés comme intégrations optionnelles ; leurs adaptateurs complets restent à développer.
 
 ## Compilation
+
 `mvn clean package` — le JAR ombré est produit dans `target/AmethyysNPCs-0.1.0.jar`.
 
+Le workflow GitHub Actions compile le projet avec Java 21 et Maven à chaque modification de la branche.
+
 ## Installation
+
 1. Installer Paper 1.21.11 et Java 21.
 2. Installer BetterModel 2.2.0.
 3. Placer le JAR dans `plugins/` et démarrer le serveur.
 4. Définir les NPC dans `plugins/AmethyysNPCs/npc.yml` ou utiliser `/anpc create`.
 
-## Exemple npc.yml
+## Définition des NPC
+
 ```yaml
 npcs:
   gardien:
     display-name: "&6Gardien"
-    type: "limb:steve" # ou un nom de modèle BetterModel
+    type: "limb:steve"
     world: [world]
     x: 0.5
     y: 65
     z: 0.5
     yaw: 0
     pitch: 0
-    skin: "00000000-0000-0000-0000-000000000000" # UUID de profil BetterModel, si souhaité
+    skin: "00000000-0000-0000-0000-000000000000"
 ```
 
-`type: player` sélectionne le limb `steve`; `skin` peut être un UUID ou le nom d'un joueur actuellement connecté. Pour les modèles classiques, `type` est le nom BetterModel. `world` accepte un nom, une liste de noms ou `all`.
+- `type: player` sélectionne le limb `steve`.
+- `type: limb:nom` utilise un limb BetterModel.
+- Pour un modèle classique, `type` correspond au nom du modèle BetterModel.
+- `skin` accepte un UUID ou le nom d'un joueur actuellement connecté.
+- `world` accepte un nom, une liste de noms ou `all`. Une instance est créée dans chaque monde ciblé.
 
-Scripts : `plugins/AmethyysNPCs/scripts/<id>.aa`. Les événements et blocs utilisent une indentation de 4 espaces.
+## Scripts .aa
+
+Les scripts sont placés dans `plugins/AmethyysNPCs/scripts/<id>.aa`. Le nom du fichier doit correspondre à l'ID du NPC. Les blocs utilisent une indentation de 4 espaces.
+
+### Événements et actions de base
 
 ```python
 on right click:
@@ -43,16 +56,88 @@ on interval:
         say local "La porte est ouverte."
 ```
 
-## Commandes disponibles
+### Variables
+
+- `local` : propre à une instance NPC dans un monde.
+- `global` : commune à tous les NPC.
+- `shared` : commune uniquement aux NPC listés dans la déclaration.
+
+```python
+create variable compteur (0) local
+create variable serveur (1) global
+create variable stock (0) shared [marchand, gardien]
+
+set "compteur" (compteur + 1)
+flag on (ouvert)
+flag off (ouvert)
+```
+
+Les variables sont conservées dans SQLite. Les variables locales sont isolées par NPC et par monde. Les variables globales et partagées restent communes selon leur portée.
+
+### Fonctions globales
+
+Les fonctions déclarées dans un fichier `.aa` sont accessibles depuis les scripts de tous les NPC. Les paramètres sont locaux à l'appel et `return` renvoie une valeur.
+
+```python
+function saluer(nom):
+    return "Bonjour " + nom
+
+on right click:
+    set "message" (call saluer("visiteur"))
+    say local message
+```
+
+### Boucles
+
+```python
+loop all players:
+    send to loop-player "Un gardien vous observe."
+
+loop all npcs:
+    play anime "idle"
+
+loop 5 times:
+    say local "Patrouille"
+
+loop all (liste):
+    say local loop-value
+    if loop-number is 3:
+        skip loop
+```
+
+`stop loop` arrête la boucle courante ; `skip loop` passe à l'itération suivante.
+
+### États
+
+Un NPC possède un état principal et peut avoir plusieurs états secondaires.
+
+```python
+set state "patrouille"
+add state "vigilant"
+remove state "vigilant"
+clear states
+```
+
+Les états sont réinitialisés au redémarrage normal. Si les scripts du NPC sont désactivés, leur état courant est sauvegardé et restauré lors de la réactivation, même après un redémarrage.
+
+## Commandes
+
 - `/anpc list`
 - `/anpc create <id> <modele|limb:nom>`
 - `/anpc tp <id>`
 - `/anpc center <id>`
 - `/anpc rename <id> <nom>`
-- `/anpc kill <id>`
-- `/anpc reload`
+- `/anpc kill <id>` : retire temporairement les instances jusqu'au prochain rechargement.
+- `/anpc remove <id>` : masque le NPC sans supprimer sa définition.
+- `/anpc restore <id>` : restaure un NPC masqué ou récupère une suppression datant de moins de 24 h.
+- `/anpc delete <id>`, puis `/anpc delete <id> confirm` : suppression définitive après confirmation sous 30 secondes. Les variables locales et la définition sont récupérables pendant 24 h.
+- `/anpc disable <id>` et `/anpc enable <id>` : désactive/réactive les scripts sans retirer le modèle.
+- `/anpc reload` : recharge les NPC et les scripts sans effacer les variables SQLite.
 
-## État de cette livraison (0.1.0)
-Cette archive fournit le socle exécutable : chargement `npc.yml`, NPC BetterModel basés sur `DummyTracker`, hitbox d'interaction, suivi des joueurs visibles, déplacement interpolé, animations, commandes de base, événements de clic/approche/intervalle, flags, premières conditions/actions, et stockage SQLite.
+Permission : `anpc.admin` (opérateur par défaut).
 
-Ce n'est pas encore l'intégralité de la liste « validée » de la documentation : le langage est en première tranche (les fonctions, boucles, tous les types d'événements, la totalité des variables/conditions/actions et les modes avancés de déplacement ne sont pas encore implémentés). MythicMobs, ItemsAdder et Multiverse sont déclarés en dépendances souples mais leurs adaptateurs ne sont pas encore codés. La gestion des skins personnalisés par fichier et la vérification en jeu restent à terminer. La compilation n'a pas pu être lancée dans cet environnement faute de Maven et d'accès réseau ; le workflow GitHub Actions fourni effectuera le build.
+## Périmètre restant
+
+Cette branche met en place le stockage par portée, les règles d'accès `shared`, le cycle de vie des NPC, les instances multi-mondes, la récupération sur 24 h, les commandes d'activation, les états, les fonctions et les boucles.
+
+La liste complète des fonctionnalités validées n'est pas encore terminée : pathfinding et suivi avancés, combat/hostilité, interactions complètes entre NPC, simulation de blocs, tous les événements/conditions/actions du langage, gestion des skins par fichier local, intégrations MythicMobs/ItemsAdder et tests en jeu restent à implémenter ou vérifier. Ne pas considérer ces éléments comme disponibles tant qu'ils ne sont pas ajoutés et testés.
