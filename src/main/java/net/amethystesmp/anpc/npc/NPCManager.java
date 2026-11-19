@@ -129,8 +129,12 @@ public final class NPCManager {
     }
 
     public List<String> allIds() {
+        Set<String> ids = new TreeSet<>(String.CASE_INSENSITIVE_ORDER);
         ConfigurationSection root = yaml == null ? null : yaml.getConfigurationSection("npcs");
-        return root == null ? List.of() : root.getKeys(false).stream().sorted(String.CASE_INSENSITIVE_ORDER).toList();
+        if (root != null) ids.addAll(root.getKeys(false));
+        ConfigurationSection deleted = deletedYaml == null ? null : deletedYaml.getConfigurationSection("npcs");
+        if (deleted != null) ids.addAll(deleted.getKeys(false));
+        return List.copyOf(ids);
     }
 
     public Collection<ManagedNPC> all() { return Collections.unmodifiableCollection(npcs.values()); }
