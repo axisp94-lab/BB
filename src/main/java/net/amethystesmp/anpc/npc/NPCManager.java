@@ -99,13 +99,25 @@ public final class NPCManager {
                 && !definition.type().toLowerCase(Locale.ROOT).startsWith("limb:")) {
             return null;
         }
-        if (definition.skin().isBlank()) return null;
+        String skin = definition.skin().trim();
+        if (skin.isEmpty()) return null;
+
+        if (skin.regionMatches(true, 0, "file:", 0, 5)) {
+            return plugin.localSkins().profileFor(skin.substring(5).trim());
+        }
+        if (skin.toLowerCase(Locale.ROOT).endsWith(".png")) {
+            return plugin.localSkins().profileFor(skin);
+        }
 
         try {
-            return ModelProfile.of(UUID.fromString(definition.skin()));
+            return ModelProfile.of(UUID.fromString(skin));
         } catch (IllegalArgumentException ignored) {
-            Player online = Bukkit.getPlayerExact(definition.skin());
-            return online == null ? null : ModelProfile.of(BukkitAdapter.adapt(online)).asUncompleted();
+            Player online = Bukkit.getPlayerExact(skin);
+            if (online != null) return ModelProfile.of(BukkitAdapter.adapt(online)).asUncompleted();
+
+            plugin.getLogger().warning("Skin '" + skin + "' du NPC '" + definition.id()
+                    + "' introuvable : utilise un UUID ou un fichier PNG dans le dossier npcs/.");
+            return null;
         }
     }
 
