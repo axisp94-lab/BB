@@ -96,6 +96,7 @@ public final class ANPCCommand implements TabExecutor {
                 if (args.length < 2) { msg(sender, "Usage : /anpc restore <id>"); return true; }
                 if (plugin.npcs().restore(args[1])) {
                     plugin.scripts().reloadScript(args[1]);
+                    plugin.scripts().resumeNpc(args[1]);
                     msg(sender, "NPC restauré.");
                 }
                 else msg(sender, "Restauration impossible : NPC inconnu ou modèle indisponible.");
