@@ -47,6 +47,7 @@ Les scripts sont placés dans `plugins/AmethyysNPCs/scripts/<id>.aa`. Le nom du 
 on right click:
     say local "Bonjour !"
     play sound "entity.villager.yes"
+    play sound "itemsadder:amethyys:welcome"
 
 on entity approach:
     say local "Bienvenue près de moi !"
@@ -189,7 +190,7 @@ Les états sont réinitialisés au redémarrage normal. Si les scripts du NPC so
 - `/anpc restore <id>` : restaure un NPC masqué ou récupère une suppression datant de moins de 24 h.
 - `/anpc delete <id>`, puis `/anpc delete <id> confirm` : suppression définitive après confirmation sous 30 secondes. Les variables locales et la définition sont récupérables pendant 24 h.
 - `/anpc disable <id>` et `/anpc enable <id>` : désactive/réactive les scripts sans retirer le modèle.
-- `/anpc reload` : recharge les NPC et les scripts sans effacer les variables SQLite.
+- `/anpc reload` : recharge la configuration, les NPC et tous les scripts sans effacer les variables SQLite. ` /anpc reload <script>` recharge un fichier `.aa` précis et réindexe les fonctions globales.
 
 Permission : `anpc.admin` (opérateur par défaut).
 
