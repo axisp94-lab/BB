@@ -44,6 +44,9 @@ public final class ScriptEngine implements Listener {
     }
     private void execute(ManagedNPC npc,Player player,List<Instruction> code,int baseIndent){ScriptContext ctx=new ScriptContext(npc,player);runBlock(ctx,code,0,baseIndent);}
     private int runBlock(ScriptContext c,List<Instruction> code,int index,int indent){if(!c.npc().scriptsEnabled())return code.size();while(index<code.size()){if(!c.npc().scriptsEnabled())return code.size();Instruction in=code.get(index);if(in.indent()<indent)break;if(in.indent()>indent){index++;continue;}String s=in.text();int line=in.line();
+        if(s.startsWith("loop ")&&s.endsWith(":")){int end=findEnd(code,index+1,in.indent());int child=index+1<code.size()?code.get(index+1).indent():in.indent()+4;executeLoop(c,code,index+1,child,s.substring(5,s.length()-1).trim());index=end;continue;}
+        if(s.equals("stop loop")){c.stopLoop();return code.size();}
+        if(s.equals("skip loop")){c.skipLoop();return code.size();}
         if(s.startsWith("if ")&&s.endsWith(":")){int end=findEnd(code,index+1,in.indent());if(test(c,s.substring(3,s.length()-1))){int child=index+1<code.size()?code.get(index+1).indent():in.indent()+4;runBlock(c,code,index+1,child);}index=end;continue;}
         if(s.startsWith("set ")){String body=s.substring(4).trim();int q=body.indexOf('"',1);if(body.startsWith("\"")&&q>0){String name=body.substring(1,q);String val=body.substring(q+1).trim();if(val.startsWith("(" )&&val.endsWith(")"))val=val.substring(1,val.length()-1);Object value=resolve(c,val);c.locals().put(name,value);storeVariable(c,name,value);}index++;continue;}
         if(s.startsWith("create variable ")){createVariable(c,s.substring(15).trim());index++;continue;}
@@ -64,6 +67,47 @@ public final class ScriptEngine implements Listener {
         if(s.equals("clear states")){c.npc().setPrimaryState("idle");c.npc().clearSecondaryStates();index++;continue;}
         index++;
     }return index;}
+    private void executeLoop(ScriptContext context,List<Instruction> code,int bodyStart,int bodyIndent,String expression){
+        List<Object> values=new ArrayList<>();
+        String loop=expression.trim();
+        if(loop.equalsIgnoreCase("all players")){
+            values.addAll(Bukkit.getOnlinePlayers());
+        }else if(loop.equalsIgnoreCase("all npcs")){
+            values.addAll(npcs.all());
+        }else if(loop.toLowerCase(Locale.ROOT).startsWith("all (")&&loop.endsWith(")")){
+            Object source=resolve(context,loop.substring(5,loop.length()-1).trim());
+            if(source instanceof Iterable<?> iterable)for(Object value:iterable)values.add(value);
+            else if(source instanceof Object[] array)values.addAll(Arrays.asList(array));
+            else if(source instanceof String text&&!text.isBlank())values.addAll(Arrays.asList(text.split(",")));
+        }else if(loop.toLowerCase(Locale.ROOT).endsWith(" times")){
+            try{
+                int count=Integer.parseInt(loop.substring(0,loop.length()-6).trim());
+                for(int i=0;i<Math.max(0,Math.min(count,10000));i++)values.add(i+1);
+            }catch(NumberFormatException exception){
+                plugin.getLogger().warning("Boucle invalide : '"+expression+"'. Nombre attendu avant 'times'.");
+            }
+        }else{
+            plugin.getLogger().warning("Type de boucle inconnu : '"+expression+"'.");
+            return;
+        }
+        context.pushLoop();
+        try{
+            int number=0;
+            for(Object value:values){
+                number++;
+                context.locals().put("loop-value",value);
+                context.locals().put("loop-number",number);
+                if(value instanceof Player player)context.locals().put("loop-player",player);
+                if(value instanceof ManagedNPC npc)context.locals().put("loop-npc",npc);
+                context.clearLoopSkip();
+                runBlock(context,code,bodyStart,bodyIndent);
+                if(context.loopStopped())break;
+                if(context.loopSkipped())context.clearLoopSkip();
+            }
+        }finally{
+            context.popLoop();
+        }
+    }
     private int findEnd(List<Instruction> c,int from,int parent){int i=from;while(i<c.size()&&c.get(i).indent()>parent)i++;return i;}
     private boolean test(ScriptContext c,String expression){String e=expression.trim();if(e.startsWith("flag (")&&e.contains(") is ")){String name=e.substring(6,e.indexOf(')'));boolean v=Boolean.parseBoolean(variables.getLocal(c.npc().id(),c.npc().location().getWorld().getName(),"flag:"+name,"false"));return e.endsWith("on")?v:!v;}String[] ops={" >= "," <= "," != "," == "," > "," < "," contains "};for(String op:ops){int p=e.indexOf(op);if(p>0){Object a=resolve(c,e.substring(0,p)),b=resolve(c,e.substring(p+op.length()));if(op.equals(" contains "))return String.valueOf(a).contains(String.valueOf(b));double x=num(a),y=num(b);return switch(op.trim()){case ">"->x>y;case "<"->x<y;case ">="->x>=y;case "<="->x<=y;case "!="->!Objects.equals(String.valueOf(a),String.valueOf(b));default->Objects.equals(String.valueOf(a),String.valueOf(b))||x==y;};}}if(e.equalsIgnoreCase("player is sneaking"))return c.player()!=null&&c.player().isSneaking();if(e.toLowerCase(Locale.ROOT).startsWith("player has permission "))return c.player()!=null&&c.player().hasPermission(unquote(e.substring(22).trim()));if(e.toLowerCase(Locale.ROOT).startsWith("player has item ")){if(c.player()==null)return false;try{return c.player().getInventory().contains(org.bukkit.Material.valueOf(e.substring(16).trim().toUpperCase(Locale.ROOT)));}catch(IllegalArgumentException ex){return false;}}if(e.equalsIgnoreCase("npc is under attack"))return false;
         if(e.toLowerCase(Locale.ROOT).startsWith("npc state is "))return c.npc().primaryState().equalsIgnoreCase(unquote(e.substring(13).trim()));
