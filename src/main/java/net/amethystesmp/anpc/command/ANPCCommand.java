@@ -51,7 +51,7 @@ public final class ANPCCommand implements TabExecutor {
                     return true;
                 }
                 if (plugin.npcs().create(args[1], args[2], player.getLocation())) {
-                    plugin.scripts().fire(args[1], "spawn", null);
+                    plugin.scripts().reloadScript(args[1]);
                     msg(sender, "NPC créé : " + args[1]);
                 }
                 else msg(sender, "Création impossible : ID déjà utilisé ou modèle BetterModel introuvable.");
@@ -95,7 +95,7 @@ public final class ANPCCommand implements TabExecutor {
             case "restore" -> {
                 if (args.length < 2) { msg(sender, "Usage : /anpc restore <id>"); return true; }
                 if (plugin.npcs().restore(args[1])) {
-                    plugin.scripts().fire(args[1], "spawn", null);
+                    plugin.scripts().reloadScript(args[1]);
                     msg(sender, "NPC restauré.");
                 }
                 else msg(sender, "Restauration impossible : NPC inconnu ou modèle indisponible.");
@@ -157,8 +157,10 @@ public final class ANPCCommand implements TabExecutor {
             return;
         }
         plugin.scripts().pauseNpc(id);
-        if (plugin.npcs().delete(id)) msg(sender, "NPC '" + id + "' définitivement supprimé. Récupération des variables locales possible pendant 24 h.");
-        else msg(sender, "Suppression impossible : NPC introuvable.");
+        if (plugin.npcs().delete(id)) {
+            plugin.scripts().unloadScript(id);
+            msg(sender, "NPC '" + id + "' définitivement supprimé. Sa définition, son script et ses variables locales restent récupérables pendant 24 h.");
+        } else msg(sender, "Suppression impossible : NPC introuvable.");
     }
 
     @Override
