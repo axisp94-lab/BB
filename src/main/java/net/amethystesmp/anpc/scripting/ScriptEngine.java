@@ -278,6 +278,13 @@ public final class ScriptEngine implements Listener {
         if (code != null) execute(npc, null, eventNpc, code, 0);
     }
 
+    private void firePlayerEvent(ManagedNPC npc, String event, Player player) {
+        ScriptData script = scripts.get(npc.id().toLowerCase(Locale.ROOT));
+        if (script == null) return;
+        List<Instruction> code = script.events().get(event.toLowerCase(Locale.ROOT));
+        if (code != null) execute(npc, player, code, 0);
+    }
+
     private String npcKey(ManagedNPC npc) {
         Location location = npc.location();
         return npcKey(npc.id(), location.getWorld());
@@ -1562,8 +1569,12 @@ public final class ScriptEngine implements Listener {
 
         // The condition stays true for a configurable window after the latest hit.
         lastAttackedAt.put(npcKey(id, target.getWorld()), System.currentTimeMillis());
+        ManagedNPC managed = npcs.get(id, target.getWorld());
 
-        if (!(event instanceof EntityDamageByEntityEvent byEntity)) return;
+        if (!(event instanceof EntityDamageByEntityEvent byEntity)) {
+            if (managed != null) firePlayerEvent(managed, "damage", null);
+            return;
+        }
 
         Player attacker = null;
         if (byEntity.getDamager() instanceof Player player) {
@@ -1573,11 +1584,16 @@ public final class ScriptEngine implements Listener {
             if (shooter instanceof Player player) attacker = player;
         }
 
-        if (attacker == null) return;
+        if (attacker == null) {
+            if (managed != null) firePlayerEvent(managed, "damage", null);
+            return;
+        }
         // NPC hitboxes and backing entities should not take ordinary player damage.
         event.setCancelled(true);
-        fire(id, attacker.isSneaking() ? "left click while sneaking" : "left click", attacker);
-        fire(id, "damage", attacker);
+        if (managed != null) {
+            firePlayerEvent(managed, attacker.isSneaking() ? "left click while sneaking" : "left click", attacker);
+            firePlayerEvent(managed, "damage", attacker);
+        }
     }
     @EventHandler public void onJoin(PlayerJoinEvent e){for(ManagedNPC npc:npcs.all())if(e.getPlayer().getWorld().equals(npc.location().getWorld())&&e.getPlayer().getLocation().distanceSquared(npc.location())<64*64)npc.show(e.getPlayer());}
     @EventHandler public void onQuit(PlayerQuitEvent e){for(ManagedNPC npc:npcs.all())npc.hide(e.getPlayer());}
