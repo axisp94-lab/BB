@@ -82,7 +82,11 @@ public final class ScriptContext {
         if(k.equals("event entity")||k.equals("player"))return player;
         if(k.equals("event message")||k.equals("event command"))return eventData;
         if(k.equals("event npc"))return eventNpc;
-        if(k.equals("name of npc"))return npc.id();
+        if(k.equals("name of npc"))return npc.definition().displayName();
+        if(k.equals("id of npc"))return npc.id();
+        if(k.equals("type of npc"))return npc.definition().type();
+        if(k.equals("skin of npc"))return npc.definition().skin();
+        if(k.equals("position of npc"))return npc.location();
         if(k.equals("state of npc")||k.equals("primary state of npc"))return npc.primaryState();
         if(k.equals("secondary states of npc"))return npc.secondaryStates();
         if(k.equals("location of npc"))return npc.location();
@@ -93,6 +97,10 @@ public final class ScriptContext {
         if(k.equals("yaw of npc"))return npc.location().getYaw();
         if(k.equals("pitch of npc"))return npc.location().getPitch();
         if(k.equals("world of npc"))return npc.location().getWorld().getName();
+        if(k.equals("biome of npc"))return npc.location().getBlock().getBiome().name();
+        if(k.equals("light level of npc"))return npc.location().getBlock().getLightLevel();
+        if(k.equals("weather of world"))return npc.location().getWorld().isThundering()?"thunder":npc.location().getWorld().hasStorm()?"rain":"clear";
+        if(k.equals("time of world"))return npc.location().getWorld().getTime();
         if(k.equals("health of npc"))return npc.health();
         if(k.equals("max health of npc"))return npc.maxHealth();
         if(k.equals("speed of npc"))return npc.speed();
@@ -101,8 +109,12 @@ public final class ScriptContext {
         if(k.equals("animation of npc"))return npc.animation();
         if(player!=null){
             if(k.equals("name of player"))return player.getName();
+            if(k.equals("uuid of player"))return player.getUniqueId().toString();
             if(k.equals("location of player"))return player.getLocation();
             if(k.equals("world of player"))return player.getWorld().getName();
+            if(k.equals("biome of player"))return player.getLocation().getBlock().getBiome().name();
+            if(k.equals("light level of player"))return player.getLocation().getBlock().getLightLevel();
+            if(k.equals("ping of player"))return player.getPing();
             if(k.equals("x of player"))return player.getLocation().getX();
             if(k.equals("y of player"))return player.getLocation().getY();
             if(k.equals("z of player"))return player.getLocation().getZ();
