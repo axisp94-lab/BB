@@ -451,6 +451,7 @@ public final class ScriptEngine implements Listener {
         if(s.startsWith("flag on ")||s.startsWith("flag off ")){boolean on=s.startsWith("flag on ");String name=s.substring(on?8:9).replace("(","").replace(")","").trim();variables.setLocal(c.npc().id(),c.npc().location().getWorld().getName(),"flag:"+name,on);markChanged(c);index++;continue;}
         if(s.startsWith("wait ")){
             long ticks=parseDurationTicks(s.substring(5));
+            if(ticks<1){plugin.getLogger().warning("Durée wait invalide ligne "+line+" : '"+s.substring(5)+"'. Utilise par exemple 5 ticks, 2 seconds ou 500 ms.");index++;continue;}
             List<Instruction> remaining=new ArrayList<>(code.subList(index+1,code.size()));
             c.beginWait();startWatchdog(c);
             c.suspend();
@@ -1309,7 +1310,12 @@ public final class ScriptEngine implements Listener {
         }catch(NumberFormatException exception){return 0L;}
     }
 
-    private long parseDurationTicks(String raw){long millis=parseDurationMillis(raw);return Math.max(1L,(millis+49L)/50L);}
+    private long parseDurationTicks(String raw){
+        String value=raw==null?"":raw.trim().toLowerCase(Locale.ROOT);
+        if(!value.matches("[0-9]+\\s*(ticks?|ms|minutes?|m|seconds?|s)?"))return -1L;
+        long millis=parseDurationMillis(value);
+        return millis<0?-1L:Math.max(1L,millis/50L+(millis%50L==0?0:1));
+    }
     @EventHandler public void onNpcRightClick(PlayerInteractAtEntityEvent e){
         String id=e.getRightClicked().getScoreboardTags().stream().filter(t->t.startsWith("anpc:")).map(t->t.substring(5)).findFirst().orElse(null);
         if(id!=null){e.setCancelled(true);fire(id,e.getPlayer().isSneaking()?"right click while sneaking":"right click",e.getPlayer());fire(id,"click",e.getPlayer());fire(id,"interact",e.getPlayer());if(!e.getPlayer().getInventory().getItemInMainHand().getType().isAir())fire(id,"item click",e.getPlayer());}
