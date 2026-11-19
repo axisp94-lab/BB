@@ -458,7 +458,7 @@ public final class ScriptEngine implements Listener {
                 ||text.startsWith("remove state ")||text.equals("clear states")||text.startsWith("flag on ")
                 ||text.startsWith("flag off ")||text.startsWith("play sound ")||text.startsWith("play anime ")||text.startsWith("emote ")||text.equals("stop animation")
                 ||text.startsWith("move to ")||text.startsWith("fly to ")||text.startsWith("follow ")
-                ||text.startsWith("keep distance ")||text.equals("stop follow")||text.startsWith("target ")
+                ||text.startsWith("keep distance ")||text.equals("stop follow")||text.equals("stop movement")||text.startsWith("target ")
                 ||text.startsWith("attack ")||text.equals("stop attack")||text.startsWith("look at ")
                 ||text.startsWith("set checkpoint ")||text.startsWith("remove checkpoint ")
                 ||text.startsWith("move to checkpoint ")||text.startsWith("reset cooldown ")||text.startsWith("simulate break block at ")
