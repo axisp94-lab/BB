@@ -155,6 +155,7 @@ public final class ANPCCommand implements TabExecutor {
         }
         String key = deleteConfirmationKey(sender, id);
         long now = System.currentTimeMillis();
+        pendingDeletes.entrySet().removeIf(entry -> entry.getValue() < now);
         if (args.length < 3 || !args[2].equalsIgnoreCase("confirm")) {
             pendingDeletes.put(key, now + DELETE_CONFIRMATION_MILLIS);
             msg(sender, "Attention : suppression définitive de toutes les instances et de la définition de '" + id + "'.");
