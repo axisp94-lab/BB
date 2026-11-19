@@ -489,7 +489,7 @@ public final class ScriptEngine implements Listener {
         index++;
     }return index;}
     private void drainContinuations(ScriptContext context){
-        while(!context.suspended()&&!context.returned()){
+        while(!context.suspended()){
             Runnable continuation=context.nextContinuation();
             if(continuation==null)return;
             continuation.run();
