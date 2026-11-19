@@ -4,6 +4,8 @@ import kr.toxicity.model.api.BetterModel;
 import kr.toxicity.model.api.bukkit.platform.BukkitAdapter;
 import kr.toxicity.model.api.data.renderer.ModelRenderer;
 import kr.toxicity.model.api.profile.ModelProfile;
+import kr.toxicity.model.api.profile.ModelProfileInfo;
+import kr.toxicity.model.api.profile.ModelProfileSkin;
 import org.bukkit.Bukkit;
 import org.bukkit.Location;
 import org.bukkit.World;
@@ -15,6 +17,9 @@ import net.amethystesmp.anpc.ANPCPlugin;
 
 import java.io.File;
 import java.io.IOException;
+import java.awt.image.BufferedImage;
+import javax.imageio.ImageIO;
+import java.nio.charset.StandardCharsets;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -87,6 +92,30 @@ public final class NPCManager {
     private ModelProfile.Uncompleted skinProfile(NPCDefinition def) {
         if (!def.type().equalsIgnoreCase("player") && !def.type().toLowerCase(Locale.ROOT).startsWith("limb:")) return null;
         if (def.skin().isBlank()) return null;
+        if (def.skin().toLowerCase(Locale.ROOT).startsWith("file:")) {
+            String relativePath = def.skin().substring(5).trim();
+            try {
+                File dataDirectory = plugin.getDataFolder().getCanonicalFile();
+                File skinFile = new File(dataDirectory, relativePath).getCanonicalFile();
+                if (!skinFile.toPath().startsWith(dataDirectory.toPath()) || !skinFile.isFile()) {
+                    plugin.getLogger().warning("Fichier de skin introuvable ou hors du dossier du plugin pour le NPC " + def.id() + ".");
+                    return null;
+                }
+                BufferedImage image = ImageIO.read(skinFile);
+                if (image == null || !((image.getWidth() == 64 && image.getHeight() == 64)
+                        || (image.getWidth() == 64 && image.getHeight() == 32))) {
+                    plugin.getLogger().warning("Skin local invalide pour " + def.id() + " : PNG 64x64 ou 64x32 attendu.");
+                    return null;
+                }
+                UUID profileId = UUID.nameUUIDFromBytes(("AmethyysNPCs:" + def.id()).getBytes(StandardCharsets.UTF_8));
+                ModelProfileInfo info = new ModelProfileInfo(profileId, def.id());
+                ModelProfileSkin skin = new ModelProfileSkin(skinFile.toURI(), null, false, "");
+                return ModelProfile.of(info, skin).asUncompleted();
+            } catch (Exception exception) {
+                plugin.getLogger().warning("Chargement du skin local de " + def.id() + " impossible : " + exception.getMessage());
+                return null;
+            }
+        }
         try { return ModelProfile.of(UUID.fromString(def.skin())); }
         catch (IllegalArgumentException ignored) {
             Player online = Bukkit.getPlayerExact(def.skin());
