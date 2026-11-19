@@ -369,7 +369,23 @@ public final class ScriptEngine implements Listener {
         String id=e.getEntity().getScoreboardTags().stream().filter(t->t.startsWith("anpc:")).map(t->t.substring(5)).findFirst().orElse(null);
         if(id!=null){e.setCancelled(true);fire(id,p.isSneaking()?"left click while sneaking":"left click",p);fire(id,"damage",p);}
     }
-    @EventHandler public void onJoin(PlayerJoinEvent e){for(ManagedNPC npc:npcs.all())if(e.getPlayer().getWorld().equals(npc.location().getWorld())&&e.getPlayer().getLocation().distanceSquared(npc.location())<64*64)npc.show(e.getPlayer());}
-    @EventHandler public void onQuit(PlayerQuitEvent e){for(ManagedNPC npc:npcs.all())npc.hide(e.getPlayer());}
+    @EventHandler public void onJoin(PlayerJoinEvent e){
+        for(ManagedNPC npc:npcs.all()){
+            if(e.getPlayer().getWorld().equals(npc.location().getWorld())&&e.getPlayer().getLocation().distanceSquared(npc.location())<64*64)npc.show(e.getPlayer());
+            if(e.getPlayer().getWorld().equals(npc.location().getWorld())){
+                fire(npc.id(),"player join",e.getPlayer());
+                fire(npc.id(),"player connect",e.getPlayer());
+            }
+        }
+    }
+    @EventHandler public void onQuit(PlayerQuitEvent e){
+        for(ManagedNPC npc:npcs.all()){
+            if(e.getPlayer().getWorld().equals(npc.location().getWorld())){
+                fire(npc.id(),"player quit",e.getPlayer());
+                fire(npc.id(),"player disconnect",e.getPlayer());
+            }
+            npc.hide(e.getPlayer());
+        }
+    }
     public void shutdown(){tasks.forEach(BukkitTask::cancel);tasks.clear();scripts.clear();functions.clear();nearbyPlayers.clear();}
 }
