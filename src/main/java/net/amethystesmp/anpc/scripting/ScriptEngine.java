@@ -29,10 +29,12 @@ import java.util.concurrent.ConcurrentHashMap;
 public final class ScriptEngine implements Listener {
     private record Instruction(int indent,String text,int line){}
     private record FunctionDefinition(List<String> parameters,List<Instruction> code){}
+    private record PathNode(int x,int y,int z,double cost,double score,PathNode parent){}
     private final ANPCPlugin plugin; private final NPCManager npcs; private final VariableStore variables;
     private final Map<String,Map<String,List<Instruction>>> scripts=new ConcurrentHashMap<>();
     private final Map<String,FunctionDefinition> functions=new ConcurrentHashMap<>();
     private final Set<BukkitTask> tasks=ConcurrentHashMap.newKeySet();
+    private final Map<ManagedNPC,BukkitTask> movementTasks=new ConcurrentHashMap<>();
     private final Map<String,Set<UUID>> nearbyPlayers=new ConcurrentHashMap<>();
     private final Map<String,Set<String>> nearbyNpcs=new ConcurrentHashMap<>();
     public ScriptEngine(ANPCPlugin plugin,NPCManager npcs,VariableStore variables){this.plugin=plugin;this.npcs=npcs;this.variables=variables;}
@@ -414,7 +416,103 @@ public final class ScriptEngine implements Listener {
     private String unquote(String s){s=s.trim();return s.length()>=2&&s.startsWith("\"")&&s.endsWith("\"")?s.substring(1,s.length()-1):s;}
     private Player nearest(Location l){return l.getWorld().getPlayers().stream().min(Comparator.comparingDouble(p->p.getLocation().distanceSquared(l))).orElse(null);}
     private Location parseLocation(ScriptContext c,String s){if(s.equals("@p")){Player p=nearest(c.npc().location());return p==null?null:p.getLocation();}if(s.equalsIgnoreCase("location of npc"))return c.npc().location();if(s.startsWith("(")&&s.endsWith(")")){String[] a=s.substring(1,s.length()-1).split(",");if(a.length==3)try{return new Location(c.npc().location().getWorld(),Double.parseDouble(a[0].trim()),Double.parseDouble(a[1].trim()),Double.parseDouble(a[2].trim()));}catch(NumberFormatException ignored){}}return null;}
-    private void move(ManagedNPC npc,Location target){Location start=npc.location();if(start.getWorld()!=target.getWorld())return;double distance=start.distance(target);double speed=plugin.getConfig().getDouble("movement.default-speed",4.0);long duration=Math.max(1,Math.round(distance/Math.max(.1,speed)*20));final long[] tick={0};BukkitTask[] holder=new BukkitTask[1];holder[0]=Bukkit.getScheduler().runTaskTimer(plugin,()->{tick[0]++;double t=Math.min(1,(double)tick[0]/duration);Location next=start.clone().add((target.getX()-start.getX())*t,(target.getY()-start.getY())*t,(target.getZ()-start.getZ())*t);next.setYaw((float)(start.getYaw()+(target.getYaw()-start.getYaw())*t));next.setPitch((float)(start.getPitch()+(target.getPitch()-start.getPitch())*t));npc.move(next);if(t>=1){holder[0].cancel();tasks.remove(holder[0]);npc.animate("idle");}},1L,Math.max(1,plugin.getConfig().getLong("movement.update-ticks",1)));tasks.add(holder[0]);npc.animate("walk");}
+    private void move(ManagedNPC npc,Location target){
+        Location start=npc.location();
+        if(start.getWorld()==null||target.getWorld()==null||start.getWorld()!=target.getWorld())return;
+        List<Location> path=findPath(start,target);
+        if(path==null||path.isEmpty()){
+            plugin.getLogger().warning("Aucun chemin trouvé pour le NPC "+npc.id()+" (limite d'essais : "+plugin.getConfig().getInt("movement.max-path-attempts",100)+").");
+            return;
+        }
+        BukkitTask previous=movementTasks.remove(npc);
+        if(previous!=null){previous.cancel();tasks.remove(previous);}
+        List<Location> points=new ArrayList<>(path);
+        if(points.isEmpty()||points.get(points.size()-1).distanceSquared(target)>0.05)points.add(target.clone());
+        if(points.size()==1)points.add(target.clone());
+        int period=Math.max(1,plugin.getConfig().getInt("movement.update-ticks",1));
+        double speed=Math.max(0.1,plugin.getConfig().getDouble("movement.default-speed",4.0));
+        int[] segment={0};
+        Location[] segmentStart={npc.location()};
+        BukkitTask[] holder=new BukkitTask[1];
+        npc.animate("walk");
+        holder[0]=Bukkit.getScheduler().runTaskTimer(plugin,()->{
+            if(npc.tracker().isClosed()||!npc.location().getWorld().equals(target.getWorld())){
+                holder[0].cancel();tasks.remove(holder[0]);movementTasks.remove(npc,holder[0]);return;
+            }
+            Location destination=points.get(Math.min(segment[0]+1,points.size()-1));
+            Location current=npc.location();
+            double distance=current.distance(destination);
+            double step=speed*period/20.0;
+            if(distance<=step||distance<0.001){
+                npc.move(destination);
+                segment[0]++;
+                segmentStart[0]=destination.clone();
+                if(segment[0]>=points.size()-1){
+                    holder[0].cancel();tasks.remove(holder[0]);movementTasks.remove(npc,holder[0]);npc.animate("idle");
+                }
+            }else{
+                double fraction=step/distance;
+                Location next=current.clone().add((destination.getX()-current.getX())*fraction,
+                        (destination.getY()-current.getY())*fraction,(destination.getZ()-current.getZ())*fraction);
+                next.setYaw(destination.getYaw());next.setPitch(destination.getPitch());
+                npc.move(next);
+            }
+        },0L,period);
+        movementTasks.put(npc,holder[0]);tasks.add(holder[0]);
+    }
+
+    private List<Location> findPath(Location start,Location target){
+        org.bukkit.World world=start.getWorld();
+        int sx=start.getBlockX(),sy=start.getBlockY(),sz=start.getBlockZ();
+        int tx=target.getBlockX(),ty=target.getBlockY(),tz=target.getBlockZ();
+        if(!canStand(world,tx,ty,tz)){
+            int[] offsets={1,-1,2,-2};
+            for(int offset:offsets)if(canStand(world,tx,ty+offset,tz)){ty+=offset;break;}
+        }
+        int maxAttempts=Math.max(1,plugin.getConfig().getInt("movement.max-path-attempts",100));
+        PriorityQueue<PathNode> open=new PriorityQueue<>(Comparator.comparingDouble(PathNode::score));
+        Map<String,Double> best=new HashMap<>();
+        PathNode first=new PathNode(sx,sy,sz,0,heuristic(sx,sy,sz,tx,ty,tz),null);
+        open.add(first);best.put(pathKey(sx,sy,sz),0.0);
+        PathNode found=null;int attempts=0;
+        while(!open.isEmpty()&&attempts<maxAttempts){
+            PathNode current=open.poll();attempts++;
+            if(current.x()==tx&&current.y()==ty&&current.z()==tz){found=current;break;}
+            for(int dx=-1;dx<=1;dx++)for(int dz=-1;dz<=1;dz++)for(int dy=-1;dy<=1;dy++){
+                if(dx==0&&dy==0&&dz==0)continue;
+                int x=current.x()+dx,y=current.y()+dy,z=current.z()+dz;
+                if(!canStand(world,x,y,z))continue;
+                if(dx!=0&&dz!=0&&(!canStand(world,current.x()+dx,current.y(),current.z())
+                        ||!canStand(world,current.x(),current.y(),current.z()+dz)))continue;
+                double step=Math.sqrt(dx*dx+dz*dz)+Math.abs(dy)*1.2;
+                double cost=current.cost()+step;
+                String key=pathKey(x,y,z);
+                if(cost>=best.getOrDefault(key,Double.POSITIVE_INFINITY))continue;
+                best.put(key,cost);
+                open.add(new PathNode(x,y,z,cost,cost+heuristic(x,y,z,tx,ty,tz),current));
+            }
+        }
+        if(found==null)return null;
+        LinkedList<Location> result=new LinkedList<>();
+        for(PathNode node=found;node!=null;node=node.parent())
+            result.addFirst(new Location(world,node.x()+0.5,node.y(),node.z()+0.5));
+        result.add(target.clone());
+        return result;
+    }
+
+    private boolean canStand(org.bukkit.World world,int x,int y,int z){
+        if(y<world.getMinHeight()||y+1>=world.getMaxHeight())return false;
+        return world.getBlockAt(x,y,z).isPassable()
+                &&world.getBlockAt(x,y+1,z).isPassable()
+                &&world.getBlockAt(x,y-1,z).getType().isSolid();
+    }
+
+    private double heuristic(int x,int y,int z,int tx,int ty,int tz){
+        return Math.sqrt((x-tx)*(x-tx)+(z-tz)*(z-tz))+Math.abs(y-ty)*1.2;
+    }
+
+    private String pathKey(int x,int y,int z){return x+":"+y+":"+z;}
+
     private long parseDurationTicks(String s){String[] a=s.trim().split("\\s+");try{long n=Long.parseLong(a[0]);return a.length>1&&a[1].startsWith("second")?n*20:n;}catch(Exception e){return 1;}}
     @EventHandler public void onNpcRightClick(PlayerInteractAtEntityEvent e){
         String id=e.getRightClicked().getScoreboardTags().stream().filter(t->t.startsWith("anpc:")).map(t->t.substring(5)).findFirst().orElse(null);
