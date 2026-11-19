@@ -82,14 +82,19 @@ public final class ANPCCommand implements TabExecutor {
             case "kill" -> {
                 if (args.length < 2) { msg(sender, "Usage : /anpc kill <id>"); return true; }
                 plugin.scripts().pauseNpc(args[1]);
-                if (plugin.npcs().kill(args[1])) msg(sender, "Instances retirées jusqu'au prochain reload.");
+                if (plugin.npcs().kill(args[1])) {
+                    plugin.scripts().clearNpcTracking(args[1]);
+                    msg(sender, "Instances retirées jusqu'au prochain reload.");
+                }
                 else msg(sender, "NPC introuvable.");
             }
             case "remove" -> {
                 if (args.length < 2) { msg(sender, "Usage : /anpc remove <id>"); return true; }
                 plugin.scripts().pauseNpc(args[1]);
-                if (plugin.npcs().remove(args[1]))
+                if (plugin.npcs().remove(args[1])) {
+                    plugin.scripts().clearNpcTracking(args[1]);
                     msg(sender, "NPC masqué. Sa définition et ses données sont conservées. Utilise /anpc restore " + args[1] + " pour le réactiver.");
+                }
                 else msg(sender, "NPC introuvable.");
             }
             case "restore" -> {
