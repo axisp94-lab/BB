@@ -4,7 +4,6 @@ import kr.toxicity.model.api.profile.ModelProfile;
 import kr.toxicity.model.api.profile.ModelProfileInfo;
 import kr.toxicity.model.api.profile.ModelProfileSkin;
 import net.amethystesmp.anpc.ANPCPlugin;
-import org.bukkit.Bukkit;
 
 import com.sun.net.httpserver.HttpServer;
 import javax.imageio.ImageIO;
