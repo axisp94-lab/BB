@@ -38,6 +38,7 @@ public final class ScriptEngine implements Listener {
     private final ThreadLocal<Integer> functionDepth = ThreadLocal.withInitial(() -> 0);
     private final Set<BukkitTask> tasks = ConcurrentHashMap.newKeySet();
     private final Map<String, BukkitTask> movementTasks = new ConcurrentHashMap<>();
+    private final Map<String, BukkitTask> intervalTasks = new ConcurrentHashMap<>();
     private final Map<String, BukkitTask> followTasks = new ConcurrentHashMap<>();
     private final Map<String, Set<UUID>> nearbyPlayers = new ConcurrentHashMap<>();
     private final Map<String, NpcPair> activeNpcPairs = new HashMap<>();
@@ -69,13 +70,6 @@ public final class ScriptEngine implements Listener {
         scheduleIntervals();
         scheduleProximity();
         scheduleNpcProximity();
-        for (ManagedNPC npc : npcs.all()) {
-            ScriptData script = scripts.get(npc.id().toLowerCase(Locale.ROOT));
-            if (script != null) {
-                List<Instruction> spawn = script.events().get("spawn");
-                if (spawn != null) execute(npc, null, spawn, 0);
-            }
-        }
     }
     private ScriptData parse(List<String> lines, String source) {
         Map<String, List<Instruction>> events = new LinkedHashMap<>();
@@ -153,17 +147,41 @@ public final class ScriptEngine implements Listener {
         return new ScriptData(events, functions);
     }
     private void scheduleIntervals() {
-        long period = Math.max(1L, plugin.getConfig().getLong("script-default-interval", 20L));
-        for (ManagedNPC npc : npcs.all()) {
-            ScriptData script = scripts.get(npc.id().toLowerCase(Locale.ROOT));
-            if (script == null) continue;
-            List<Instruction> code = script.events().get("interval");
-            if (code == null) continue;
+        for (ManagedNPC npc : npcs.all()) onNpcLoaded(npc);
+    }
 
-            BukkitTask task = Bukkit.getScheduler().runTaskTimer(plugin,
-                    () -> execute(npc, null, code, 0), period, period);
-            tasks.add(task);
+    public void onNpcLoaded(ManagedNPC npc) {
+        if (npc == null) return;
+        String key = npcKey(npc);
+        ScriptData script = scripts.get(npc.id().toLowerCase(Locale.ROOT));
+        if (script != null) {
+            List<Instruction> interval = script.events().get("interval");
+            if (interval != null && !intervalTasks.containsKey(key)) {
+                long period = Math.max(1L, plugin.getConfig().getLong("script-default-interval", 20L));
+                BukkitTask task = Bukkit.getScheduler().runTaskTimer(plugin,
+                        () -> execute(npc, null, interval, 0), period, period);
+                intervalTasks.put(key, task);
+                tasks.add(task);
+            }
+            List<Instruction> spawn = script.events().get("spawn");
+            if (spawn != null) execute(npc, null, spawn, 0);
         }
+    }
+
+    public void onNpcUnloaded(ManagedNPC npc) {
+        if (npc == null) return;
+        String key = npcKey(npc);
+        BukkitTask interval = intervalTasks.remove(key);
+        if (interval != null) {
+            interval.cancel();
+            tasks.remove(interval);
+        }
+        stopFollow(npc);
+        stopMovement(npc);
+        nearbyPlayers.remove(key);
+        lastAttackedAt.remove(key);
+        activeNpcPairs.entrySet().removeIf(entry ->
+                entry.getValue().first() == npc || entry.getValue().second() == npc);
     }
     private void scheduleProximity() {
         BukkitTask task = Bukkit.getScheduler().runTaskTimer(plugin, () -> {
@@ -1532,6 +1550,7 @@ public final class ScriptEngine implements Listener {
         tasks.forEach(BukkitTask::cancel);
         tasks.clear();
         movementTasks.clear();
+        intervalTasks.clear();
         followTasks.clear();
         activeNpcPairs.clear();
         lastAttackedAt.clear();
