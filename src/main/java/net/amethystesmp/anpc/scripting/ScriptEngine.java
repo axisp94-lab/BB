@@ -401,12 +401,19 @@ public final class ScriptEngine implements Listener {
 
             if (line.startsWith("play sound ")) {
                 String name = unquote(line.substring(11));
-                try {
-                    Sound sound = Sound.valueOf(name.toUpperCase(Locale.ROOT).replace('.', '_'));
-                    Location location = context.npc().location();
-                    if (location.getWorld() != null) location.getWorld().playSound(location, sound, 1f, 1f);
-                } catch (IllegalArgumentException exception) {
-                    warnInstruction(context, instruction, "son inconnu : " + name);
+                Location location = context.npc().location();
+                if (location.getWorld() != null) {
+                    if (name.contains(":")) {
+                        location.getWorld().playSound(location, name, 1f, 1f);
+                    } else {
+                        try {
+                            Sound sound = Sound.valueOf(name.toUpperCase(Locale.ROOT).replace('.', '_'));
+                            location.getWorld().playSound(location, sound, 1f, 1f);
+                        } catch (IllegalArgumentException exception) {
+                            warnInstruction(context, instruction, "son inconnu : " + name
+                                    + " (utilise un identifiant namespace:sound pour un son custom)");
+                        }
+                    }
                 }
                 index++;
                 continue;
