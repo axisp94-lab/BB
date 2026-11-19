@@ -721,6 +721,8 @@ public final class ScriptEngine implements Listener {
             return null;
         }
         ScriptContext child=new ScriptContext(caller.npc(),caller.player());
+        child.setEventData(caller.eventData());
+        child.setEventNpc(caller.eventNpc());
         child.setCallDepth(caller.callDepth()+1);
         for(int i=0;i<arguments.size();i++){String parameter=function.parameters().get(i);child.locals().put(parameter,resolve(caller,arguments.get(i)));child.markTransientLocal(parameter);}
         if(!function.code().isEmpty())runBlock(child,function.code(),0,function.code().get(0).indent());
