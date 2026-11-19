@@ -1,6 +1,7 @@
 package net.amethystesmp.anpc.scripting;
 
 import net.amethystesmp.anpc.npc.ManagedNPC;
+import org.bukkit.Bukkit;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemStack;
 import java.util.HashMap;
@@ -39,5 +40,5 @@ public final class ScriptContext {
     public boolean loopSkipped() { return !loops.isEmpty() && loops.peek().skipped; }
     public boolean loopControlRequested() { return loopStopped() || loopSkipped(); }
     public void clearLoopSkip() { if (!loops.isEmpty()) loops.peek().skipped = false; }
-    public Object value(String key){String k=key.trim(); if(k.equalsIgnoreCase("event entity")||k.equalsIgnoreCase("player"))return player; if(k.equalsIgnoreCase("event message")||k.equalsIgnoreCase("event command"))return eventData; if(k.equalsIgnoreCase("event npc"))return eventNpc; if(k.equalsIgnoreCase("name of npc"))return npc.id(); if(k.equalsIgnoreCase("state of npc")||k.equalsIgnoreCase("primary state of npc"))return npc.primaryState(); if(k.equalsIgnoreCase("secondary states of npc"))return npc.secondaryStates(); if(k.equalsIgnoreCase("location of npc"))return npc.location(); if(k.equalsIgnoreCase("x of npc"))return npc.location().getX(); if(k.equalsIgnoreCase("y of npc"))return npc.location().getY(); if(k.equalsIgnoreCase("z of npc"))return npc.location().getZ(); if(k.equalsIgnoreCase("name of player")&&player!=null)return player.getName(); if(k.equalsIgnoreCase("event item")&&player!=null)return player.getInventory().getItemInMainHand(); if(locals.containsKey(k))return locals.get(k); return k; }
+    public Object value(String key){String k=key.trim(); if(k.equalsIgnoreCase("event entity")||k.equalsIgnoreCase("player"))return player; if(k.equalsIgnoreCase("event message")||k.equalsIgnoreCase("event command"))return eventData; if(k.equalsIgnoreCase("event npc"))return eventNpc; if(k.equalsIgnoreCase("name of npc"))return npc.id(); if(k.equalsIgnoreCase("state of npc")||k.equalsIgnoreCase("primary state of npc"))return npc.primaryState(); if(k.equalsIgnoreCase("secondary states of npc"))return npc.secondaryStates(); if(k.equalsIgnoreCase("location of npc"))return npc.location(); if(k.equalsIgnoreCase("target of npc"))return npc.combatTarget()==null?null:Bukkit.getEntity(npc.combatTarget()); if(k.equalsIgnoreCase("x of npc"))return npc.location().getX(); if(k.equalsIgnoreCase("y of npc"))return npc.location().getY(); if(k.equalsIgnoreCase("z of npc"))return npc.location().getZ(); if(k.equalsIgnoreCase("name of player")&&player!=null)return player.getName(); if(k.equalsIgnoreCase("event item")&&player!=null)return player.getInventory().getItemInMainHand(); if(locals.containsKey(k))return locals.get(k); return k; }
 }
