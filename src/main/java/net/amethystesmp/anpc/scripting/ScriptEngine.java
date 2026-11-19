@@ -196,6 +196,12 @@ public final class ScriptEngine implements Listener {
         if(s.equals("stop loop")){c.stopLoop();return code.size();}
         if(s.equals("skip loop")){c.skipLoop();return code.size();}
         if(s.startsWith("if ")&&s.endsWith(":")){int end=findEnd(code,index+1,in.indent());if(test(c,s.substring(3,s.length()-1))){int child=index+1<code.size()?code.get(index+1).indent():in.indent()+4;runBlock(c,code,index+1,child);}index=end;continue;}
+        if(s.startsWith("set state ")){c.npc().setPrimaryState(unquote(s.substring(10)));index++;continue;}
+        if(s.startsWith("set hostile ")){setHostile(c.npc(),s.substring(12).trim().equalsIgnoreCase("on"));index++;continue;}
+        if(s.startsWith("set health of npc to ")){c.npc().setHealth(num(resolve(c,s.substring(21).trim())));index++;continue;}
+        if(s.startsWith("set max health of npc to ")){c.npc().setMaxHealth(num(resolve(c,s.substring(25).trim())));index++;continue;}
+        if(s.startsWith("set speed of npc to ")){c.npc().setSpeed(num(resolve(c,s.substring(20).trim())));index++;continue;}
+        if(s.startsWith("set target of npc to ")){setTargetSelector(c.npc(),s.substring(21).trim());index++;continue;}
         if(s.startsWith("set ")){String body=s.substring(4).trim();int q=body.indexOf('"',1);if(body.startsWith("\"")&&q>0){String name=body.substring(1,q);String val=body.substring(q+1).trim();if(val.startsWith("(" )&&val.endsWith(")"))val=val.substring(1,val.length()-1);Object value=resolve(c,val);c.locals().put(name,value);if(!c.isTransientLocal(name))storeVariable(c,name,value);}index++;continue;}
         if(s.startsWith("create variable ")){createVariable(c,s.substring(15).trim());index++;continue;}
         if(s.startsWith("say local ")||s.startsWith("say global ")){boolean global=s.startsWith("say global ");Object message=resolve(c,s.substring(global?11:10).trim());String rendered=ChatColor.translateAlternateColorCodes('&',c.npc().definition().displayName()+" » "+String.valueOf(message));if(global)Bukkit.broadcastMessage(rendered);else if(c.player()!=null)c.player().sendMessage(rendered);else for(Player p:c.npc().location().getWorld().getPlayers())if(p.getLocation().distanceSquared(c.npc().location())<32*32)p.sendMessage(rendered);index++;continue;}
