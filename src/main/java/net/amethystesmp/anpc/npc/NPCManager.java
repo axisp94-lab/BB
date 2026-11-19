@@ -232,7 +232,6 @@ public final class NPCManager {
         List<String> worldNames = definition.worlds().stream().anyMatch(name -> name.equalsIgnoreCase("all"))
                 ? Bukkit.getWorlds().stream().map(World::getName).toList()
                 : definition.worlds();
-        backupDeletedNPC(definition, worldNames);
         for (String worldName : worldNames) {
             plugin.variables().archiveLocalVariables(id, worldName);
             String owner = net.amethystesmp.anpc.storage.VariableStore.localOwner(id, worldName);
@@ -248,6 +247,7 @@ public final class NPCManager {
             plugin.variables().delete("npc-runtime", owner, "max-health");
             plugin.variables().delete("npc-runtime", owner, "speed");
         }
+        backupDeletedNPC(definition, worldNames);
         for (String mapKey : matchingKeys(id)) {
             ManagedNPC npc = npcs.remove(mapKey);
             if (npc != null) npc.close();
