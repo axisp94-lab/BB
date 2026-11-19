@@ -138,6 +138,10 @@ public final class ANPCCommand implements TabExecutor {
         return true;
     }
 
+    private String deleteConfirmationKey(CommandSender sender, String id) {
+        return sender.getName().toLowerCase(Locale.ROOT) + ":" + id.toLowerCase(Locale.ROOT);
+    }
+
     private void handleDelete(CommandSender sender, String[] args) {
         if (args.length < 2) {
             msg(sender, "Usage : /anpc delete <id> puis /anpc delete <id> confirm");
@@ -145,11 +149,11 @@ public final class ANPCCommand implements TabExecutor {
         }
         String id = args[1];
         if (!plugin.npcs().exists(id)) {
-            pendingDeletes.remove(id.toLowerCase(Locale.ROOT));
+            pendingDeletes.remove(deleteConfirmationKey(sender, id));
             msg(sender, "NPC introuvable.");
             return;
         }
-        String key = id.toLowerCase(Locale.ROOT);
+        String key = deleteConfirmationKey(sender, id);
         long now = System.currentTimeMillis();
         if (args.length < 3 || !args[2].equalsIgnoreCase("confirm")) {
             pendingDeletes.put(key, now + DELETE_CONFIRMATION_MILLIS);
