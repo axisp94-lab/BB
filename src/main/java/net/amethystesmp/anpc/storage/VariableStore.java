@@ -169,6 +169,110 @@ public final class VariableStore implements AutoCloseable {
         }
     }
 
+    public synchronized void archiveAllLocalVariables(String npcId) {
+        String id = normalize(npcId);
+        long now = System.currentTimeMillis();
+        try {
+            connection.setAutoCommit(false);
+            try (PreparedStatement archiveWorlds = connection.prepareStatement("""
+                    INSERT INTO deleted_npc_variables(npc_id,world,name,value,deleted_at)
+                    SELECT ?, substr(owner, length(?) + 2), name, value, ?
+                    FROM variables
+                    WHERE scope='local' AND substr(owner,1,length(?) + 1)=? || '@'
+                    ON CONFLICT(npc_id,world,name) DO UPDATE SET
+                        value=excluded.value, deleted_at=excluded.deleted_at
+                    """);
+                 PreparedStatement archiveLegacy = connection.prepareStatement("""
+                    INSERT INTO deleted_npc_variables(npc_id,world,name,value,deleted_at)
+                    SELECT ?, '', name, value, ?
+                    FROM variables WHERE scope IN ('local','npc') AND owner=?
+                    ON CONFLICT(npc_id,world,name) DO NOTHING
+                    """);
+                 PreparedStatement delete = connection.prepareStatement("""
+                    DELETE FROM variables
+                    WHERE scope IN ('local','npc')
+                      AND (owner=? OR substr(owner,1,length(?) + 1)=? || '@')
+                    """)) {
+                archiveWorlds.setString(1, id);
+                archiveWorlds.setString(2, id);
+                archiveWorlds.setLong(3, now);
+                archiveWorlds.setString(4, id);
+                archiveWorlds.setString(5, id);
+                archiveWorlds.executeUpdate();
+                archiveLegacy.setString(1, id);
+                archiveLegacy.setLong(2, now);
+                archiveLegacy.setString(3, id);
+                archiveLegacy.executeUpdate();
+                delete.setString(1, id);
+                delete.setString(2, id);
+                delete.setString(3, id);
+                delete.executeUpdate();
+            }
+            connection.commit();
+        } catch (SQLException exception) {
+            try { connection.rollback(); } catch (SQLException ignored) { }
+            throw new IllegalStateException("Impossible d'archiver toutes les variables locales de " + npcId, exception);
+        } finally {
+            try { connection.setAutoCommit(true); } catch (SQLException ignored) { }
+        }
+    }
+
+    public synchronized boolean restoreAllLocalVariables(String npcId) {
+        String id = normalize(npcId);
+        long cutoff = System.currentTimeMillis() - 24L * 60L * 60L * 1000L;
+        try {
+            connection.setAutoCommit(false);
+            int restored;
+            try (PreparedStatement insert = connection.prepareStatement("""
+                    INSERT INTO variables(scope,owner,name,value)
+                    SELECT 'local',
+                           CASE WHEN world='' THEN npc_id ELSE npc_id || '@' || world END,
+                           name,value
+                    FROM deleted_npc_variables
+                    WHERE npc_id=? AND deleted_at>=?
+                    ON CONFLICT(scope,owner,name) DO UPDATE SET value=excluded.value
+                    """);
+                 PreparedStatement count = connection.prepareStatement(
+                    "SELECT COUNT(*) FROM deleted_npc_variables WHERE npc_id=? AND deleted_at>=?");
+                 PreparedStatement delete = connection.prepareStatement(
+                    "DELETE FROM deleted_npc_variables WHERE npc_id=?")) {
+                insert.setString(1, id);
+                insert.setLong(2, cutoff);
+                insert.executeUpdate();
+                count.setString(1, id);
+                count.setLong(2, cutoff);
+                try (ResultSet result = count.executeQuery()) {
+                    restored = result.next() ? result.getInt(1) : 0;
+                }
+                delete.setString(1, id);
+                delete.executeUpdate();
+            }
+            connection.commit();
+            return restored > 0;
+        } catch (SQLException exception) {
+            try { connection.rollback(); } catch (SQLException ignored) { }
+            throw new IllegalStateException("Impossible de restaurer les variables locales de " + npcId, exception);
+        } finally {
+            try { connection.setAutoCommit(true); } catch (SQLException ignored) { }
+        }
+    }
+
+    public synchronized void deleteOwnerAndPrefix(String scope, String npcId) {
+        String id = normalize(npcId);
+        try (PreparedStatement statement = connection.prepareStatement("""
+                DELETE FROM variables
+                WHERE scope=? AND (owner=? OR substr(owner,1,length(?) + 1)=? || '@')
+                """)) {
+            statement.setString(1, normalize(scope));
+            statement.setString(2, id);
+            statement.setString(3, id);
+            statement.setString(4, id);
+            statement.executeUpdate();
+        } catch (SQLException exception) {
+            throw new IllegalStateException("Impossible de supprimer les données de " + npcId, exception);
+        }
+    }
+
     public synchronized boolean restoreLocalVariables(String npcId, String worldName) {
         String id = normalize(npcId);
         String world = normalize(worldName);
