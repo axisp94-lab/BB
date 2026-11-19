@@ -24,7 +24,8 @@ import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 
 public final class ScriptEngine implements Listener {
-    private record Instruction(int indent,String text,int line){}
+    private record Instruction(int indent, String text, int line) {}
+    private record LoopPlan(String variable, List<Object> values) {}
     private final ANPCPlugin plugin; private final NPCManager npcs; private final VariableStore variables;
     private final Map<String,Map<String,List<Instruction>>> scripts=new ConcurrentHashMap<>();
     private final Set<BukkitTask> tasks=ConcurrentHashMap.newKeySet();
@@ -171,6 +172,10 @@ public final class ScriptEngine implements Listener {
     private void runBlock(ScriptContext context, List<Instruction> code, int start, int indent, Runnable continuation) {
         int index = start;
         while (index < code.size()) {
+            if (context.loopControlRequested()) {
+                continuation.run();
+                return;
+            }
             Instruction instruction = code.get(index);
             if (instruction.indent() < indent) {
                 continuation.run();
@@ -184,6 +189,43 @@ public final class ScriptEngine implements Listener {
             }
 
             String line = instruction.text();
+
+            if (line.startsWith("loop ") && line.endsWith(":")) {
+                int end = findEnd(code, index + 1, instruction.indent());
+                LoopPlan plan = createLoopPlan(context, line);
+                if (plan != null && index + 1 < end) {
+                    int bodyIndent = code.get(index + 1).indent();
+                    ScriptContext.LoopState state = context.pushLoop();
+                    Set<String> existed = new HashSet<>();
+                    Map<String, Object> previous = new HashMap<>();
+                    for (String key : List.of(plan.variable(), "loop-number")) {
+                        if (context.locals().containsKey(key)) {
+                            existed.add(key);
+                            previous.put(key, context.locals().get(key));
+                        }
+                    }
+                    int bodyStart = index + 1;
+                    int next = end;
+                    runLoop(context, code, bodyStart, bodyIndent, plan, 0, state, existed, previous,
+                            () -> runBlock(context, code, next, indent, continuation));
+                    return;
+                }
+                index = end;
+                continue;
+            }
+
+            if (line.equalsIgnoreCase("stop loop") || line.equalsIgnoreCase("skip loop")) {
+                ScriptContext.LoopState state = context.currentLoop();
+                if (state == null) {
+                    warnInstruction(context, instruction, "instruction utilisée en dehors d'une boucle");
+                } else if (line.equalsIgnoreCase("stop loop")) {
+                    state.stop();
+                } else {
+                    state.skip();
+                }
+                index++;
+                continue;
+            }
 
             if (line.startsWith("if ") && line.endsWith(":")) {
                 int end = findEnd(code, index + 1, instruction.indent());
@@ -345,6 +387,86 @@ public final class ScriptEngine implements Listener {
             index++;
         }
         continuation.run();
+    }
+
+    private LoopPlan createLoopPlan(ScriptContext context, String line) {
+        String lower = line.toLowerCase(Locale.ROOT);
+
+        if (lower.equals("loop all players:")) {
+            return new LoopPlan("loop-player", new ArrayList<>(Bukkit.getOnlinePlayers()));
+        }
+        if (lower.equals("loop all npcs:")) {
+            Map<String, ManagedNPC> unique = new LinkedHashMap<>();
+            for (ManagedNPC npc : npcs.all()) unique.putIfAbsent(npc.id().toLowerCase(Locale.ROOT), npc);
+            return new LoopPlan("loop-npc", new ArrayList<>(unique.values()));
+        }
+        if (lower.startsWith("loop all (") && lower.endsWith("):")) {
+            String expression = line.substring(10, line.length() - 2).trim();
+            Object value = resolve(context, expression);
+            List<Object> values = asList(value);
+            if (values == null) {
+                plugin.getLogger().warning("Script " + context.npc().id() + " : la valeur de boucle n'est pas une liste : " + expression);
+                return null;
+            }
+            return new LoopPlan("loop-value", values);
+        }
+        if (lower.startsWith("loop ") && lower.endsWith(" times:")) {
+            String countText = line.substring(5, line.length() - 7).trim();
+            try {
+                int count = Math.max(0, Math.min(10000, Integer.parseInt(countText)));
+                List<Object> values = new ArrayList<>(count);
+                for (int i = 1; i <= count; i++) values.add(i);
+                return new LoopPlan("loop-number", values);
+            } catch (NumberFormatException exception) {
+                plugin.getLogger().warning("Script " + context.npc().id() + " : nombre de répétitions invalide : " + countText);
+                return null;
+            }
+        }
+        return null;
+    }
+
+    private List<Object> asList(Object value) {
+        if (value instanceof Collection<?> collection) return new ArrayList<>(collection);
+        if (value != null && value.getClass().isArray()) {
+            List<Object> result = new ArrayList<>();
+            int length = java.lang.reflect.Array.getLength(value);
+            for (int i = 0; i < length; i++) result.add(java.lang.reflect.Array.get(value, i));
+            return result;
+        }
+        if (!(value instanceof String text)) return null;
+        String content = text.trim();
+        if (content.startsWith("[") && content.endsWith("]")) content = content.substring(1, content.length() - 1);
+        if (content.isBlank()) return new ArrayList<>();
+        List<Object> result = new ArrayList<>();
+        for (String item : content.split(",")) result.add(parseStored(unquote(item.trim())));
+        return result;
+    }
+
+    private void runLoop(ScriptContext context, List<Instruction> code, int bodyStart, int bodyIndent,
+                        LoopPlan plan, int iteration, ScriptContext.LoopState state,
+                        Set<String> existed, Map<String, Object> previous, Runnable continuation) {
+        if (state.stopped() || iteration >= plan.values().size()) {
+            context.popLoop();
+            restoreLoopLocals(context, plan, existed, previous);
+            continuation.run();
+            return;
+        }
+        if (state.skipped()) state.clearSkip();
+
+        context.locals().put(plan.variable(), plan.values().get(iteration));
+        if (!plan.variable().equals("loop-number")) context.locals().put("loop-number", iteration + 1);
+
+        runBlock(context, code, bodyStart, bodyIndent,
+                () -> runLoop(context, code, bodyStart, bodyIndent, plan, iteration + 1,
+                        state, existed, previous, continuation));
+    }
+
+    private void restoreLoopLocals(ScriptContext context, LoopPlan plan, Set<String> existed,
+                                   Map<String, Object> previous) {
+        for (String key : List.of(plan.variable(), "loop-number")) {
+            if (existed.contains(key)) context.locals().put(key, previous.get(key));
+            else context.locals().remove(key);
+        }
     }
 
     private void warnInstruction(ScriptContext context, Instruction instruction, String reason) {
