@@ -14,6 +14,7 @@ import org.bukkit.entity.Monster;
 import org.bukkit.entity.Animals;
 import org.bukkit.entity.EntityType;
 import org.bukkit.Material;
+import org.bukkit.inventory.ItemStack;
 import org.bukkit.Particle;
 import org.bukkit.block.Block;
 import org.bukkit.event.EventHandler;
