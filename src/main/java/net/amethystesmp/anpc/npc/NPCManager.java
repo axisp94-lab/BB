@@ -234,6 +234,9 @@ public final class NPCManager {
             plugin.variables().delete("npc-runtime", owner, "follow-target");
             plugin.variables().delete("npc-runtime", owner, "follow-min");
             plugin.variables().delete("npc-runtime", owner, "follow-max");
+        plugin.variables().delete("npc-runtime", owner, "hostile");
+        plugin.variables().delete("npc-runtime", owner, "target-selector");
+        plugin.variables().delete("npc-runtime", owner, "last-attacker");
         plugin.variables().delete("npc-runtime", owner, "follow-target");
         plugin.variables().delete("npc-runtime", owner, "follow-min");
         plugin.variables().delete("npc-runtime", owner, "follow-max");
@@ -280,6 +283,9 @@ public final class NPCManager {
         plugin.variables().set("npc-runtime", owner, "follow-target", npc.followTarget());
         plugin.variables().set("npc-runtime", owner, "follow-min", npc.followMin());
         plugin.variables().set("npc-runtime", owner, "follow-max", npc.followMax());
+        plugin.variables().set("npc-runtime", owner, "hostile", npc.hostile());
+        plugin.variables().set("npc-runtime", owner, "target-selector", npc.targetSelector());
+        plugin.variables().set("npc-runtime", owner, "last-attacker", npc.lastAttacker() == null ? "" : npc.lastAttacker().toString());
     }
 
     private void restoreRuntimeState(ManagedNPC npc) {
@@ -294,6 +300,11 @@ public final class NPCManager {
         double followMin = Double.parseDouble(plugin.variables().get("npc-runtime", owner, "follow-min", "2.0"));
         double followMax = Double.parseDouble(plugin.variables().get("npc-runtime", owner, "follow-max", "5.0"));
         if (!followTarget.isBlank()) npc.setFollowState(followTarget, followMin, followMax);
+        npc.setHostile(Boolean.parseBoolean(plugin.variables().get("npc-runtime", owner, "hostile", "false")));
+        npc.setTargetSelector(plugin.variables().get("npc-runtime", owner, "target-selector", "all players"));
+        String lastAttacker = plugin.variables().get("npc-runtime", owner, "last-attacker", "");
+        try { if (!lastAttacker.isBlank()) npc.setLastAttacker(UUID.fromString(lastAttacker)); }
+        catch (IllegalArgumentException ignored) { }
     }
 
     private void clearRuntimeState(ManagedNPC npc) {
