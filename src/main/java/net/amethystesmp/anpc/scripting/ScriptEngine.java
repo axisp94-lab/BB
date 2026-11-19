@@ -187,6 +187,65 @@ public final class ScriptEngine implements Listener {
         }
         return result;
     }
+    private boolean isKnownConditionSyntax(String expression){
+        String value=stripOuterParentheses(expression.trim());
+        if(value.isBlank())return false;
+        int split=findTopLevelKeyword(value,"or");
+        if(split>=0)return isKnownConditionSyntax(value.substring(0,split))&&isKnownConditionSyntax(value.substring(split+2));
+        split=findTopLevelKeyword(value,"and");
+        if(split>=0)return isKnownConditionSyntax(value.substring(0,split))&&isKnownConditionSyntax(value.substring(split+3));
+        if(value.toLowerCase(Locale.ROOT).startsWith("not "))return isKnownConditionSyntax(value.substring(4));
+        String lower=value.toLowerCase(Locale.ROOT);
+        if(lower.matches("flag \\\\([a-z0-9_-]+\\\\) is (on|off)"))return true;
+        if(lower.startsWith("block below is ")){
+            String expected=value.substring(15).trim();
+            if(expected.toLowerCase(Locale.ROOT).startsWith("not "))return Material.matchMaterial(expected.substring(4).trim())!=null;
+            if(expected.toLowerCase(Locale.ROOT).startsWith("one of ")){
+                String list=expected.substring(7).trim();
+                if(!list.startsWith("(")||!list.endsWith(")"))return false;
+                List<String> materials=splitArguments(list.substring(1,list.length()-1));
+                return !materials.isEmpty()&&materials.stream().allMatch(item->Material.matchMaterial(item.trim())!=null);
+            }
+            return Material.matchMaterial(expected)!=null;
+        }
+        if(lower.matches("(ray|sphere) = [0-9]+ contains [a-z0-9_:-]+"))return true;
+        if(lower.equals("player is sneaking")||lower.equals("npc is under attack")||lower.equals("npc is hostile"))return true;
+        if(lower.startsWith("player has permission "))return value.substring(22).trim().startsWith("\"")&&value.substring(22).trim().endsWith("\"");
+        if(lower.startsWith("player has item "))return Material.matchMaterial(value.substring(16).trim())!=null;
+        if(lower.startsWith("cooldown ")&&(lower.endsWith(" is ready")||lower.endsWith(" is active")))return true;
+        if(lower.startsWith("npc state is ")||lower.startsWith("state of npc is ")||lower.startsWith("state is ")||lower.startsWith("npc has state "))return true;
+        int contains=findTopLevelKeyword(value,"contains");
+        if(contains>=0){
+            String left=value.substring(0,contains).trim(),right=value.substring(contains+8).trim();
+            if(left.isBlank()||right.isBlank())return false;
+            java.util.regex.Matcher repeated=java.util.regex.Pattern.compile("^(.*?)\\\\s+(more than|less than)\\\\s+\\\\d+\\\\s+times$",java.util.regex.Pattern.CASE_INSENSITIVE).matcher(right);
+            return isKnownConditionOperand(left)&&isKnownConditionOperand(repeated.matches()?repeated.group(1).trim():right);
+        }
+        for(String operator:List.of("==","!=",">=","<=",">","<")){
+            int position=findTopLevelToken(value,operator);
+            if(position>=0)return isKnownConditionOperand(value.substring(0,position).trim())
+                    &&isKnownConditionOperand(value.substring(position+operator.length()).trim());
+        }
+        return isKnownConditionOperand(value);
+    }
+
+    private boolean isKnownConditionOperand(String expression){
+        String value=stripOuterParentheses(expression.trim());
+        if(value.isBlank())return false;
+        if(value.equalsIgnoreCase("true")||value.equalsIgnoreCase("false")||value.matches("-?\\\\d+(\\\\.\\\\d+)?"))return true;
+        if(value.startsWith("\"")&&value.endsWith("\""))return true;
+        if(value.matches("[a-z_][a-z0-9_-]*"))return true;
+        if(value.matches("(name|id|type|skin|location|position|world|x|y|z|yaw|pitch|health|max health|speed|attack damage|target|animation|state|primary state|secondary states|biome|light level|weather|time|uuid|food level|level|total experience|exp progress|game mode|movement speed|ping) of (npc|player|world)(:[a-z0-9_-]+)?"))return true;
+        if(value.matches("number of [a-z0-9_:-]+ in (range|sphere) \\\\d+"))return true;
+        if(value.matches("[a-z_][a-z0-9_-]*\\\\s*\\\\(.*\\\\)"))return true;
+        for(char operator:new char[]{'+','-','*','/'}){
+            int position=findTopLevelOperator(value,operator);
+            if(position>0)return isKnownConditionOperand(value.substring(0,position))
+                    &&isKnownConditionOperand(value.substring(position+1));
+        }
+        return false;
+    }
+
     private boolean validateBlockStructure(List<Instruction> code,String owner){
         if(code.isEmpty())return true;
         boolean valid=true;
@@ -637,7 +696,8 @@ public final class ScriptEngine implements Listener {
     private boolean isKnownInstruction(String instruction){
         String text=instruction.trim().toLowerCase(Locale.ROOT);
         if(text.matches("[a-z_][a-z0-9_-]*\\s*\\(.*\\)"))return true;
-        if((text.startsWith("if ")||text.startsWith("else if "))&&text.endsWith(":"))return true;
+        if((text.startsWith("if ")||text.startsWith("else if "))&&text.endsWith(":"))
+            return isKnownConditionSyntax(text.startsWith("else if ")?text.substring(8,text.length()-1):text.substring(3,text.length()-1));
         if(text.equals("else:"))return true;
         if(text.startsWith("loop ")&&text.endsWith(":"))return true;
         if(text.startsWith("set state ")||text.startsWith("set hostile ")
