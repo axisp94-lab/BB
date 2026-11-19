@@ -30,31 +30,333 @@ public final class ScriptEngine implements Listener {
     private final Set<BukkitTask> tasks=ConcurrentHashMap.newKeySet();
     private final Map<String,Set<UUID>> nearbyPlayers=new ConcurrentHashMap<>();
     public ScriptEngine(ANPCPlugin plugin,NPCManager npcs,VariableStore variables){this.plugin=plugin;this.npcs=npcs;this.variables=variables;}
-    public void loadAll(){scripts.clear();File dir=new File(plugin.getDataFolder(),"scripts");File[] fs=dir.listFiles((d,n)->n.endsWith(".aa"));if(fs==null)return;for(File f:fs){String id=f.getName().substring(0,f.getName().length()-3).toLowerCase(Locale.ROOT);try{scripts.put(id,parse(Files.readAllLines(f.toPath())));}catch(Exception e){plugin.getLogger().warning("Erreur script "+f.getName()+" : "+e.getMessage());}} scheduleIntervals(); scheduleProximity(); for(ManagedNPC npc:npcs.all())fire(npc.id(),"spawn",null);}
-    private Map<String,List<Instruction>> parse(List<String> lines){Map<String,List<Instruction>> result=new LinkedHashMap<>();String event=null;for(int i=0;i<lines.size();i++){String raw=lines.get(i);if(raw.isBlank()||raw.stripLeading().startsWith("#"))continue;int indent=raw.length()-raw.stripLeading().length();String t=raw.trim();if(indent==0&&t.toLowerCase(Locale.ROOT).startsWith("on ")&&t.endsWith(":")){event=t.substring(3,t.length()-1).trim().toLowerCase(Locale.ROOT);result.put(event,new ArrayList<>());}else if(event!=null)result.get(event).add(new Instruction(indent,t,i+1));}return result;}
-    private void scheduleIntervals(){for(var entry:scripts.entrySet()){List<Instruction> code=entry.getValue().get("interval");if(code==null)continue;long period=plugin.getConfig().getLong("script-default-interval",20);BukkitTask task=Bukkit.getScheduler().runTaskTimer(plugin,()->{ManagedNPC npc=npcs.get(entry.getKey());if(npc!=null)execute(npc,null,code,0);},period,period);tasks.add(task);}}
-    private void scheduleProximity(){BukkitTask task=Bukkit.getScheduler().runTaskTimer(plugin,()->{double radius=plugin.getConfig().getDouble("script-approach-radius",3.0);double r2=radius*radius;for(ManagedNPC npc:npcs.all()){String id=npc.id().toLowerCase(Locale.ROOT);Set<UUID> current=new HashSet<>();for(Player p:npc.location().getWorld().getPlayers())if(p.getLocation().distanceSquared(npc.location())<=r2){current.add(p.getUniqueId());if(nearbyPlayers.computeIfAbsent(id,k->ConcurrentHashMap.newKeySet()).add(p.getUniqueId()))fire(id,"entity approach",p);}Set<UUID> previous=nearbyPlayers.computeIfAbsent(id,k->ConcurrentHashMap.newKeySet());for(UUID uuid:new HashSet<>(previous))if(!current.contains(uuid)){Player p=Bukkit.getPlayer(uuid);previous.remove(uuid);if(p!=null)fire(id,"entity leave",p);}}},10L,10L);tasks.add(task);}
-    public void fire(String npc,String event,Player player){Map<String,List<Instruction>> map=scripts.get(npc.toLowerCase(Locale.ROOT));if(map==null)return;List<Instruction> code=map.get(event.toLowerCase(Locale.ROOT));ManagedNPC managed=npcs.get(npc);if(code!=null&&managed!=null)execute(managed,player,code,0);}
-    private void execute(ManagedNPC npc,Player player,List<Instruction> code,int baseIndent){ScriptContext ctx=new ScriptContext(npc,player);runBlock(ctx,code,0,baseIndent);}
-    private int runBlock(ScriptContext c,List<Instruction> code,int index,int indent){while(index<code.size()){Instruction in=code.get(index);if(in.indent()<indent)break;if(in.indent()>indent){index++;continue;}String s=in.text();int line=in.line();
-        if(s.startsWith("if ")&&s.endsWith(":")){int end=findEnd(code,index+1,in.indent());if(test(c,s.substring(3,s.length()-1))){int child=index+1<code.size()?code.get(index+1).indent():in.indent()+4;runBlock(c,code,index+1,child);}index=end;continue;}
-        if(s.startsWith("set ")){String body=s.substring(4).trim();int q=body.indexOf('"',1);if(body.startsWith("\"")&&q>0){String name=body.substring(1,q);String val=body.substring(q+1).trim();if(val.startsWith("(" )&&val.endsWith(")"))val=val.substring(1,val.length()-1);Object value=resolve(c,val);c.locals().put(name,value);storeVariable(c,name,value);}index++;continue;}
-        if(s.startsWith("create variable ")){createVariable(c,s.substring(15).trim());index++;continue;}
-        if(s.startsWith("say local ")||s.startsWith("say global ")){boolean global=s.startsWith("say global ");String msg=unquote(s.substring(global?11:10));String rendered=ChatColor.translateAlternateColorCodes('&',c.npc().definition().displayName()+" » "+msg);if(global)Bukkit.broadcastMessage(rendered);else if(c.player()!=null)c.player().sendMessage(rendered);else for(Player p:c.npc().location().getWorld().getPlayers())if(p.getLocation().distanceSquared(c.npc().location())<32*32)p.sendMessage(rendered);index++;continue;}
-        if(s.startsWith("send to ")){int pos=s.indexOf(' ',8);if(pos>0){String target=s.substring(8,pos);String msg=unquote(s.substring(pos+1));Player p=target.equals("@p")?nearest(c.npc().location()):Bukkit.getPlayerExact(target);if(p!=null)p.sendMessage(ChatColor.translateAlternateColorCodes('&',msg));}index++;continue;}
-        if(s.startsWith("play anime ")){c.npc().animate(unquote(s.substring(11)));index++;continue;}
-        if(s.startsWith("play sound ")){String name=unquote(s.substring(11));try{Sound sound=Sound.valueOf(name.toUpperCase(Locale.ROOT).replace('.','_'));c.npc().location().getWorld().playSound(c.npc().location(),sound,1f,1f);}catch(IllegalArgumentException ignored){}index++;continue;}
-        if(s.startsWith("move to ")){Location target=parseLocation(c,s.substring(8).trim());if(target!=null)move(c.npc(),target);index++;continue;}
-        if(s.startsWith("tp ")){Location target=parseLocation(c,s.substring(3).trim());if(target!=null)move(c.npc(),target);index++;continue;}
-        if(s.startsWith("flag on ")||s.startsWith("flag off ")){boolean on=s.startsWith("flag on ");String name=s.substring(on?8:9).replace("(","").replace(")","").trim();variables.set("npc",c.npc().id(),"flag:"+name,on);index++;continue;}
-        if(s.startsWith("wait ")){long ticks=parseDurationTicks(s.substring(5));List<Instruction> remaining=new ArrayList<>(code.subList(index+1,code.size()));BukkitTask task=Bukkit.getScheduler().runTaskLater(plugin,()->runBlock(c,remaining,0,indent),ticks);tasks.add(task);return code.size();}
-        if(s.startsWith("run command ")){String cmd=unquote(s.substring(12));Bukkit.dispatchCommand(Bukkit.getConsoleSender(),cmd.replace("%player%",c.player()==null?"":c.player().getName()));index++;continue;}
-        if(s.startsWith("look at ")&&c.player()!=null){Location at=c.player().getLocation();Location from=c.npc().location();from.setDirection(at.toVector().subtract(from.toVector()));c.npc().move(from);index++;continue;}
-        if(s.equals("stop follow")||s.equals("stop attack")){index++;continue;}
-        if(s.startsWith("set state ")){c.locals().put("state",unquote(s.substring(10)));index++;continue;}
-        index++;
-    }return index;}
-    private int findEnd(List<Instruction> c,int from,int parent){int i=from;while(i<c.size()&&c.get(i).indent()>parent)i++;return i;}
+    public void loadAll() {
+        cancelTasks();
+        scripts.clear();
+        nearbyPlayers.clear();
+
+        File directory = new File(plugin.getDataFolder(), "scripts");
+        File[] files = directory.listFiles((dir, name) -> name.toLowerCase(Locale.ROOT).endsWith(".aa"));
+        if (files == null) return;
+        Arrays.sort(files, Comparator.comparing(File::getName, String.CASE_INSENSITIVE_ORDER));
+
+        for (File file : files) {
+            String id = file.getName().substring(0, file.getName().length() - 3).toLowerCase(Locale.ROOT);
+            try {
+                scripts.put(id, parse(Files.readAllLines(file.toPath()), file.getName()));
+            } catch (Exception exception) {
+                plugin.getLogger().warning("Erreur script " + file.getName() + " : " + exception.getMessage());
+            }
+        }
+
+        scheduleIntervals();
+        scheduleProximity();
+        for (ManagedNPC npc : npcs.all()) {
+            Map<String, List<Instruction>> events = scripts.get(npc.id().toLowerCase(Locale.ROOT));
+            if (events != null) {
+                List<Instruction> spawn = events.get("spawn");
+                if (spawn != null) execute(npc, null, spawn, 0);
+            }
+        }
+    }
+    private Map<String, List<Instruction>> parse(List<String> lines, String source) {
+        Map<String, List<Instruction>> result = new LinkedHashMap<>();
+        String event = null;
+        int bodyIndent = -1;
+
+        for (int i = 0; i < lines.size(); i++) {
+            String raw = lines.get(i).replace("\\t", "    ");
+            if (raw.isBlank() || raw.stripLeading().startsWith("#")) continue;
+
+            int indent = raw.length() - raw.stripLeading().length();
+            String text = raw.trim();
+            String lower = text.toLowerCase(Locale.ROOT);
+
+            if (indent == 0 && lower.startsWith("on ") && text.endsWith(":")) {
+                event = text.substring(3, text.length() - 1).trim().toLowerCase(Locale.ROOT);
+                result.computeIfAbsent(event, ignored -> new ArrayList<>());
+                bodyIndent = -1;
+                continue;
+            }
+
+            if (event == null) {
+                plugin.getLogger().warning(source + ":" + (i + 1) + " : instruction ignorée hors d'un événement.");
+                continue;
+            }
+
+            if (bodyIndent < 0) {
+                bodyIndent = indent;
+                if (bodyIndent == 0) {
+                    plugin.getLogger().warning(source + ":" + (i + 1) + " : le contenu d'un événement doit être indenté.");
+                    event = null;
+                    continue;
+                }
+            }
+
+            if (indent < bodyIndent) {
+                plugin.getLogger().warning(source + ":" + (i + 1) + " : indentation inattendue ; instruction ignorée.");
+                event = null;
+                continue;
+            }
+
+            int relativeIndent = indent - bodyIndent;
+            if (relativeIndent % 4 != 0) {
+                plugin.getLogger().warning(source + ":" + (i + 1) + " : indentation non multiple de quatre espaces.");
+            }
+            result.get(event).add(new Instruction(relativeIndent, text, i + 1));
+        }
+        return result;
+    }
+    private void scheduleIntervals() {
+        long period = Math.max(1L, plugin.getConfig().getLong("script-default-interval", 20L));
+        for (ManagedNPC npc : npcs.all()) {
+            Map<String, List<Instruction>> events = scripts.get(npc.id().toLowerCase(Locale.ROOT));
+            if (events == null) continue;
+            List<Instruction> code = events.get("interval");
+            if (code == null) continue;
+
+            BukkitTask task = Bukkit.getScheduler().runTaskTimer(plugin,
+                    () -> execute(npc, null, code, 0), period, period);
+            tasks.add(task);
+        }
+    }
+    private void scheduleProximity() {
+        BukkitTask task = Bukkit.getScheduler().runTaskTimer(plugin, () -> {
+            double radius = Math.max(0, plugin.getConfig().getDouble("script-approach-radius", 3.0));
+            double radiusSquared = radius * radius;
+
+            for (ManagedNPC npc : npcs.all()) {
+                Location location = npc.location();
+                if (location.getWorld() == null) continue;
+
+                String key = npcKey(npc);
+                Set<UUID> current = new HashSet<>();
+                Set<UUID> previous = nearbyPlayers.computeIfAbsent(key, ignored -> ConcurrentHashMap.newKeySet());
+
+                for (Player player : location.getWorld().getPlayers()) {
+                    if (player.getLocation().distanceSquared(location) <= radiusSquared) {
+                        current.add(player.getUniqueId());
+                        if (previous.add(player.getUniqueId())) fire(npc.id(), "entity approach", player);
+                    }
+                }
+
+                for (UUID uuid : new HashSet<>(previous)) {
+                    if (!current.contains(uuid)) {
+                        previous.remove(uuid);
+                        Player player = Bukkit.getPlayer(uuid);
+                        if (player != null) fire(npc.id(), "entity leave", player);
+                    }
+                }
+            }
+        }, 10L, 10L);
+        tasks.add(task);
+    }
+
+    private String npcKey(ManagedNPC npc) {
+        Location location = npc.location();
+        String world = location.getWorld() == null ? "unknown" : location.getWorld().getName().toLowerCase(Locale.ROOT);
+        return npc.id().toLowerCase(Locale.ROOT) + "@" + world;
+    }
+    public void fire(String npc, String event, Player player) {
+        Map<String, List<Instruction>> events = scripts.get(npc.toLowerCase(Locale.ROOT));
+        if (events == null) return;
+        List<Instruction> code = events.get(event.toLowerCase(Locale.ROOT));
+        ManagedNPC managed = player == null ? npcs.get(npc) : npcs.get(npc, player.getWorld());
+        if (code != null && managed != null) execute(managed, player, code, 0);
+    }
+    private void execute(ManagedNPC npc, Player player, List<Instruction> code, int baseIndent) {
+        ScriptContext context = new ScriptContext(npc, player);
+        runBlock(context, code, 0, baseIndent, () -> { });
+    }
+    private void runBlock(ScriptContext context, List<Instruction> code, int start, int indent, Runnable continuation) {
+        int index = start;
+        while (index < code.size()) {
+            Instruction instruction = code.get(index);
+            if (instruction.indent() < indent) {
+                continuation.run();
+                return;
+            }
+            if (instruction.indent() > indent) {
+                plugin.getLogger().warning("Script " + context.npc().id() + ", ligne " + instruction.line()
+                        + " : bloc indenté sans instruction parent ; bloc ignoré.");
+                index = findEnd(code, index + 1, instruction.indent());
+                continue;
+            }
+
+            String line = instruction.text();
+
+            if (line.startsWith("if ") && line.endsWith(":")) {
+                int end = findEnd(code, index + 1, instruction.indent());
+                if (test(context, line.substring(3, line.length() - 1))) {
+                    if (index + 1 < end) {
+                        int childIndent = code.get(index + 1).indent();
+                        int next = end;
+                        runBlock(context, code, index + 1, childIndent,
+                                () -> runBlock(context, code, next, indent, continuation));
+                        return;
+                    }
+                }
+                index = end;
+                continue;
+            }
+
+            if (line.startsWith("set ")) {
+                String body = line.substring(4).trim();
+                int closingQuote = body.indexOf('"', 1);
+                if (body.startsWith("\"") && closingQuote > 0) {
+                    String name = body.substring(1, closingQuote);
+                    String valueText = body.substring(closingQuote + 1).trim();
+                    if (valueText.startsWith("(") && valueText.endsWith(")")) {
+                        valueText = valueText.substring(1, valueText.length() - 1);
+                    }
+                    Object value = resolve(context, valueText);
+                    context.locals().put(name, value);
+                    storeVariable(context, name, value);
+                } else {
+                    warnInstruction(context, instruction, "syntaxe set invalide");
+                }
+                index++;
+                continue;
+            }
+
+            if (line.startsWith("create variable ")) {
+                createVariable(context, line.substring(15).trim());
+                index++;
+                continue;
+            }
+
+            if (line.startsWith("say local ") || line.startsWith("say global ")) {
+                boolean global = line.startsWith("say global ");
+                String message = unquote(line.substring(global ? 11 : 10));
+                String rendered = ChatColor.translateAlternateColorCodes('&',
+                        context.npc().definition().displayName() + " » " + message);
+                if (global) {
+                    Bukkit.broadcastMessage(rendered);
+                } else if (context.player() != null) {
+                    context.player().sendMessage(rendered);
+                } else {
+                    Location location = context.npc().location();
+                    if (location.getWorld() != null) {
+                        for (Player player : location.getWorld().getPlayers()) {
+                            if (player.getLocation().distanceSquared(location) < 32 * 32) player.sendMessage(rendered);
+                        }
+                    }
+                }
+                index++;
+                continue;
+            }
+
+            if (line.startsWith("send to ")) {
+                int separator = line.indexOf(' ', 8);
+                if (separator > 0) {
+                    String target = line.substring(8, separator);
+                    String message = unquote(line.substring(separator + 1));
+                    Player player = target.equals("@p") ? nearest(context.npc().location()) : Bukkit.getPlayerExact(target);
+                    if (player != null) player.sendMessage(ChatColor.translateAlternateColorCodes('&', message));
+                }
+                index++;
+                continue;
+            }
+
+            if (line.startsWith("play anime ")) {
+                context.npc().animate(unquote(line.substring(11)));
+                index++;
+                continue;
+            }
+
+            if (line.startsWith("play sound ")) {
+                String name = unquote(line.substring(11));
+                try {
+                    Sound sound = Sound.valueOf(name.toUpperCase(Locale.ROOT).replace('.', '_'));
+                    Location location = context.npc().location();
+                    if (location.getWorld() != null) location.getWorld().playSound(location, sound, 1f, 1f);
+                } catch (IllegalArgumentException exception) {
+                    warnInstruction(context, instruction, "son inconnu : " + name);
+                }
+                index++;
+                continue;
+            }
+
+            if (line.startsWith("move to ")) {
+                Location target = parseLocation(context, line.substring(8).trim());
+                if (target != null) move(context.npc(), target);
+                else warnInstruction(context, instruction, "cible de déplacement invalide");
+                index++;
+                continue;
+            }
+
+            if (line.startsWith("tp ")) {
+                Location target = parseLocation(context, line.substring(3).trim());
+                if (target != null) move(context.npc(), target);
+                else warnInstruction(context, instruction, "cible de téléportation invalide");
+                index++;
+                continue;
+            }
+
+            if (line.startsWith("flag on ") || line.startsWith("flag off ")) {
+                boolean enabled = line.startsWith("flag on ");
+                String name = line.substring(enabled ? 8 : 9).replace("(", "").replace(")", "").trim();
+                variables.set("npc", context.npc().id(), "flag:" + name, enabled);
+                index++;
+                continue;
+            }
+
+            if (line.startsWith("wait ")) {
+                long ticks = parseDurationTicks(line.substring(5));
+                int next = index + 1;
+                BukkitTask[] holder = new BukkitTask[1];
+                holder[0] = Bukkit.getScheduler().runTaskLater(plugin, () -> {
+                    tasks.remove(holder[0]);
+                    runBlock(context, code, next, indent, continuation);
+                }, ticks);
+                tasks.add(holder[0]);
+                return;
+            }
+
+            if (line.startsWith("run command ")) {
+                String command = unquote(line.substring(12));
+                String playerName = context.player() == null ? "" : context.player().getName();
+                Bukkit.dispatchCommand(Bukkit.getConsoleSender(), command.replace("%player%", playerName));
+                index++;
+                continue;
+            }
+
+            if (line.startsWith("look at ") && context.player() != null) {
+                Location target = context.player().getLocation();
+                Location from = context.npc().location();
+                from.setDirection(target.toVector().subtract(from.toVector()));
+                context.npc().move(from);
+                index++;
+                continue;
+            }
+
+            if (line.equals("stop follow") || line.equals("stop attack")) {
+                index++;
+                continue;
+            }
+
+            if (line.startsWith("set state ")) {
+                context.locals().put("state", unquote(line.substring(10)));
+                index++;
+                continue;
+            }
+
+            warnInstruction(context, instruction, "instruction inconnue");
+            index++;
+        }
+        continuation.run();
+    }
+
+    private void warnInstruction(ScriptContext context, Instruction instruction, String reason) {
+        plugin.getLogger().warning("Script " + context.npc().id() + ", ligne " + instruction.line()
+                + " : " + reason + " (" + instruction.text() + ").");
+    }
+
+    private int findEnd(List<Instruction> code, int from, int parentIndent) {
+        int index = from;
+        while (index < code.size() && code.get(index).indent() > parentIndent) index++;
+        return index;
+    }
     private boolean test(ScriptContext c,String expression){String e=expression.trim();if(e.startsWith("flag (")&&e.contains(") is ")){String name=e.substring(6,e.indexOf(')'));boolean v=Boolean.parseBoolean(variables.get("npc",c.npc().id(),"flag:"+name,"false"));return e.endsWith("on")?v:!v;}String[] ops={" >= "," <= "," != "," == "," > "," < "," contains "};for(String op:ops){int p=e.indexOf(op);if(p>0){Object a=resolve(c,e.substring(0,p)),b=resolve(c,e.substring(p+op.length()));if(op.equals(" contains "))return String.valueOf(a).contains(String.valueOf(b));double x=num(a),y=num(b);return switch(op.trim()){case ">"->x>y;case "<"->x<y;case ">="->x>=y;case "<="->x<=y;case "!="->!Objects.equals(String.valueOf(a),String.valueOf(b));default->Objects.equals(String.valueOf(a),String.valueOf(b))||x==y;};}}if(e.equalsIgnoreCase("player is sneaking"))return c.player()!=null&&c.player().isSneaking();if(e.toLowerCase(Locale.ROOT).startsWith("player has permission "))return c.player()!=null&&c.player().hasPermission(unquote(e.substring(22).trim()));if(e.toLowerCase(Locale.ROOT).startsWith("player has item ")){if(c.player()==null)return false;try{return c.player().getInventory().contains(org.bukkit.Material.valueOf(e.substring(16).trim().toUpperCase(Locale.ROOT)));}catch(IllegalArgumentException ex){return false;}}if(e.equalsIgnoreCase("npc is under attack"))return false;return false;}
     private Object resolve(ScriptContext c,String raw){String s=raw.trim();if(s.startsWith("\"")&&s.endsWith("\""))return unquote(s);if(s.equalsIgnoreCase("true")||s.equalsIgnoreCase("false"))return Boolean.parseBoolean(s);try{return Double.parseDouble(s);}catch(NumberFormatException ignored){}String meta=variables.get("meta",c.npc().id(),s,null);if(meta==null)meta=variables.get("meta","",s,null);if(meta!=null){String[] parts=meta.split("\\|",2);String scope=parts[0],owner=parts.length>1?parts[1]:c.npc().id();String value=variables.get(scope,owner,s,null);if(value!=null)return parseStored(value);}return c.value(s);}
     private Object parseStored(String s){if(s.equalsIgnoreCase("true")||s.equalsIgnoreCase("false"))return Boolean.parseBoolean(s);try{return Double.parseDouble(s);}catch(Exception e){return s;}}
@@ -77,5 +379,14 @@ public final class ScriptEngine implements Listener {
     }
     @EventHandler public void onJoin(PlayerJoinEvent e){for(ManagedNPC npc:npcs.all())if(e.getPlayer().getWorld().equals(npc.location().getWorld())&&e.getPlayer().getLocation().distanceSquared(npc.location())<64*64)npc.show(e.getPlayer());}
     @EventHandler public void onQuit(PlayerQuitEvent e){for(ManagedNPC npc:npcs.all())npc.hide(e.getPlayer());}
-    public void shutdown(){tasks.forEach(BukkitTask::cancel);tasks.clear();scripts.clear();nearbyPlayers.clear();}
+    private void cancelTasks() {
+        tasks.forEach(BukkitTask::cancel);
+        tasks.clear();
+    }
+
+    public void shutdown() {
+        cancelTasks();
+        scripts.clear();
+        nearbyPlayers.clear();
+    }
 }
