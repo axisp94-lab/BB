@@ -76,13 +76,16 @@ public final class ANPCCommand implements TabExecutor {
                     msg(sender, "Usage : /anpc tp <id> (joueur)");
                     return true;
                 }
-                ManagedNPC npc = plugin.npcs().get(args[1]);
+                ManagedNPC npc = plugin.npcs().get(args[1], player.getWorld());
                 if (npc == null) {
-                    msg(sender, "NPC introuvable : " + args[1]);
+                    msg(sender, "NPC introuvable dans ton monde : " + args[1]);
                     return true;
                 }
-                player.teleport(npc.location());
-                msg(sender, "Téléportation vers " + npc.id() + ".");
+                if (player.teleport(npc.location())) {
+                    msg(sender, "Téléportation vers " + npc.id() + ".");
+                } else {
+                    msg(sender, "Téléportation refusée pour " + npc.id() + ".");
+                }
             }
             case "center" -> {
                 if (args.length < 2) {
