@@ -369,6 +369,7 @@ public final class ScriptEngine implements Listener {
         if(s.startsWith("set health of npc to ")){c.npc().setHealth(num(resolve(c,s.substring(21).trim())));markChanged(c);index++;continue;}
         if(s.startsWith("set max health of npc to ")){c.npc().setMaxHealth(num(resolve(c,s.substring(25).trim())));markChanged(c);index++;continue;}
         if(s.startsWith("set speed of npc to ")){c.npc().setSpeed(num(resolve(c,s.substring(20).trim())));markChanged(c);index++;continue;}
+        if(s.startsWith("set attack damage of npc to ")){c.npc().setAttackDamage(num(resolve(c,s.substring(28).trim())));markChanged(c);index++;continue;}
         if(s.startsWith("set target of npc to ")){setTargetSelector(c.npc(),s.substring(21).trim());markChanged(c);index++;continue;}
         if(s.startsWith("set cooldown ")){
             String body=s.substring(13).trim();int forIndex=body.toLowerCase(Locale.ROOT).lastIndexOf(" for ");
@@ -487,7 +488,7 @@ public final class ScriptEngine implements Listener {
         if(text.startsWith("loop ")&&text.endsWith(":"))return true;
         if(text.startsWith("set state ")||text.startsWith("set hostile ")
                 ||text.startsWith("set health of npc to ")||text.startsWith("set max health of npc to ")
-                ||text.startsWith("set speed of npc to ")||text.startsWith("set target of npc to ")
+                ||text.startsWith("set speed of npc to ")||text.startsWith("set attack damage of npc to ")||text.startsWith("set target of npc to ")
                 ||text.startsWith("set checkpoint ")||text.startsWith("set cooldown ")||text.startsWith("set block "))return true;
         if(text.startsWith("set "))return text.matches("^set\\s+\"[^\"]+\"\\s+.+$");
         return text.startsWith("say local ")||text.startsWith("say global ")||text.startsWith("send to ")
@@ -1055,7 +1056,7 @@ public final class ScriptEngine implements Listener {
             lastAttackTimes.put(npc,now);
             npc.animate("attack");
             npc.location().getWorld().playSound(npc.location(),Sound.ENTITY_PLAYER_ATTACK_STRONG,0.8f,1.0f);
-            target.damage(plugin.getConfig().getDouble("combat.damage",2.0),npc.hitbox());
+            target.damage(npc.attackDamage(),npc.hitbox());
         },0L,10L);
         combatTasks.put(npc,task);tasks.add(task);
     }
