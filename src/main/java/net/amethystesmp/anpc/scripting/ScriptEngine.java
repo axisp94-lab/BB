@@ -59,7 +59,7 @@ public final class ScriptEngine implements Listener {
     public void loadAll(){
         scripts.clear(); functions.clear(); intervalTasks.clear(); scriptLastRun.clear(); scriptLastChange.clear(); scriptLastWarning.clear();
         File dir=new File(plugin.getDataFolder(),"scripts");
-        File[] fs=dir.listFiles((d,n)->n.endsWith(".aa"));
+        File[] fs=dir.listFiles((d,n)->n.toLowerCase(Locale.ROOT).endsWith(".aa"));
         if(fs==null)return;
         for(File file:fs){
             String id=file.getName().substring(0,file.getName().length()-3).toLowerCase(Locale.ROOT);
