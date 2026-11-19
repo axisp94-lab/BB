@@ -560,7 +560,7 @@ public final class ScriptEngine implements Listener {
 
         for (int i = 0; i < declaration.length(); i++) {
             char character = declaration.charAt(i);
-            if (character == '"' && (i == 0 || declaration.charAt(i - 1) != '\\\\')) quoted = !quoted;
+            if (character == '"' && (i == 0 || declaration.charAt(i - 1) != '\\')) quoted = !quoted;
             if (quoted) continue;
 
             if (character == '(') {
