@@ -234,6 +234,7 @@ public final class NPCManager {
         if (deletedAt <= 0L || System.currentTimeMillis() - deletedAt > 24L * 60L * 60L * 1000L) {
             deletedYaml.set("npcs." + id, null);
             deleteBackupScript(id);
+            plugin.variables().purgeExpiredRecoveries();
             saveDeleted();
             return false;
         }
