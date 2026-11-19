@@ -165,6 +165,10 @@ on left click:
 
 `attack @p` choisit le joueur le plus proche et active l'hostilité. Les sélecteurs pris en charge comprennent `all players`, `all mobs`, `all entities`, `monsters`, `animals`, `player:<pseudo>`, `mob:<type>`, `entity:<type>` et `mythic:<id>`. Les portées, dégâts et délais sont réglables dans `config.yml` sous `combat`.
 
+### Surveillance des scripts
+
+Si un script continue à s'exécuter pendant 100 ticks sans modifier d'état, les joueurs possédant la permission `anpc.script.warning` reçoivent un avertissement. La permission et le contrôle sont réglables dans `config.yml`.
+
 ### Cooldowns
 
 Les cooldowns sont indépendants pour chaque instance du NPC.
