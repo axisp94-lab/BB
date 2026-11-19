@@ -120,6 +120,8 @@ on interval:
 
 ```python
 on right click:
+    set checkpoint "entrée"
+    move to checkpoint "entrée"
     move to @p
     fly to @p
     follow @p at 2
@@ -130,7 +132,7 @@ on left click:
     stop follow
 ```
 
-Le déplacement au sol utilise un pathfinding avec évitement des blocs solides. `fly to` utilise un chemin 3D avec évitement des blocs et une animation `fly` si le modèle la fournit. La limite est réglable dans `config.yml` via `movement.max-path-attempts` (100 par défaut). Le suivi s'arrête si la cible se déconnecte ou change de monde.
+Le déplacement au sol utilise un pathfinding avec évitement des blocs solides. `fly to` utilise un chemin 3D avec évitement des blocs et une animation `fly` si le modèle la fournit. La limite est réglable dans `config.yml` via `movement.max-path-attempts` (100 par défaut). Les checkpoints manuels se définissent avec `set checkpoint "nom"`, se rejoignent avec `move to checkpoint "nom"` et se retirent avec `remove checkpoint "nom"`. Le suivi s'arrête si la cible se déconnecte ou change de monde.
 
 ### Blocs : simulation et modification explicite
 
