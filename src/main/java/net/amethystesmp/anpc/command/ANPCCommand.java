@@ -110,11 +110,17 @@ public final class ANPCCommand implements TabExecutor {
                 else msg(sender, "NPC introuvable ou retiré. Utilise /anpc restore <id> si nécessaire.");
             }
             case "reload" -> {
-                plugin.scripts().shutdown();
-                plugin.reloadConfig();
-                plugin.npcs().reload();
-                plugin.scripts().loadAll();
-                msg(sender, "Configuration, NPC et scripts rechargés. Les variables SQLite sont conservées.");
+                if (args.length >= 2) {
+                    if (plugin.scripts().reloadScript(args[1]))
+                        msg(sender, "Script '" + args[1] + "' rechargé. Les fonctions globales ont été réindexées.");
+                    else msg(sender, "Script introuvable ou impossible à recharger : " + args[1]);
+                } else {
+                    plugin.scripts().shutdown();
+                    plugin.reloadConfig();
+                    plugin.npcs().reload();
+                    plugin.scripts().loadAll();
+                    msg(sender, "Configuration, NPC et scripts rechargés. Les variables SQLite sont conservées.");
+                }
             }
             default -> msg(sender, "Sous-commande inconnue. /anpc help");
         }
@@ -154,6 +160,7 @@ public final class ANPCCommand implements TabExecutor {
     public List<String> onTabComplete(CommandSender sender, Command command, String alias, String[] args) {
         if (args.length == 1) return filter(List.of("help", "list", "create", "tp", "center", "rename",
                 "kill", "remove", "restore", "delete", "disable", "enable", "reload"), args[0]);
+        if (args.length == 2 && args[0].equalsIgnoreCase("reload")) return filter(plugin.scripts().scriptIds(), args[1]);
         if (args.length == 2 && Set.of("tp", "center", "rename", "kill", "remove", "restore",
                 "delete", "disable", "enable").contains(args[0].toLowerCase(Locale.ROOT))) {
             return filter(plugin.npcs().allIds(), args[1]);
