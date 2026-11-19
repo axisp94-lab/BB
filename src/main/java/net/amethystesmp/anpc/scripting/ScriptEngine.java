@@ -205,7 +205,7 @@ public final class ScriptEngine implements Listener {
         if(s.startsWith("flag on ")||s.startsWith("flag off ")){boolean on=s.startsWith("flag on ");String name=s.substring(on?8:9).replace("(","").replace(")","").trim();variables.setLocal(c.npc().id(),c.npc().location().getWorld().getName(),"flag:"+name,on);index++;continue;}
         if(s.startsWith("wait ")){long ticks=parseDurationTicks(s.substring(5));List<Instruction> remaining=new ArrayList<>(code.subList(index+1,code.size()));BukkitTask task=Bukkit.getScheduler().runTaskLater(plugin,()->runBlock(c,remaining,0,indent),ticks);tasks.add(task);return code.size();}
         if(s.startsWith("run command ")){String cmd=unquote(s.substring(12));Bukkit.dispatchCommand(Bukkit.getConsoleSender(),cmd.replace("%player%",c.player()==null?"":c.player().getName()));index++;continue;}
-        if(s.startsWith("look at ")&&c.player()!=null){Location at=c.player().getLocation();Location from=c.npc().location();from.setDirection(at.toVector().subtract(from.toVector()));c.npc().move(from);index++;continue;}
+        if(s.startsWith("look at ")&&(c.player()!=null||c.eventNpc()!=null)){Location at=c.player()!=null?c.player().getLocation():c.eventNpc().location();Location from=c.npc().location();from.setDirection(at.toVector().subtract(from.toVector()));c.npc().move(from);index++;continue;}
         if(s.startsWith("follow ")){startFollow(c.npc(),s.substring(7).trim());index++;continue;}
         if(s.startsWith("keep distance ")){startKeepDistance(c.npc(),s.substring(14).trim());index++;continue;}
         if(s.equals("stop follow")){stopFollow(c.npc());index++;continue;}
@@ -430,7 +430,7 @@ public final class ScriptEngine implements Listener {
     private double num(Object o){try{return Double.parseDouble(String.valueOf(o));}catch(Exception e){return 0;}}
     private String unquote(String s){s=s.trim();return s.length()>=2&&s.startsWith("\"")&&s.endsWith("\"")?s.substring(1,s.length()-1):s;}
     private Player nearest(Location l){return l.getWorld().getPlayers().stream().min(Comparator.comparingDouble(p->p.getLocation().distanceSquared(l))).orElse(null);}
-    private Location parseLocation(ScriptContext c,String s){if(s.equals("@p")){Player p=nearest(c.npc().location());return p==null?null:p.getLocation();}if(s.equalsIgnoreCase("location of npc"))return c.npc().location();if(s.startsWith("(")&&s.endsWith(")")){String[] a=s.substring(1,s.length()-1).split(",");if(a.length==3)try{return new Location(c.npc().location().getWorld(),Double.parseDouble(a[0].trim()),Double.parseDouble(a[1].trim()),Double.parseDouble(a[2].trim()));}catch(NumberFormatException ignored){}}return null;}
+    private Location parseLocation(ScriptContext c,String s){if(s.equalsIgnoreCase("event npc")||s.equalsIgnoreCase("location of event npc"))return c.eventNpc()==null?null:c.eventNpc().location();if(s.equals("@p")){Player p=nearest(c.npc().location());return p==null?null:p.getLocation();}if(s.equalsIgnoreCase("location of npc"))return c.npc().location();if(s.startsWith("(")&&s.endsWith(")")){String[] a=s.substring(1,s.length()-1).split(",");if(a.length==3)try{return new Location(c.npc().location().getWorld(),Double.parseDouble(a[0].trim()),Double.parseDouble(a[1].trim()),Double.parseDouble(a[2].trim()));}catch(NumberFormatException ignored){}}return null;}
     private boolean move(ManagedNPC npc,Location target){
         Location start=npc.location();
         if(start.getWorld()==null||target.getWorld()==null||start.getWorld()!=target.getWorld())return false;
