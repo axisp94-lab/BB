@@ -22,6 +22,8 @@ public final class ManagedNPC {
     private final Interaction hitbox;
     private String animation = "idle";
     private boolean scriptsEnabled = true;
+    private String primaryState = "idle";
+    private final Set<String> secondaryStates = new HashSet<>();
 
     public ManagedNPC(NPCDefinition definition, ModelRenderer renderer, Location location) {
         this(definition, renderer, location, null);
@@ -66,6 +68,12 @@ public final class ManagedNPC {
     public String animation() { return animation; }
     public boolean scriptsEnabled() { return scriptsEnabled; }
     public void setScriptsEnabled(boolean enabled) { scriptsEnabled = enabled; }
+    public String primaryState() { return primaryState; }
+    public void setPrimaryState(String state) { primaryState = state == null || state.isBlank() ? "idle" : state; }
+    public Set<String> secondaryStates() { return Set.copyOf(secondaryStates); }
+    public void addSecondaryState(String state) { if (state != null && !state.isBlank()) secondaryStates.add(state.toLowerCase(java.util.Locale.ROOT)); }
+    public void removeSecondaryState(String state) { if (state != null) secondaryStates.remove(state.toLowerCase(java.util.Locale.ROOT)); }
+    public void clearSecondaryStates() { secondaryStates.clear(); }
     public Entity hitbox() { return hitbox; }
     public void close() { if (!tracker.isClosed()) tracker.close(); if (hitbox.isValid()) hitbox.remove(); viewers.clear(); }
 }
