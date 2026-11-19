@@ -582,6 +582,7 @@ public final class ScriptEngine implements Listener {
         }
         if(s.startsWith("run command ")){String cmd=unquote(s.substring(12));Bukkit.dispatchCommand(Bukkit.getConsoleSender(),cmd.replace("%player%",c.player()==null?"":c.player().getName()));index++;continue;}
         if(s.startsWith("look at ")){Location at=parseLocation(c,s.substring(8).trim());if(at!=null){Location from=c.npc().location();from.setDirection(at.toVector().subtract(from.toVector()));c.npc().move(from);markChanged(c);}index++;continue;}
+        if(s.equals("look away")){Location facing=c.npc().location();facing.setYaw(c.npc().definition().yaw());facing.setPitch(c.npc().definition().pitch());c.npc().move(facing);markChanged(c);index++;continue;}
         if(s.startsWith("follow ")){startFollow(c.npc(),s.substring(7).trim());markChanged(c);index++;continue;}
         if(s.startsWith("keep distance ")){startKeepDistance(c.npc(),s.substring(14).trim());markChanged(c);index++;continue;}
         if(s.equals("stop follow")||s.equals("stop movement")){stopFollow(c.npc());markChanged(c);index++;continue;}
@@ -652,7 +653,7 @@ public final class ScriptEngine implements Listener {
                  ||text.equals("sneak")||text.equals("sprint")||text.equals("jump")
                 ||text.startsWith("move to ")||text.startsWith("fly to ")||text.startsWith("tp ")||text.startsWith("follow ")
                 ||text.startsWith("keep distance ")||text.equals("stop follow")||text.equals("stop movement")||text.startsWith("target ")
-                ||text.startsWith("attack ")||text.equals("stop attack")||text.startsWith("look at ")
+                ||text.startsWith("attack ")||text.equals("stop attack")||text.startsWith("look at ")||text.equals("look away")
                 ||text.startsWith("set checkpoint ")||text.startsWith("remove checkpoint ")
                 ||text.startsWith("move to checkpoint ")||text.startsWith("reset cooldown ")||text.startsWith("simulate break block at ")
                 ||text.startsWith("simulate place ")||text.startsWith("simulate interact with block at ")
