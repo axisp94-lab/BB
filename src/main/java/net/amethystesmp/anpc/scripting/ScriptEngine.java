@@ -360,8 +360,12 @@ public final class ScriptEngine implements Listener {
 
             if (line.startsWith("tp ")) {
                 Location target = parseLocation(context, line.substring(3).trim());
-                if (target != null) context.npc().move(target);
-                else warnInstruction(context, instruction, "cible de téléportation invalide");
+                if (target != null) {
+                    stopMovement(context.npc());
+                    context.npc().move(target);
+                } else {
+                    warnInstruction(context, instruction, "cible de téléportation invalide");
+                }
                 index++;
                 continue;
             }
@@ -900,6 +904,17 @@ public final class ScriptEngine implements Listener {
         }
         return null;
     }
+    private void stopMovement(ManagedNPC npc) {
+        Location location = npc.location();
+        if (location.getWorld() == null) return;
+        String key = npc.id().toLowerCase(Locale.ROOT) + "@" + location.getWorld().getName().toLowerCase(Locale.ROOT);
+        BukkitTask task = movementTasks.remove(key);
+        if (task != null) {
+            task.cancel();
+            tasks.remove(task);
+        }
+    }
+
     private void move(ManagedNPC npc, Location target) {
         if (target == null || target.getWorld() == null) return;
         Location start = npc.location();
