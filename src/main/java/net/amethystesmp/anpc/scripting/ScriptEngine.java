@@ -523,6 +523,12 @@ public final class ScriptEngine implements Listener {
                 continue;
             }
 
+            if (line.startsWith("setblock ")) {
+                simulateSetBlock(context, instruction, line.substring(9).trim());
+                index++;
+                continue;
+            }
+
             if (line.startsWith("set state ")) {
                 mainStates.put(context.npc().id().toLowerCase(Locale.ROOT),
                         normalizeArgument(line.substring(10)));
@@ -630,6 +636,55 @@ public final class ScriptEngine implements Listener {
             if (existed.contains(key)) context.locals().put(key, previous.get(key));
             else context.locals().remove(key);
         }
+    }
+
+    private void simulateSetBlock(ScriptContext context, Instruction instruction, String arguments) {
+        boolean real = false;
+        String raw = arguments.trim();
+        if (raw.toLowerCase(Locale.ROOT).startsWith("real ")) {
+            real = true;
+            raw = raw.substring(5).trim();
+        } else if (raw.toLowerCase(Locale.ROOT).endsWith(" real")) {
+            real = true;
+            raw = raw.substring(0, raw.length() - 5).trim();
+        }
+
+        List<String> groups = extractGroups(raw);
+        if (groups.size() < 2) {
+            warnInstruction(context, instruction, "syntaxe : setblock (position) (bloc), ou setblock real (position) (bloc)");
+            return;
+        }
+
+        String positionExpression = groups.get(0).trim();
+        if (!positionExpression.startsWith("(") && positionExpression.contains(",")) {
+            positionExpression = "(" + positionExpression + ")";
+        }
+        Location target = parseLocation(context, positionExpression);
+        if (target == null || target.getWorld() == null) {
+            warnInstruction(context, instruction, "position de bloc invalide");
+            return;
+        }
+
+        String blockName = groups.get(1).trim().replace("minecraft:", "");
+        org.bukkit.Material requested = org.bukkit.Material.matchMaterial(blockName);
+        if (requested == null || !requested.isBlock()) {
+            warnInstruction(context, instruction, "bloc inconnu : " + blockName);
+            return;
+        }
+
+        org.bukkit.block.Block targetBlock = target.getBlock();
+        org.bukkit.Material particleMaterial = requested.isAir() ? targetBlock.getType() : requested;
+        if (particleMaterial.isAir()) particleMaterial = org.bukkit.Material.STONE;
+        org.bukkit.block.data.BlockData particleData = Bukkit.createBlockData(particleMaterial);
+        Location particleLocation = targetBlock.getLocation().add(0.5, 0.5, 0.5);
+
+        if (real) targetBlock.setType(requested, false);
+
+        target.getWorld().spawnParticle(org.bukkit.Particle.BLOCK, particleLocation,
+                18, 0.25, 0.25, 0.25, 0.08, particleData);
+        target.getWorld().playSound(particleLocation,
+                requested.isAir() ? Sound.BLOCK_STONE_BREAK : Sound.BLOCK_STONE_PLACE,
+                1.0f, 1.0f);
     }
 
     private void warnInstruction(ScriptContext context, Instruction instruction, String reason) {
