@@ -54,7 +54,7 @@ public final class ScriptEngine implements Listener {
     private final Map<String,Long> scriptLastChange=new ConcurrentHashMap<>();
     private final Map<String,Long> scriptLastWarning=new ConcurrentHashMap<>();
     private BukkitTask scriptWatchdogTask;
-    private final Map<String,Set<UUID>> nearbyPlayers=new ConcurrentHashMap<>();
+    private final Map<String,Set<UUID>> nearbyEntities=new ConcurrentHashMap<>();
     private final Map<String,Set<String>> nearbyNpcs=new ConcurrentHashMap<>();
     public ScriptEngine(ANPCPlugin plugin,NPCManager npcs,VariableStore variables){this.plugin=plugin;this.npcs=npcs;this.variables=variables;}
     public void loadAll(){
@@ -196,7 +196,7 @@ public final class ScriptEngine implements Listener {
 
     public void clearNpcTracking(String requestedId){
         String prefix=requestedId.toLowerCase(Locale.ROOT)+"@";
-        nearbyPlayers.keySet().removeIf(key->key.startsWith(prefix));
+        nearbyEntities.keySet().removeIf(key->key.startsWith(prefix));
         nearbyNpcs.keySet().removeIf(key->key.startsWith(prefix));
         scriptLastRun.keySet().removeIf(key->key.startsWith(prefix));
         scriptLastChange.keySet().removeIf(key->key.startsWith(prefix));
@@ -283,16 +283,19 @@ public final class ScriptEngine implements Listener {
             List<ManagedNPC> all=new ArrayList<>(npcs.all());
             for(ManagedNPC npc:all){
                 String sourceKey=npc.id().toLowerCase(Locale.ROOT)+"@"+npc.location().getWorld().getName().toLowerCase(Locale.ROOT);
-                Set<UUID> currentPlayers=new HashSet<>();
-                for(Player player:npc.location().getWorld().getPlayers())if(player.getLocation().distanceSquared(npc.location())<=r2){
-                    currentPlayers.add(player.getUniqueId());
-                    if(nearbyPlayers.computeIfAbsent(sourceKey,k->ConcurrentHashMap.newKeySet()).add(player.getUniqueId()))
-                        fire(npc.id(),"entity approach",player);
+                Set<UUID> currentEntities=new HashSet<>();
+                for(Entity entity:npc.location().getWorld().getEntities()){
+                    if(!entity.isValid()||entity==npc.hitbox()||entity.getScoreboardTags().stream().anyMatch(tag->tag.startsWith("anpc:")))continue;
+                    if(entity.getLocation().distanceSquared(npc.location())>r2)continue;
+                    currentEntities.add(entity.getUniqueId());
+                    if(nearbyEntities.computeIfAbsent(sourceKey,key->ConcurrentHashMap.newKeySet()).add(entity.getUniqueId()))
+                        fireEntity(npc,"entity approach",entity);
                 }
-                Set<UUID> previousPlayers=nearbyPlayers.computeIfAbsent(sourceKey,k->ConcurrentHashMap.newKeySet());
-                for(UUID uuid:new HashSet<>(previousPlayers))if(!currentPlayers.contains(uuid)){
-                    Player player=Bukkit.getPlayer(uuid);previousPlayers.remove(uuid);
-                    if(player!=null)fire(npc.id(),"entity leave",player);
+                Set<UUID> previous=nearbyEntities.computeIfAbsent(sourceKey,key->ConcurrentHashMap.newKeySet());
+                for(UUID uuid:new HashSet<>(previous))if(!currentEntities.contains(uuid)){
+                    previous.remove(uuid);
+                    Entity entity=Bukkit.getEntity(uuid);
+                    if(entity!=null)fireEntity(npc,"entity leave",entity);
                 }
 
                 Set<String> currentNpcs=new HashSet<>();
@@ -301,11 +304,11 @@ public final class ScriptEngine implements Listener {
                     if(other.location().distanceSquared(npc.location())<=r2){
                         String targetKey=other.id().toLowerCase(Locale.ROOT)+"@"+other.location().getWorld().getName().toLowerCase(Locale.ROOT);
                         currentNpcs.add(targetKey);
-                        if(nearbyNpcs.computeIfAbsent(sourceKey,k->ConcurrentHashMap.newKeySet()).add(targetKey))
+                        if(nearbyNpcs.computeIfAbsent(sourceKey,key->ConcurrentHashMap.newKeySet()).add(targetKey))
                             fireOn(npc,"npc approach",other);
                     }
                 }
-                Set<String> previousNpcs=nearbyNpcs.computeIfAbsent(sourceKey,k->ConcurrentHashMap.newKeySet());
+                Set<String> previousNpcs=nearbyNpcs.computeIfAbsent(sourceKey,key->ConcurrentHashMap.newKeySet());
                 for(String targetKey:new HashSet<>(previousNpcs))if(!currentNpcs.contains(targetKey)){
                     previousNpcs.remove(targetKey);
                     ManagedNPC other=all.stream().filter(candidate->(candidate.id().toLowerCase(Locale.ROOT)+"@"+candidate.location().getWorld().getName().toLowerCase(Locale.ROOT)).equals(targetKey)).findFirst().orElse(null);
@@ -315,6 +318,17 @@ public final class ScriptEngine implements Listener {
         },10L,10L);
         tasks.add(task);
     }
+
+    private void fireEntity(ManagedNPC npc,String event,Entity entity){
+        Map<String,List<Instruction>> map=scripts.get(npc.id().toLowerCase(Locale.ROOT));
+        if(map==null)return;
+        List<Instruction> code=map.get(event);
+        if(code==null||!npc.scriptsEnabled())return;
+        Player player=entity instanceof Player selected?selected:null;
+        ItemStack item=player==null?null:player.getInventory().getItemInMainHand();
+        execute(npc,player,code,0,"",null,entity,item,null);
+    }
+
     public void fire(String npc,String event,Player player){fire(npc,event,player,"");}
     private void fire(String npc,String event,Player player,String eventData){
         Map<String,List<Instruction>> map=scripts.get(npc.toLowerCase(Locale.ROOT));
@@ -333,6 +347,10 @@ public final class ScriptEngine implements Listener {
     private void execute(ManagedNPC npc,Player player,List<Instruction> code,int baseIndent){execute(npc,player,code,baseIndent,"",null);}
     private void execute(ManagedNPC npc,Player player,List<Instruction> code,int baseIndent,String eventData){execute(npc,player,code,baseIndent,eventData,null);}
     private void execute(ManagedNPC npc,Player player,List<Instruction> code,int baseIndent,String eventData,ManagedNPC eventNpc){
+        execute(npc,player,code,baseIndent,eventData,eventNpc,player,player==null?null:player.getInventory().getItemInMainHand(),null);
+    }
+
+    private void execute(ManagedNPC npc,Player player,List<Instruction> code,int baseIndent,String eventData,ManagedNPC eventNpc,Entity eventEntity,ItemStack eventItem,Location eventPlace){
         String key=npcInstanceKey(npc);
         long now=System.currentTimeMillis();
         Long previousRun=scriptLastRun.put(key,now);
@@ -340,8 +358,9 @@ public final class ScriptEngine implements Listener {
         ScriptContext ctx=new ScriptContext(npc,player);
         ctx.setEventData(eventData);
         ctx.setEventNpc(eventNpc);
-        ctx.setEventEntity(player!=null?player:(eventNpc==null?null:eventNpc.hitbox()));
-        ctx.setEventItem(player==null?null:player.getInventory().getItemInMainHand());
+        ctx.setEventEntity(eventEntity!=null?eventEntity:(eventNpc==null?null:eventNpc.hitbox()));
+        ctx.setEventItem(eventItem);
+        ctx.setEventPlace(eventPlace);
         ctx.setScriptExecution(npc.id().toLowerCase(Locale.ROOT),scriptGenerations.getOrDefault(npc.id().toLowerCase(Locale.ROOT),0L));
         int indent=code.isEmpty()?baseIndent:code.get(0).indent();
         runBlock(ctx,code,0,indent);
@@ -1667,5 +1686,5 @@ public final class ScriptEngine implements Listener {
             npc.hide(e.getPlayer());
         }
     }
-    public void shutdown(){tasks.forEach(BukkitTask::cancel);tasks.clear();movementTasks.clear();followTasks.clear();combatTasks.clear();lastAttackTimes.clear();intervalTasks.clear();watchdogTasks.clear();scriptLastRun.clear();scriptLastChange.clear();scriptLastWarning.clear();scriptWatchdogTask=null;scripts.clear();functions.clear();nearbyPlayers.clear();nearbyNpcs.clear();}
+    public void shutdown(){tasks.forEach(BukkitTask::cancel);tasks.clear();movementTasks.clear();followTasks.clear();combatTasks.clear();lastAttackTimes.clear();intervalTasks.clear();watchdogTasks.clear();scriptLastRun.clear();scriptLastChange.clear();scriptLastWarning.clear();scriptWatchdogTask=null;scripts.clear();functions.clear();nearbyEntities.clear();nearbyNpcs.clear();}
 }
