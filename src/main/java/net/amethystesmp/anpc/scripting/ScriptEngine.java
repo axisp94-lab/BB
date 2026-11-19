@@ -538,7 +538,7 @@ public final class ScriptEngine implements Listener {
             Object source=resolve(context,loop.substring(5,loop.length()-1).trim());
             if(source instanceof Iterable<?> iterable)for(Object value:iterable)values.add(value);
             else if(source instanceof Object[] array)values.addAll(Arrays.asList(array));
-            else if(source instanceof String text&&!text.isBlank())values.addAll(Arrays.asList(text.split(",")));
+            else if(source instanceof String text&&!text.isBlank())for(String value:text.split(","))if(!value.isBlank())values.add(value.trim());
         }else if(loop.toLowerCase(Locale.ROOT).endsWith(" times")){
             try{
                 int count=Integer.parseInt(loop.substring(0,loop.length()-6).trim());
