@@ -14,6 +14,8 @@ import org.bukkit.entity.Entity;
 import java.util.HashSet;
 import java.util.Set;
 import java.util.UUID;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 
 public final class ManagedNPC {
     private NPCDefinition definition;
@@ -35,6 +37,7 @@ public final class ManagedNPC {
     private double health = 20.0;
     private double maxHealth = 20.0;
     private double speed = 4.0;
+    private final Map<String, Location> checkpoints = new ConcurrentHashMap<>();
 
     public ManagedNPC(NPCDefinition definition, ModelRenderer renderer, Location location) {
         this(definition, renderer, location, null);
@@ -108,6 +111,15 @@ public final class ManagedNPC {
     public void setMaxHealth(double maxHealth) { this.maxHealth = Math.max(1.0, maxHealth); this.health = Math.min(this.health, this.maxHealth); }
     public double speed() { return speed; }
     public void setSpeed(double speed) { this.speed = Math.max(0.1, speed); }
+    public void setCheckpoint(String name, Location location) {
+        if (name != null && !name.isBlank() && location != null) checkpoints.put(name.toLowerCase(java.util.Locale.ROOT), location.clone());
+    }
+    public Location checkpoint(String name) {
+        Location location = name == null ? null : checkpoints.get(name.toLowerCase(java.util.Locale.ROOT));
+        return location == null ? null : location.clone();
+    }
+    public void removeCheckpoint(String name) { if (name != null) checkpoints.remove(name.toLowerCase(java.util.Locale.ROOT)); }
+    public Set<String> checkpointNames() { return Set.copyOf(checkpoints.keySet()); }
     public Entity hitbox() { return hitbox; }
     public void close() { if (!tracker.isClosed()) tracker.close(); if (hitbox.isValid()) hitbox.remove(); viewers.clear(); }
 }
