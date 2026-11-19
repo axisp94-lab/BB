@@ -108,7 +108,9 @@ public final class VariableStore implements AutoCloseable {
     public synchronized String getLocal(String npcId, String worldName, String name, String fallback) {
         String value = get("local", localOwner(npcId, worldName), name, null);
         // Compatibilité avec les variables locales créées avant l'isolation par monde.
-        if (value != null) return value;\n        value = get("local", npcId, name, null);\n        return value != null ? value : get("npc", npcId, name, fallback);
+        if (value != null) return value;
+        value = get("local", npcId, name, null);
+        return value != null ? value : get("npc", npcId, name, fallback);
     }
 
     public synchronized void setGlobal(String name, Object value) {
