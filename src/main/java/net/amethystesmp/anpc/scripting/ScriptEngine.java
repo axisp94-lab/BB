@@ -35,6 +35,7 @@ public final class ScriptEngine implements Listener {
     private final Map<String,FunctionDefinition> functions=new ConcurrentHashMap<>();
     private final Set<BukkitTask> tasks=ConcurrentHashMap.newKeySet();
     private final Map<ManagedNPC,BukkitTask> movementTasks=new ConcurrentHashMap<>();
+    private final Map<ManagedNPC,BukkitTask> followTasks=new ConcurrentHashMap<>();
     private final Map<String,Set<UUID>> nearbyPlayers=new ConcurrentHashMap<>();
     private final Map<String,Set<String>> nearbyNpcs=new ConcurrentHashMap<>();
     public ScriptEngine(ANPCPlugin plugin,NPCManager npcs,VariableStore variables){this.plugin=plugin;this.npcs=npcs;this.variables=variables;}
@@ -192,13 +193,16 @@ public final class ScriptEngine implements Listener {
         if(s.startsWith("send to ")){int pos=s.indexOf(' ',8);if(pos>0){String target=s.substring(8,pos);Object targetValue=resolve(c,target);String msg=String.valueOf(resolve(c,s.substring(pos+1).trim()));Player p=targetValue instanceof Player selected?selected:(target.equals("@p")?nearest(c.npc().location()):Bukkit.getPlayerExact(target));if(p!=null)p.sendMessage(ChatColor.translateAlternateColorCodes('&',msg));}index++;continue;}
         if(s.startsWith("play anime ")){c.npc().animate(unquote(s.substring(11)));index++;continue;}
         if(s.startsWith("play sound ")){String name=unquote(s.substring(11));try{Sound sound=Sound.valueOf(name.toUpperCase(Locale.ROOT).replace('.','_'));c.npc().location().getWorld().playSound(c.npc().location(),sound,1f,1f);}catch(IllegalArgumentException ignored){}index++;continue;}
-        if(s.startsWith("move to ")){Location target=parseLocation(c,s.substring(8).trim());if(target!=null)move(c.npc(),target);index++;continue;}
-        if(s.startsWith("tp ")){Location target=parseLocation(c,s.substring(3).trim());if(target!=null)move(c.npc(),target);index++;continue;}
+        if(s.startsWith("move to ")){stopFollow(c.npc());Location target=parseLocation(c,s.substring(8).trim());if(target!=null)move(c.npc(),target);index++;continue;}
+        if(s.startsWith("tp ")){stopFollow(c.npc());Location target=parseLocation(c,s.substring(3).trim());if(target!=null)move(c.npc(),target);index++;continue;}
         if(s.startsWith("flag on ")||s.startsWith("flag off ")){boolean on=s.startsWith("flag on ");String name=s.substring(on?8:9).replace("(","").replace(")","").trim();variables.setLocal(c.npc().id(),c.npc().location().getWorld().getName(),"flag:"+name,on);index++;continue;}
         if(s.startsWith("wait ")){long ticks=parseDurationTicks(s.substring(5));List<Instruction> remaining=new ArrayList<>(code.subList(index+1,code.size()));BukkitTask task=Bukkit.getScheduler().runTaskLater(plugin,()->runBlock(c,remaining,0,indent),ticks);tasks.add(task);return code.size();}
         if(s.startsWith("run command ")){String cmd=unquote(s.substring(12));Bukkit.dispatchCommand(Bukkit.getConsoleSender(),cmd.replace("%player%",c.player()==null?"":c.player().getName()));index++;continue;}
         if(s.startsWith("look at ")&&c.player()!=null){Location at=c.player().getLocation();Location from=c.npc().location();from.setDirection(at.toVector().subtract(from.toVector()));c.npc().move(from);index++;continue;}
-        if(s.equals("stop follow")||s.equals("stop attack")){index++;continue;}
+        if(s.startsWith("follow ")){startFollow(c.npc(),s.substring(7).trim());index++;continue;}
+        if(s.startsWith("keep distance ")){startKeepDistance(c.npc(),s.substring(14).trim());index++;continue;}
+        if(s.equals("stop follow")){stopFollow(c.npc());index++;continue;}
+        if(s.equals("stop attack")){index++;continue;}
         if(s.startsWith("set state ")){c.npc().setPrimaryState(unquote(s.substring(10)));index++;continue;}
         if(s.startsWith("add state ")){c.npc().addSecondaryState(unquote(s.substring(10)));index++;continue;}
         if(s.startsWith("remove state ")){c.npc().removeSecondaryState(unquote(s.substring(13)));index++;continue;}
@@ -416,13 +420,13 @@ public final class ScriptEngine implements Listener {
     private String unquote(String s){s=s.trim();return s.length()>=2&&s.startsWith("\"")&&s.endsWith("\"")?s.substring(1,s.length()-1):s;}
     private Player nearest(Location l){return l.getWorld().getPlayers().stream().min(Comparator.comparingDouble(p->p.getLocation().distanceSquared(l))).orElse(null);}
     private Location parseLocation(ScriptContext c,String s){if(s.equals("@p")){Player p=nearest(c.npc().location());return p==null?null:p.getLocation();}if(s.equalsIgnoreCase("location of npc"))return c.npc().location();if(s.startsWith("(")&&s.endsWith(")")){String[] a=s.substring(1,s.length()-1).split(",");if(a.length==3)try{return new Location(c.npc().location().getWorld(),Double.parseDouble(a[0].trim()),Double.parseDouble(a[1].trim()),Double.parseDouble(a[2].trim()));}catch(NumberFormatException ignored){}}return null;}
-    private void move(ManagedNPC npc,Location target){
+    private boolean move(ManagedNPC npc,Location target){
         Location start=npc.location();
-        if(start.getWorld()==null||target.getWorld()==null||start.getWorld()!=target.getWorld())return;
+        if(start.getWorld()==null||target.getWorld()==null||start.getWorld()!=target.getWorld())return false;
         List<Location> path=findPath(start,target);
         if(path==null||path.isEmpty()){
             plugin.getLogger().warning("Aucun chemin trouvé pour le NPC "+npc.id()+" (limite d'essais : "+plugin.getConfig().getInt("movement.max-path-attempts",100)+").");
-            return;
+            return false;
         }
         BukkitTask previous=movementTasks.remove(npc);
         if(previous!=null){previous.cancel();tasks.remove(previous);}
@@ -459,6 +463,82 @@ public final class ScriptEngine implements Listener {
             }
         },0L,period);
         movementTasks.put(npc,holder[0]);tasks.add(holder[0]);
+        return true;
+    }
+
+    private void startFollow(ManagedNPC npc,String expression){
+        String targetSelector=expression;double min=2.0,max=5.0;
+        int at=expression.toLowerCase(Locale.ROOT).lastIndexOf(" at ");
+        int minIndex=expression.toLowerCase(Locale.ROOT).indexOf(" min ");
+        if(at>0){targetSelector=expression.substring(0,at).trim();double distance=parseDistance(expression.substring(at+4).trim(),2.0);min=Math.max(0.5,distance-0.2);max=distance+0.2;}
+        else if(minIndex>0){
+            int maxIndex=expression.toLowerCase(Locale.ROOT).indexOf(" max ",minIndex+5);
+            if(maxIndex<0){plugin.getLogger().warning("Syntaxe follow invalide : utilise follow <joueur> min <distance> max <distance>.");return;}
+            targetSelector=expression.substring(0,minIndex).trim();
+            min=parseDistance(expression.substring(minIndex+5,maxIndex).trim(),2.0);
+            max=parseDistance(expression.substring(maxIndex+5).trim(),5.0);
+        }
+        Player target=resolveFollowTarget(npc,targetSelector);
+        if(target==null||!target.getWorld().equals(npc.location().getWorld())){
+            plugin.getLogger().warning("Cible de follow introuvable ou dans un autre monde pour "+npc.id()+".");return;
+        }
+        startFollow(npc,target.getUniqueId().toString(),min,max);
+    }
+
+    private void startKeepDistance(ManagedNPC npc,String expression){
+        int from=expression.toLowerCase(Locale.ROOT).indexOf(" from ");
+        if(from<1){plugin.getLogger().warning("Syntaxe attendue : keep distance <distance> from <joueur>.");return;}
+        double distance=parseDistance(expression.substring(0,from).trim(),4.0);
+        startFollow(npc,expression.substring(from+6).trim(),Math.max(0.5,distance-0.2),distance+0.2);
+    }
+
+    private double parseDistance(String raw,double fallback){try{return Math.max(0.5,Double.parseDouble(raw));}catch(NumberFormatException exception){return fallback;}}
+
+    private Player resolveFollowTarget(ManagedNPC npc,String selector){
+        if(selector.equalsIgnoreCase("@p"))return nearest(npc.location());
+        try{return Bukkit.getPlayer(UUID.fromString(selector));}catch(IllegalArgumentException ignored){return Bukkit.getPlayerExact(selector);}
+    }
+
+    private void startFollow(ManagedNPC npc,String targetId,double min,double max){
+        stopFollowTask(npc);
+        npc.setFollowState(targetId,min,max);
+        UUID targetUuid;
+        try{targetUuid=UUID.fromString(targetId);}catch(IllegalArgumentException exception){return;}
+        BukkitTask task=Bukkit.getScheduler().runTaskTimer(plugin,()->{
+            Player target=Bukkit.getPlayer(targetUuid);
+            if(target==null||!target.getWorld().equals(npc.location().getWorld())){stopFollow(npc);return;}
+            double distance=target.getLocation().distance(npc.location());
+            if(distance>=npc.followMin()&&distance<=npc.followMax())return;
+            if(movementTasks.containsKey(npc))return;
+            double desired=distance>npc.followMax()?npc.followMax():npc.followMin();
+            org.bukkit.util.Vector away=npc.location().toVector().subtract(target.getLocation().toVector());
+            if(away.lengthSquared()<0.001)away=new org.bukkit.util.Vector(1,0,0);
+            Location destination=target.getLocation().clone().add(away.normalize().multiply(desired));
+            destination.setY(target.getLocation().getY());
+            if(!move(npc,destination))stopFollow(npc);
+        },0L,10L);
+        followTasks.put(npc,task);tasks.add(task);
+    }
+
+    private void stopFollowTask(ManagedNPC npc){
+        BukkitTask task=followTasks.remove(npc);
+        if(task!=null){task.cancel();tasks.remove(task);}
+    }
+
+    private void stopMovement(ManagedNPC npc){
+        BukkitTask task=movementTasks.remove(npc);
+        if(task!=null){task.cancel();tasks.remove(task);}
+        if(!npc.tracker().isClosed())npc.animate("idle");
+    }
+
+    private void stopFollow(ManagedNPC npc){stopFollowTask(npc);stopMovement(npc);npc.clearFollowState();}
+
+    public void pauseNpc(String id){
+        for(ManagedNPC npc:npcs.instances(id)){stopFollowTask(npc);stopMovement(npc);}
+    }
+
+    public void resumeNpc(String id){
+        for(ManagedNPC npc:npcs.instances(id))if(!npc.followTarget().isBlank())startFollow(npc,npc.followTarget(),npc.followMin(),npc.followMax());
     }
 
     private List<Location> findPath(Location start,Location target){
@@ -556,5 +636,5 @@ public final class ScriptEngine implements Listener {
             npc.hide(e.getPlayer());
         }
     }
-    public void shutdown(){tasks.forEach(BukkitTask::cancel);tasks.clear();scripts.clear();functions.clear();nearbyPlayers.clear();nearbyNpcs.clear();}
+    public void shutdown(){tasks.forEach(BukkitTask::cancel);tasks.clear();movementTasks.clear();followTasks.clear();scripts.clear();functions.clear();nearbyPlayers.clear();nearbyNpcs.clear();}
 }
