@@ -100,7 +100,8 @@ public final class NPCManager {
             try {
                 File dataDirectory = plugin.getDataFolder().getCanonicalFile();
                 File skinFile = new File(dataDirectory, relativePath).getCanonicalFile();
-                if (!skinFile.toPath().startsWith(dataDirectory.toPath()) || !skinFile.isFile()) {
+                if (!skinFile.toPath().startsWith(dataDirectory.toPath()) || !skinFile.isFile()
+                        || !skinFile.getName().toLowerCase(Locale.ROOT).endsWith(".png")) {
                     plugin.getLogger().warning("Fichier de skin introuvable ou hors du dossier du plugin pour le NPC " + def.id() + ".");
                     return null;
                 }
