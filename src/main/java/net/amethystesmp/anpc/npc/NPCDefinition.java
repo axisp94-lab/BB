@@ -21,7 +21,7 @@ public record NPCDefinition(String id, String displayName, String type, List<Str
                 worlds, s.getDouble("x"), s.getDouble("y"), s.getDouble("z"),
                 (float)s.getDouble("yaw"), (float)s.getDouble("pitch"), s.getString("skin", ""));
     }
-    public boolean isModel() { return type.toLowerCase(Locale.ROOT).startsWith("limb:") || !type.isBlank(); }
+    public boolean isModel() { return !type.isBlank() && !type.toLowerCase(Locale.ROOT).startsWith("mythicmob:"); }
     public Location location(World world) { return new Location(world, x, y, z, yaw, pitch); }
     public boolean appliesTo(World world) { return worlds.contains("all") || worlds.contains(world.getName()); }
 }
