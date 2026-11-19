@@ -30,6 +30,8 @@ import org.bukkit.scheduler.BukkitTask;
 
 import java.io.File;
 import java.nio.file.Files;
+import java.lang.reflect.Method;
+import java.lang.reflect.Modifier;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -239,7 +241,7 @@ public final class ScriptEngine implements Listener {
             index++;continue;
         }
         if(s.startsWith("play anime ")){c.npc().animate(unquote(s.substring(11)));index++;continue;}
-        if(s.startsWith("play sound ")){String name=unquote(s.substring(11));try{Sound sound=Sound.valueOf(name.toUpperCase(Locale.ROOT).replace('.','_'));c.npc().location().getWorld().playSound(c.npc().location(),sound,1f,1f);}catch(IllegalArgumentException ignored){}index++;continue;}
+        if(s.startsWith("play sound ")){playScriptSound(c,s.substring(11).trim());index++;continue;}
         if(s.startsWith("move to ")){stopFollow(c.npc());Location target=parseLocation(c,s.substring(8).trim());if(target!=null)move(c.npc(),target);index++;continue;}
         if(s.startsWith("fly to ")){stopFollow(c.npc());Location target=parseLocation(c,s.substring(7).trim());if(target!=null)moveFlying(c.npc(),target);index++;continue;}
         if(s.startsWith("tp ")){stopFollow(c.npc());Location target=parseLocation(c,s.substring(3).trim());if(target!=null)move(c.npc(),target);index++;continue;}
@@ -580,6 +582,48 @@ public final class ScriptEngine implements Listener {
         for(PathNode node=found;node!=null;node=node.parent())result.addFirst(new Location(world,node.x()+0.5,node.y()+0.5,node.z()+0.5));
         result.add(target.clone());
         return result;
+    }
+
+    private void playScriptSound(ScriptContext context,String raw){
+        String soundName=unquote(raw).trim();
+        String lower=soundName.toLowerCase(Locale.ROOT);
+        if(lower.startsWith("itemsadder:")||lower.contains(":")){
+            String id=lower.startsWith("itemsadder:")?soundName.substring(11):soundName;
+            if(Bukkit.getPluginManager().getPlugin("ItemsAdder")==null){
+                plugin.getLogger().warning("ItemsAdder n'est pas installé : son personnalisé '"+id+"' ignoré.");
+                return;
+            }
+            try{
+                Class<?> customSound=Class.forName("dev.lone.itemsadder.api.CustomSound");
+                boolean invoked=false;
+                for(Method method:customSound.getMethods()){
+                    if(!method.getName().equals("playSound")||!Modifier.isStatic(method.getModifiers()))continue;
+                    Class<?>[] parameters=method.getParameterTypes();
+                    if(parameters.length==4&&parameters[1]==String.class&&parameters[2]==float.class&&parameters[3]==float.class){
+                        if(parameters[0].isAssignableFrom(Location.class)){
+                            method.invoke(null,context.npc().location(),id,1.0f,1.0f);
+                            invoked=true;break;
+                        }
+                        if(parameters[0].isAssignableFrom(Player.class)){
+                            for(Player player:context.npc().location().getWorld().getPlayers())
+                                if(player.getLocation().distanceSquared(context.npc().location())<=32*32)
+                                    method.invoke(null,player,id,1.0f,1.0f);
+                            invoked=true;break;
+                        }
+                    }
+                }
+                if(!invoked)plugin.getLogger().warning("API de son ItemsAdder non reconnue pour '"+id+"'.");
+            }catch(Exception exception){
+                plugin.getLogger().warning("Lecture du son ItemsAdder '"+id+"' impossible : "+exception.getMessage());
+            }
+            return;
+        }
+        try{
+            Sound sound=Sound.valueOf(soundName.toUpperCase(Locale.ROOT).replace('.','_'));
+            context.npc().location().getWorld().playSound(context.npc().location(),sound,1.0f,1.0f);
+        }catch(IllegalArgumentException exception){
+            plugin.getLogger().warning("Son inconnu : "+soundName);
+        }
     }
 
     private void simulateBreakBlock(Location location){
