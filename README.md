@@ -130,6 +130,21 @@ on left click:
 
 Le déplacement au sol utilise un pathfinding avec évitement des blocs solides. `fly to` utilise un chemin 3D avec évitement des blocs et une animation `fly` si le modèle la fournit. La limite est réglable dans `config.yml` via `movement.max-path-attempts` (100 par défaut). Le suivi s'arrête si la cible se déconnecte ou change de monde.
 
+### Combat et hostilité
+
+L'hostilité est désactivée par défaut. Un script doit l'activer explicitement. Les sélecteurs de cible peuvent être combinés avec des virgules.
+
+```python
+on right click:
+    target all players, monsters
+    set hostile on
+
+on left click:
+    stop attack
+```
+
+`attack @p` choisit le joueur le plus proche et active l'hostilité. Les sélecteurs pris en charge comprennent `all players`, `all mobs`, `all entities`, `monsters`, `animals`, `player:<pseudo>`, `mob:<type>`, `entity:<type>` et `mythic:<id>`. Les portées, dégâts et délais sont réglables dans `config.yml` sous `combat`.
+
 ### États
 
 Un NPC possède un état principal et peut avoir plusieurs états secondaires.
