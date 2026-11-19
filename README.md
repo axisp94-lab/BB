@@ -48,6 +48,8 @@ on right click:
     say local "Bonjour !"
     play sound "entity.villager.yes"
     play sound "itemsadder:amethyys:welcome"
+    emote "wave"
+    stop animation
 
 on entity approach:
     say local "Bienvenue près de moi !"
