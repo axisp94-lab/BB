@@ -131,7 +131,7 @@ public final class ScriptEngine implements Listener {
                 continue;
             }
             int open=header.indexOf('('),close=header.lastIndexOf(')');
-            if(open<10||close<open){plugin.getLogger().warning("Déclaration de fonction invalide ligne "+(i+1)+" : "+header);continue;}
+            if(open<10||close<open||close!=header.length()-2){plugin.getLogger().warning("Déclaration de fonction invalide ligne "+(i+1)+" : "+header);continue;}
             String name=header.substring(9,open).trim().toLowerCase(Locale.ROOT);
             if(!name.matches("[a-z_][a-z0-9_-]*")){
                 plugin.getLogger().warning("Nom de fonction invalide ligne "+(i+1)+" : '"+name+"'.");
