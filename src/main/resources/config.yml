@@ -12,3 +12,6 @@ movement:
     enabled: true
     max-nodes: 5000
     max-distance: 128.0
+  flying:
+    max-nodes: 5000
+    max-distance: 128.0
