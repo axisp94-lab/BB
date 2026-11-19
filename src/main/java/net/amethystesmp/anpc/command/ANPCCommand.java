@@ -2,6 +2,7 @@ package net.amethystesmp.anpc.command;
 
 import net.amethystesmp.anpc.ANPCPlugin;
 import net.amethystesmp.anpc.npc.ManagedNPC;
+import net.amethystesmp.anpc.npc.NPCDefinition;
 import org.bukkit.ChatColor;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandSender;
@@ -39,20 +40,18 @@ public final class ANPCCommand implements TabExecutor {
 
         switch (args[0].toLowerCase(Locale.ROOT)) {
             case "list" -> {
-                List<ManagedNPC> all = plugin.npcs().all().stream()
-                        .collect(java.util.stream.Collectors.toMap(
-                                npc -> npc.id().toLowerCase(Locale.ROOT),
-                                npc -> npc,
-                                (first, ignored) -> first,
-                                java.util.LinkedHashMap::new))
-                        .values().stream().toList();
+                List<NPCDefinition> all = plugin.npcs().definitions().stream().toList();
+                Set<String> loadedIds = plugin.npcs().all().stream()
+                        .map(npc -> npc.id().toLowerCase(Locale.ROOT))
+                        .collect(java.util.stream.Collectors.toSet());
 
                 if (all.isEmpty()) {
-                    msg(sender, "Aucun NPC chargé.");
+                    msg(sender, "Aucune définition de NPC.");
                 } else {
                     all.forEach(npc -> {
-                        String world = npc.location().getWorld() == null ? "monde inconnu" : npc.location().getWorld().getName();
-                        msg(sender, npc.id() + " — " + npc.definition().type() + " — " + world);
+                        String worlds = npc.worlds().isEmpty() ? "aucun monde configuré" : String.join(", ", npc.worlds());
+                        String status = loadedIds.contains(npc.id().toLowerCase(Locale.ROOT)) ? "chargé" : "non chargé";
+                        msg(sender, npc.id() + " — " + npc.type() + " — " + worlds + " — " + status);
                     });
                 }
             }
