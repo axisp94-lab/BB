@@ -442,7 +442,7 @@ public final class ScriptEngine implements Listener {
         if(s.startsWith("look at ")&&(c.player()!=null||c.eventNpc()!=null)){Location at=c.player()!=null?c.player().getLocation():c.eventNpc().location();Location from=c.npc().location();from.setDirection(at.toVector().subtract(from.toVector()));c.npc().move(from);markChanged(c);index++;continue;}
         if(s.startsWith("follow ")){startFollow(c.npc(),s.substring(7).trim());markChanged(c);index++;continue;}
         if(s.startsWith("keep distance ")){startKeepDistance(c.npc(),s.substring(14).trim());markChanged(c);index++;continue;}
-        if(s.equals("stop follow")){stopFollow(c.npc());markChanged(c);index++;continue;}
+        if(s.equals("stop follow")||s.equals("stop movement")){stopFollow(c.npc());markChanged(c);index++;continue;}
         if(s.startsWith("target ")){setTargetSelector(c.npc(),s.substring(7).trim());markChanged(c);index++;continue;}
         if(s.startsWith("attack ")){setTargetSelector(c.npc(),s.substring(7).trim());setHostile(c.npc(),true);markChanged(c);index++;continue;}
         if(s.equals("stop attack")){setHostile(c.npc(),false);markChanged(c);index++;continue;}
@@ -494,7 +494,7 @@ public final class ScriptEngine implements Listener {
                 ||text.startsWith("create variable ")||text.startsWith("add state ")
                 ||text.startsWith("remove state ")||text.equals("clear states")||text.startsWith("flag on ")
                 ||text.startsWith("flag off ")||text.startsWith("play sound ")||text.startsWith("play anime ")||text.startsWith("emote ")||text.equals("stop animation")
-                ||text.startsWith("move to ")||text.startsWith("fly to ")||text.startsWith("follow ")
+                ||text.startsWith("move to ")||text.startsWith("fly to ")||text.startsWith("tp ")||text.startsWith("follow ")
                 ||text.startsWith("keep distance ")||text.equals("stop follow")||text.equals("stop movement")||text.startsWith("target ")
                 ||text.startsWith("attack ")||text.equals("stop attack")||text.startsWith("look at ")
                 ||text.startsWith("set checkpoint ")||text.startsWith("remove checkpoint ")
@@ -508,7 +508,7 @@ public final class ScriptEngine implements Listener {
     private void warnUnknownInstruction(int line,String text){
         List<String> keywords=List.of("say local","say global","send to","set","create variable","flag on","flag off",
                 "play sound","play anime","move to","fly to","follow","keep distance","stop follow","target","attack",
-                "stop attack","set state","add state","remove state","clear states","simulate break block","simulate place",
+                "stop attack","stop movement","tp","set state","add state","remove state","clear states","simulate break block","simulate place",
                 "simulate interact","set block","break block","wait","run command","look at","if","loop","return","call");
         String first=text.trim().split("\\s+",2)[0].toLowerCase(Locale.ROOT);
         String suggestion=keywords.stream().min(Comparator.comparingInt(keyword->editDistance(first,keyword.split(" ",2)[0]))).orElse("");
