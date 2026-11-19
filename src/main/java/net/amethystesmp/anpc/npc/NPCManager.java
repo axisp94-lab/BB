@@ -300,7 +300,7 @@ public final class NPCManager {
             plugin.variables().delete("npc-runtime", owner, "health");
             plugin.variables().delete("npc-runtime", owner, "max-health");
             plugin.variables().delete("npc-runtime", owner, "speed");
-        plugin.variables().delete("npc-runtime", owner, "attack-damage");
+            plugin.variables().delete("npc-runtime", owner, "attack-damage");
         }
         backupDeletedNPC(definition, worldNames);
         backupDeletedScript(id);
@@ -392,6 +392,7 @@ public final class NPCManager {
         plugin.variables().delete("npc-runtime", owner, "health");
         plugin.variables().delete("npc-runtime", owner, "max-health");
         plugin.variables().delete("npc-runtime", owner, "speed");
+        plugin.variables().delete("npc-runtime", owner, "attack-damage");
     }
 
     public void rename(String id, String display) {
