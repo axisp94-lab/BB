@@ -427,7 +427,9 @@ public final class NPCManager {
 
     private File scriptFile(String id) {
         if (id == null || !id.matches("[A-Za-z0-9_-]+")) return null;
-        return new File(new File(plugin.getDataFolder(), "scripts"), id + ".aa");
+        File directory = new File(plugin.getDataFolder(), "scripts");
+        File[] matches = directory.listFiles((folder, name) -> name.equalsIgnoreCase(id + ".aa"));
+        return matches != null && matches.length > 0 ? matches[0] : new File(directory, id + ".aa");
     }
 
     private File deletedScriptFile(String id) {
