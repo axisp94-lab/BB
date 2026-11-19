@@ -358,10 +358,114 @@ public final class ScriptEngine implements Listener {
         return index;
     }
     private boolean test(ScriptContext c,String expression){String e=expression.trim();if(e.startsWith("flag (")&&e.contains(") is ")){String name=e.substring(6,e.indexOf(')'));boolean v=Boolean.parseBoolean(variables.get("npc",c.npc().id(),"flag:"+name,"false"));return e.endsWith("on")?v:!v;}String[] ops={" >= "," <= "," != "," == "," > "," < "," contains "};for(String op:ops){int p=e.indexOf(op);if(p>0){Object a=resolve(c,e.substring(0,p)),b=resolve(c,e.substring(p+op.length()));if(op.equals(" contains "))return String.valueOf(a).contains(String.valueOf(b));double x=num(a),y=num(b);return switch(op.trim()){case ">"->x>y;case "<"->x<y;case ">="->x>=y;case "<="->x<=y;case "!="->!Objects.equals(String.valueOf(a),String.valueOf(b));default->Objects.equals(String.valueOf(a),String.valueOf(b))||x==y;};}}if(e.equalsIgnoreCase("player is sneaking"))return c.player()!=null&&c.player().isSneaking();if(e.toLowerCase(Locale.ROOT).startsWith("player has permission "))return c.player()!=null&&c.player().hasPermission(unquote(e.substring(22).trim()));if(e.toLowerCase(Locale.ROOT).startsWith("player has item ")){if(c.player()==null)return false;try{return c.player().getInventory().contains(org.bukkit.Material.valueOf(e.substring(16).trim().toUpperCase(Locale.ROOT)));}catch(IllegalArgumentException ex){return false;}}if(e.equalsIgnoreCase("npc is under attack"))return false;return false;}
-    private Object resolve(ScriptContext c,String raw){String s=raw.trim();if(s.startsWith("\"")&&s.endsWith("\""))return unquote(s);if(s.equalsIgnoreCase("true")||s.equalsIgnoreCase("false"))return Boolean.parseBoolean(s);try{return Double.parseDouble(s);}catch(NumberFormatException ignored){}String meta=variables.get("meta",c.npc().id(),s,null);if(meta==null)meta=variables.get("meta","",s,null);if(meta!=null){String[] parts=meta.split("\\|",2);String scope=parts[0],owner=parts.length>1?parts[1]:c.npc().id();String value=variables.get(scope,owner,s,null);if(value!=null)return parseStored(value);}return c.value(s);}
+    private Object resolve(ScriptContext context, String raw) {
+        String value = raw.trim();
+        if (value.startsWith("\"") && value.endsWith("\"")) return unquote(value);
+        if (value.equalsIgnoreCase("true") || value.equalsIgnoreCase("false")) return Boolean.parseBoolean(value);
+        try {
+            return Double.parseDouble(value);
+        } catch (NumberFormatException ignored) {
+        }
+
+        String metadata = variables.get("meta", context.npc().id(), value, null);
+        if (metadata == null) metadata = variables.get("meta", "", value, null);
+        if (metadata != null) {
+            String[] parts = metadata.split("\\|", 2);
+            String scope = parts[0];
+            String owner = parts.length > 1 ? parts[1] : context.npc().id();
+            String stored = variables.get(scope, owner, value, null);
+            if (stored != null) return parseStored(stored);
+        }
+
+        String local = variables.get("local", context.npc().id(), value, null);
+        if (local != null) return parseStored(local);
+        String global = variables.get("global", "", value, null);
+        if (global != null) return parseStored(global);
+        return context.value(value);
+    }
     private Object parseStored(String s){if(s.equalsIgnoreCase("true")||s.equalsIgnoreCase("false"))return Boolean.parseBoolean(s);try{return Double.parseDouble(s);}catch(Exception e){return s;}}
-    private void createVariable(ScriptContext c,String declaration){String d=declaration.replace("(","").replace(")","").trim();String[] a=d.split("\\s+");if(a.length<2)return;String name=a[0];String value=a[1];String scope=a.length>2?a[2].toLowerCase(Locale.ROOT):"local";String owner=c.npc().id();if(scope.equals("global")){owner="";variables.set("meta","",name,"global|@");}else if(scope.equals("shared")){owner=a.length>3?a[3].replace("[","").replace("]",""):"shared";String[] members=owner.split(",");for(String member:members)variables.set("meta",member.trim(),name,"shared|"+owner);}else{scope="local";variables.set("meta",c.npc().id(),name,"local|"+owner);}variables.set(scope,owner,name,value);c.locals().put(name,parseStored(value));}
-    private void storeVariable(ScriptContext c,String name,Object value){String meta=variables.get("meta",c.npc().id(),name,null);if(meta==null)meta=variables.get("meta","",name,"local|"+c.npc().id());String[] parts=meta.split("\\|",2);String scope=parts[0],owner=parts.length>1?parts[1]:c.npc().id();variables.set(scope,owner,name,value);}
+    private void createVariable(ScriptContext context, String declaration) {
+        List<String> arguments = extractGroups(declaration);
+        if (arguments.size() < 2) {
+            plugin.getLogger().warning("Script " + context.npc().id() + " : déclaration create variable invalide : " + declaration);
+            return;
+        }
+
+        String name = unquote(arguments.get(0)).trim().toLowerCase(Locale.ROOT);
+        if (name.isBlank()) return;
+        Object defaultValue = resolve(context, arguments.get(1));
+        String scopeDeclaration = arguments.size() > 2 ? arguments.get(2).trim() : "local";
+        if (arguments.size() > 3) scopeDeclaration += " " + arguments.get(3).trim();
+
+        String scope = "local";
+        String owner = context.npc().id();
+
+        if (scopeDeclaration.toLowerCase(Locale.ROOT).startsWith("global")) {
+            scope = "global";
+            owner = "";
+            variables.set("meta", "", name, "global|@");
+        } else if (scopeDeclaration.toLowerCase(Locale.ROOT).startsWith("shared")) {
+            int open = scopeDeclaration.indexOf('[');
+            int close = scopeDeclaration.indexOf(']', open + 1);
+            if (open < 0 || close < 0) {
+                plugin.getLogger().warning("Script " + context.npc().id() + " : une variable shared doit préciser les NPC entre crochets.");
+                return;
+            }
+            List<String> members = Arrays.stream(scopeDeclaration.substring(open + 1, close).split(","))
+                    .map(String::trim)
+                    .filter(member -> !member.isBlank())
+                    .map(member -> member.toLowerCase(Locale.ROOT))
+                    .distinct()
+                    .sorted()
+                    .toList();
+            if (members.isEmpty()) return;
+            scope = "shared";
+            owner = String.join(",", members);
+            for (String member : members) variables.set("meta", member, name, "shared|" + owner);
+        } else {
+            variables.set("meta", context.npc().id(), name, "local|" + owner);
+        }
+
+        variables.set(scope, owner, name, defaultValue);
+        context.locals().put(name, defaultValue);
+    }
+
+    private List<String> extractGroups(String declaration) {
+        List<String> groups = new ArrayList<>();
+        boolean quoted = false;
+        int start = -1;
+        int depth = 0;
+
+        for (int i = 0; i < declaration.length(); i++) {
+            char character = declaration.charAt(i);
+            if (character == '"' && (i == 0 || declaration.charAt(i - 1) != '\\\\')) quoted = !quoted;
+            if (quoted) continue;
+
+            if (character == '(') {
+                if (depth == 0) start = i + 1;
+                depth++;
+            } else if (character == ')' && depth > 0) {
+                depth--;
+                if (depth == 0 && start >= 0) {
+                    groups.add(declaration.substring(start, i).trim());
+                    start = -1;
+                }
+            }
+        }
+        return groups;
+    }
+    private void storeVariable(ScriptContext context, String name, Object value) {
+        String metadata = variables.get("meta", context.npc().id(), name, null);
+        if (metadata == null) metadata = variables.get("meta", "", name, null);
+        if (metadata == null) {
+            metadata = "local|" + context.npc().id();
+            variables.set("meta", context.npc().id(), name, metadata);
+        }
+        String[] parts = metadata.split("\\|", 2);
+        String scope = parts[0];
+        String owner = parts.length > 1 ? parts[1] : context.npc().id();
+        variables.set(scope, owner, name, value);
+    }
     private double num(Object o){try{return Double.parseDouble(String.valueOf(o));}catch(Exception e){return 0;}}
     private String unquote(String s){s=s.trim();return s.length()>=2&&s.startsWith("\"")&&s.endsWith("\"")?s.substring(1,s.length()-1):s;}
     private Player nearest(Location l){return l.getWorld().getPlayers().stream().min(Comparator.comparingDouble(p->p.getLocation().distanceSquared(l))).orElse(null);}
