@@ -45,6 +45,7 @@ public final class NPCManager {
         ConfigurationSection root = yaml.getConfigurationSection("npcs");
         if (root != null) {
             for (String id : root.getKeys(false)) {
+                if (!isValidId(id)) { plugin.getLogger().warning("ID de NPC invalide dans npc.yml : "+id); continue; }
                 if (isRemoved(id)) continue;
                 try {
                     createFrom(NPCDefinition.read(id, root.getConfigurationSection(id)));
@@ -172,7 +173,9 @@ public final class NPCManager {
 
     public Collection<ManagedNPC> all() { return Collections.unmodifiableCollection(npcs.values()); }
     public int size() { return npcs.size(); }
-    public boolean exists(String id) { return yaml != null && yaml.isConfigurationSection("npcs." + id); }
+    private boolean isValidId(String id) { return id != null && id.matches("[A-Za-z0-9_-]+"); }
+
+    public boolean exists(String id) { return isValidId(id) && yaml != null && yaml.isConfigurationSection("npcs." + id); }
 
     private boolean isRemoved(String id) {
         String stored = plugin.variables().get("npc-lifecycle", id, "removed", null);
@@ -180,7 +183,7 @@ public final class NPCManager {
     }
 
     public boolean create(String id, String type, Location location) {
-        if (exists(id) || location.getWorld() == null) return false;
+        if (!isValidId(id) || type == null || type.isBlank() || exists(id) || location == null || location.getWorld() == null) return false;
         NPCDefinition definition = new NPCDefinition(id, id, type, List.of(location.getWorld().getName()),
                 location.getX(), location.getY(), location.getZ(), location.getYaw(), location.getPitch(), "");
         ModelRenderer renderer = resolveRenderer(type);
