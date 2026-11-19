@@ -128,7 +128,7 @@ public final class ScriptEngine implements Listener {
         if(s.equals("stop loop")){c.stopLoop();return code.size();}
         if(s.equals("skip loop")){c.skipLoop();return code.size();}
         if(s.startsWith("if ")&&s.endsWith(":")){int end=findEnd(code,index+1,in.indent());if(test(c,s.substring(3,s.length()-1))){int child=index+1<code.size()?code.get(index+1).indent():in.indent()+4;runBlock(c,code,index+1,child);}index=end;continue;}
-        if(s.startsWith("set ")){String body=s.substring(4).trim();int q=body.indexOf('"',1);if(body.startsWith("\"")&&q>0){String name=body.substring(1,q);String val=body.substring(q+1).trim();if(val.startsWith("(" )&&val.endsWith(")"))val=val.substring(1,val.length()-1);Object value=resolve(c,val);c.locals().put(name,value);storeVariable(c,name,value);}index++;continue;}
+        if(s.startsWith("set ")){String body=s.substring(4).trim();int q=body.indexOf('"',1);if(body.startsWith("\"")&&q>0){String name=body.substring(1,q);String val=body.substring(q+1).trim();if(val.startsWith("(" )&&val.endsWith(")"))val=val.substring(1,val.length()-1);Object value=resolve(c,val);c.locals().put(name,value);if(!c.isTransientLocal(name))storeVariable(c,name,value);}index++;continue;}
         if(s.startsWith("create variable ")){createVariable(c,s.substring(15).trim());index++;continue;}
         if(s.startsWith("say local ")||s.startsWith("say global ")){boolean global=s.startsWith("say global ");String msg=unquote(s.substring(global?11:10));String rendered=ChatColor.translateAlternateColorCodes('&',c.npc().definition().displayName()+" » "+msg);if(global)Bukkit.broadcastMessage(rendered);else if(c.player()!=null)c.player().sendMessage(rendered);else for(Player p:c.npc().location().getWorld().getPlayers())if(p.getLocation().distanceSquared(c.npc().location())<32*32)p.sendMessage(rendered);index++;continue;}
         if(s.startsWith("send to ")){int pos=s.indexOf(' ',8);if(pos>0){String target=s.substring(8,pos);String msg=unquote(s.substring(pos+1));Player p=target.equals("@p")?nearest(c.npc().location()):Bukkit.getPlayerExact(target);if(p!=null)p.sendMessage(ChatColor.translateAlternateColorCodes('&',msg));}index++;continue;}
@@ -195,6 +195,7 @@ public final class ScriptEngine implements Listener {
         if(e.toLowerCase(Locale.ROOT).startsWith("npc has state "))return c.npc().secondaryStates().contains(unquote(e.substring(14).trim()).toLowerCase(Locale.ROOT));return false;}
     private Object resolve(ScriptContext c,String raw){
         String value=raw.trim();
+        if(c.locals().containsKey(value))return c.locals().get(value);
         if(value.toLowerCase(Locale.ROOT).startsWith("call "))return callFunction(c,value.substring(5).trim());
         if(value.startsWith("\"")&&value.endsWith("\""))return unquote(value);
         if(value.equalsIgnoreCase("true")||value.equalsIgnoreCase("false"))return Boolean.parseBoolean(value);
@@ -281,7 +282,7 @@ public final class ScriptEngine implements Listener {
         }
         ScriptContext child=new ScriptContext(caller.npc(),caller.player());
         child.setCallDepth(caller.callDepth()+1);
-        for(int i=0;i<arguments.size();i++)child.locals().put(function.parameters().get(i),resolve(caller,arguments.get(i)));
+        for(int i=0;i<arguments.size();i++){String parameter=function.parameters().get(i);child.locals().put(parameter,resolve(caller,arguments.get(i)));child.markTransientLocal(parameter);}
         if(!function.code().isEmpty())runBlock(child,function.code(),0,function.code().get(0).indent());
         return child.returnValue();
     }
