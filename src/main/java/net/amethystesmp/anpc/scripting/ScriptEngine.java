@@ -170,6 +170,8 @@ public final class ScriptEngine implements Listener {
             plugin.getLogger().warning("Type de boucle inconnu : '"+expression+"'.");
             return;
         }
+        ManagedNPC previousNpc=context.npc();
+        Player previousPlayer=context.player();
         context.pushLoop();
         try{
             int number=0;
@@ -177,6 +179,8 @@ public final class ScriptEngine implements Listener {
                 number++;
                 context.locals().put("loop-value",value);
                 context.locals().put("loop-number",number);
+                context.setNpc(value instanceof ManagedNPC targetNpc?targetNpc:previousNpc);
+                context.setPlayer(value instanceof Player targetPlayer?targetPlayer:previousPlayer);
                 if(value instanceof Player player)context.locals().put("loop-player",player);
                 if(value instanceof ManagedNPC npc)context.locals().put("loop-npc",npc);
                 context.clearLoopSkip();
@@ -186,6 +190,8 @@ public final class ScriptEngine implements Listener {
             }
         }finally{
             context.popLoop();
+            context.setNpc(previousNpc);
+            context.setPlayer(previousPlayer);
         }
     }
     private int findEnd(List<Instruction> c,int from,int parent){int i=from;while(i<c.size()&&c.get(i).indent()>parent)i++;return i;}
