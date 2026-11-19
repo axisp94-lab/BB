@@ -1102,17 +1102,19 @@ public final class ScriptEngine implements Listener {
     @EventHandler public void onPlayerCommand(PlayerCommandPreprocessEvent event){
         Player player=event.getPlayer();
         String commandText=event.getMessage();
-        for(ManagedNPC npc:npcs.all())if(npc.location().getWorld().equals(player.getWorld()))
+        for(ManagedNPC npc:npcs.all())if(npc.location().getWorld().equals(player.getWorld())){
             fire(npc.id(),"player command",player,commandText);
             fire(npc.id(),"command",player,commandText);
+        }
     }
     @EventHandler public void onPlayerChat(AsyncChatEvent event){
         Player player=event.getPlayer();
         String message=PlainTextComponentSerializer.plainText().serialize(event.message());
         Bukkit.getScheduler().runTask(plugin,()->{
-            for(ManagedNPC npc:npcs.all())if(npc.location().getWorld().equals(player.getWorld()))
+            for(ManagedNPC npc:npcs.all())if(npc.location().getWorld().equals(player.getWorld())){
                 fire(npc.id(),"player chat",player,message);
                 fire(npc.id(),"chat",player,message);
+            }
         });
     }
 
