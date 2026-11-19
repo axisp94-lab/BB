@@ -396,7 +396,7 @@ public final class ScriptEngine implements Listener {
                 ||text.startsWith("set health of npc to ")||text.startsWith("set max health of npc to ")
                 ||text.startsWith("set speed of npc to ")||text.startsWith("set target of npc to ")
                 ||text.startsWith("set checkpoint ")||text.startsWith("set block "))return true;
-        if(text.startsWith("set "))return text.matches("^set\\s+\\"[^\\"]+\\"\\s+.+$");
+        if(text.startsWith("set "))return text.matches("^set\\s+\"[^\"]+\"\\s+.+$");
         return text.startsWith("say local ")||text.startsWith("say global ")||text.startsWith("send to ")
                 ||text.startsWith("create variable ")||text.startsWith("add state ")
                 ||text.startsWith("remove state ")||text.equals("clear states")||text.startsWith("flag on ")
