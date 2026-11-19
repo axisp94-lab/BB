@@ -81,6 +81,7 @@ public final class ScriptEngine implements Listener {
         for(ManagedNPC npc:npcs.all()){
             Map<String,List<Instruction>> map=scripts.get(npc.id().toLowerCase(Locale.ROOT));
             if(map!=null&&map.get("spawn")!=null&&npc.scriptsEnabled())execute(npc,null,map.get("spawn"),0);
+            if(map!=null&&map.get("reload")!=null&&npc.scriptsEnabled())execute(npc,null,map.get("reload"),0);
         }
     }
     private Map<String,List<Instruction>> parse(List<String> lines){
@@ -473,6 +474,8 @@ public final class ScriptEngine implements Listener {
         if(s.startsWith("move to ")){stopFollow(c.npc());Location target=parseLocation(c,s.substring(8).trim());if(target!=null)move(c.npc(),target);markChanged(c);index++;continue;}
         if(s.startsWith("fly to ")){stopFollow(c.npc());Location target=parseLocation(c,s.substring(7).trim());if(target!=null)moveFlying(c.npc(),target);markChanged(c);index++;continue;}
         if(s.startsWith("tp ")){stopFollow(c.npc());Location target=parseLocation(c,s.substring(3).trim());if(target!=null)move(c.npc(),target);index++;continue;}
+        if(s.startsWith("create flag ")){createFlag(c,s.substring(12).trim());markChanged(c);index++;continue;}
+        if(s.startsWith("flag send ")){sendFlag(c,s.substring(10).trim());markChanged(c);index++;continue;}
         if(s.startsWith("flag on ")||s.startsWith("flag off ")){boolean on=s.startsWith("flag on ");String name=s.substring(on?8:9).replace("(","").replace(")","").trim();variables.setLocal(c.npc().id(),c.npc().location().getWorld().getName(),"flag:"+name,on);markChanged(c);index++;continue;}
         if(s.startsWith("wait ")){
             long ticks=parseDurationTicks(s.substring(5));
@@ -547,7 +550,8 @@ public final class ScriptEngine implements Listener {
     private boolean isKnownEvent(String event){
         return Set.of("spawn","right click","right click while sneaking","left click","left click while sneaking","item click","damage","entity approach","entity leave",
                 "npc approach","npc leave","interval","player join","player connect","player quit","player disconnect",
-                "player chat","player command","chat","command","join","quit","connect","disconnect","click","interact","walk").contains(event);
+                "player chat","player command","chat","command","join","quit","connect","disconnect","click","interact","walk","reload").contains(event)
+                ||isFlagReceiveEvent(event);
     }
 
     private boolean isKnownInstruction(String instruction){
@@ -560,7 +564,8 @@ public final class ScriptEngine implements Listener {
                 ||text.startsWith("set speed of npc to ")||text.startsWith("set attack damage of npc to ")||text.startsWith("set target of npc to ")
                 ||text.startsWith("set checkpoint ")||text.startsWith("set cooldown ")||text.startsWith("set block "))return true;
         if(text.startsWith("set "))return text.matches("^set\\s+\"[^\"]+\"\\s+.+$");
-        return text.startsWith("say local ")||text.startsWith("say global ")||text.startsWith("send to ")
+        return text.startsWith("create flag ")||text.startsWith("flag send ")
+                ||text.startsWith("say local ")||text.startsWith("say global ")||text.startsWith("send to ")
                 ||text.startsWith("create variable ")||text.startsWith("add state ")
                 ||text.startsWith("remove state ")||text.equals("clear states")||text.startsWith("flag on ")
                 ||text.startsWith("flag off ")||text.startsWith("play sound ")||text.startsWith("play anime ")||text.startsWith("emote ")||text.equals("stop animation")
@@ -936,6 +941,57 @@ public final class ScriptEngine implements Listener {
                 .filter(entity->requiredType==null||entity.getType()==requiredType)
                 .min(Comparator.comparingDouble(entity->entity.getLocation().distanceSquared(location)))
                 .orElse(null);
+    }
+
+    private boolean isFlagReceiveEvent(String event){
+        return event.matches("flag receive \\([a-z0-9_-]+\\)");
+    }
+
+    private void createFlag(ScriptContext context,String declaration){
+        java.util.regex.Matcher matcher=java.util.regex.Pattern.compile("^\\(?([a-zA-Z_][a-zA-Z0-9_-]*)\\)?\\s+(toggle|input)$",java.util.regex.Pattern.CASE_INSENSITIVE).matcher(declaration);
+        if(!matcher.matches()){
+            plugin.getLogger().warning("Syntaxe attendue : create flag (nom) toggle ou create flag (nom) input.");
+            return;
+        }
+        String name=matcher.group(1).toLowerCase(Locale.ROOT),type=matcher.group(2).toLowerCase(Locale.ROOT);
+        String existing=variables.get("npc-flags",context.npc().id(),name,null);
+        if(existing!=null&&!existing.equalsIgnoreCase(type)){
+            plugin.getLogger().warning("Le flag '"+name+"' est déjà déclaré avec le type '"+existing+"' pour "+context.npc().id()+".");
+            return;
+        }
+        variables.set("npc-flags",context.npc().id(),name,type);
+    }
+
+    private void sendFlag(ScriptContext context,String declaration){
+        int toIndex=declaration.toLowerCase(Locale.ROOT).lastIndexOf(" to ");
+        if(toIndex<0){
+            plugin.getLogger().warning("Syntaxe attendue : flag send (nom) to npc, npc2 ou all.");
+            return;
+        }
+        String name=declaration.substring(0,toIndex).replace("(","").replace(")","").trim().toLowerCase(Locale.ROOT);
+        String targets=declaration.substring(toIndex+4).trim();
+        String type=variables.get("npc-flags",context.npc().id(),name,null);
+        if(!"input".equalsIgnoreCase(type)){
+            plugin.getLogger().warning("Le flag '"+name+"' doit être déclaré avec le type input avant son envoi.");
+            return;
+        }
+        LinkedHashSet<String> ids=new LinkedHashSet<>();
+        if(targets.equalsIgnoreCase("all"))npcs.allIds().forEach(ids::add);
+        else{
+            String list=targets;
+            if(list.startsWith("[")&&list.endsWith("]"))list=list.substring(1,list.length()-1);
+            for(String target:splitArguments(list)){
+                String id=target.trim();
+                if(id.toLowerCase(Locale.ROOT).startsWith("npc:"))id=id.substring(4).trim();
+                if(!id.isBlank())ids.add(id);
+            }
+        }
+        for(String id:ids)for(ManagedNPC receiver:npcs.instances(id)){
+            Map<String,List<Instruction>> map=scripts.get(receiver.id().toLowerCase(Locale.ROOT));
+            if(map==null||!receiver.scriptsEnabled())continue;
+            List<Instruction> code=map.get("flag receive ("+name+")");
+            if(code!=null)execute(receiver,null,code,0,name,context.npc());
+        }
     }
 
     private boolean isSharedMember(String members,String npcId){
