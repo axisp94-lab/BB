@@ -32,8 +32,9 @@ public final class ScriptEngine implements Listener {
     private final ANPCPlugin plugin; private final NPCManager npcs; private final VariableStore variables;
     private final Map<String, ScriptData> scripts = new ConcurrentHashMap<>();
     private final ThreadLocal<Integer> functionDepth = ThreadLocal.withInitial(() -> 0);
-    private final Set<BukkitTask> tasks=ConcurrentHashMap.newKeySet();
-    private final Map<String,Set<UUID>> nearbyPlayers=new ConcurrentHashMap<>();
+    private final Set<BukkitTask> tasks = ConcurrentHashMap.newKeySet();
+    private final Map<String, BukkitTask> movementTasks = new ConcurrentHashMap<>();
+    private final Map<String, Set<UUID>> nearbyPlayers = new ConcurrentHashMap<>();
     public ScriptEngine(ANPCPlugin plugin,NPCManager npcs,VariableStore variables){this.plugin=plugin;this.npcs=npcs;this.variables=variables;}
     public void loadAll() {
         cancelTasks();
@@ -359,7 +360,7 @@ public final class ScriptEngine implements Listener {
 
             if (line.startsWith("tp ")) {
                 Location target = parseLocation(context, line.substring(3).trim());
-                if (target != null) move(context.npc(), target);
+                if (target != null) context.npc().move(target);
                 else warnInstruction(context, instruction, "cible de téléportation invalide");
                 index++;
                 continue;
@@ -899,7 +900,87 @@ public final class ScriptEngine implements Listener {
         }
         return null;
     }
-    private void move(ManagedNPC npc,Location target){Location start=npc.location();if(start.getWorld()!=target.getWorld())return;double distance=start.distance(target);double speed=plugin.getConfig().getDouble("movement.default-speed",4.0);long duration=Math.max(1,Math.round(distance/Math.max(.1,speed)*20));final long[] tick={0};BukkitTask[] holder=new BukkitTask[1];holder[0]=Bukkit.getScheduler().runTaskTimer(plugin,()->{tick[0]++;double t=Math.min(1,(double)tick[0]/duration);Location next=start.clone().add((target.getX()-start.getX())*t,(target.getY()-start.getY())*t,(target.getZ()-start.getZ())*t);next.setYaw((float)(start.getYaw()+(target.getYaw()-start.getYaw())*t));next.setPitch((float)(start.getPitch()+(target.getPitch()-start.getPitch())*t));npc.move(next);if(t>=1){holder[0].cancel();tasks.remove(holder[0]);npc.animate("idle");}},1L,Math.max(1,plugin.getConfig().getLong("movement.update-ticks",1)));tasks.add(holder[0]);npc.animate("walk");}
+    private void move(ManagedNPC npc, Location target) {
+        if (target == null || target.getWorld() == null) return;
+        Location start = npc.location();
+        if (start.getWorld() == null || !start.getWorld().equals(target.getWorld())) {
+            plugin.getLogger().warning("Déplacement impossible pour " + npc.id() + " : la cible est dans un autre monde.");
+            return;
+        }
+
+        List<Location> checkpoints;
+        if (plugin.getConfig().getBoolean("movement.pathfinding.enabled", true)) {
+            checkpoints = net.amethystesmp.anpc.npc.Pathfinder.findPath(
+                    start,
+                    target,
+                    plugin.getConfig().getInt("movement.pathfinding.max-nodes", 5000),
+                    plugin.getConfig().getDouble("movement.pathfinding.max-distance", 128.0),
+                    plugin.getConfig().getDouble("movement.checkpoint-spacing", 2.0));
+        } else {
+            checkpoints = List.of(target.clone());
+        }
+
+        if (checkpoints.isEmpty()) {
+            plugin.getLogger().warning("Aucun chemin praticable trouvé pour le NPC " + npc.id() + ".");
+            return;
+        }
+
+        String movementKey = npc.id().toLowerCase(Locale.ROOT) + "@"
+                + start.getWorld().getName().toLowerCase(Locale.ROOT);
+        BukkitTask previousTask = movementTasks.remove(movementKey);
+        if (previousTask != null) {
+            previousTask.cancel();
+            tasks.remove(previousTask);
+        }
+
+        long updateTicks = Math.max(1L, plugin.getConfig().getLong("movement.update-ticks", 1L));
+        double speed = Math.max(0.1, plugin.getConfig().getDouble("movement.default-speed", 4.0));
+        double distancePerUpdate = speed * updateTicks / 20.0;
+        int[] checkpointIndex = {0};
+        Location[] current = {start.clone()};
+        BukkitTask[] holder = new BukkitTask[1];
+
+        holder[0] = Bukkit.getScheduler().runTaskTimer(plugin, () -> {
+            double remaining = distancePerUpdate;
+            while (remaining > 0.000001 && checkpointIndex[0] < checkpoints.size()) {
+                Location checkpoint = checkpoints.get(checkpointIndex[0]);
+                double distance = current[0].distance(checkpoint);
+                if (distance <= 0.000001) {
+                    current[0] = checkpoint.clone();
+                    checkpointIndex[0]++;
+                } else if (distance <= remaining) {
+                    current[0] = checkpoint.clone();
+                    remaining -= distance;
+                    checkpointIndex[0]++;
+                } else {
+                    org.bukkit.util.Vector direction = checkpoint.toVector().subtract(current[0].toVector()).normalize();
+                    current[0].add(direction.multiply(remaining));
+                    remaining = 0;
+                }
+            }
+
+            if (checkpointIndex[0] < checkpoints.size()) {
+                org.bukkit.util.Vector direction = checkpoints.get(checkpointIndex[0]).toVector()
+                        .subtract(current[0].toVector());
+                if (direction.lengthSquared() > 0.000001) current[0].setDirection(direction);
+            } else {
+                current[0].setYaw(target.getYaw());
+                current[0].setPitch(target.getPitch());
+            }
+
+            npc.move(current[0].clone());
+            if (checkpointIndex[0] >= checkpoints.size()) {
+                holder[0].cancel();
+                tasks.remove(holder[0]);
+                movementTasks.remove(movementKey, holder[0]);
+                npc.animate("idle");
+            }
+        }, 1L, updateTicks);
+
+        tasks.add(holder[0]);
+        movementTasks.put(movementKey, holder[0]);
+        npc.animate("walk");
+    }
     private long parseDurationTicks(String s){String[] a=s.trim().split("\\s+");try{long n=Long.parseLong(a[0]);return a.length>1&&a[1].startsWith("second")?n*20:n;}catch(Exception e){return 1;}}
     @EventHandler public void onNpcRightClick(PlayerInteractAtEntityEvent e){
         String id=e.getRightClicked().getScoreboardTags().stream().filter(t->t.startsWith("anpc:")).map(t->t.substring(5)).findFirst().orElse(null);
@@ -915,6 +996,7 @@ public final class ScriptEngine implements Listener {
     private void cancelTasks() {
         tasks.forEach(BukkitTask::cancel);
         tasks.clear();
+        movementTasks.clear();
     }
 
     public void shutdown() {
