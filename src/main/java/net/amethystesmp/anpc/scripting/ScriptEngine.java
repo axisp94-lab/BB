@@ -1409,6 +1409,7 @@ public final class ScriptEngine implements Listener {
         private final ScriptContext context;
         private final String source;
         private int position;
+        private int nestingDepth;
 
         private ArithmeticParser(ScriptContext context, String source) {
             this.context = context;
@@ -1454,10 +1455,18 @@ public final class ScriptEngine implements Listener {
         }
 
         private double unary() {
-            skipWhitespace();
-            if (consume('+')) return unary();
-            if (consume('-')) return -unary();
-            return primary();
+            if (++nestingDepth > 32) {
+                nestingDepth--;
+                throw new IllegalArgumentException("Arithmetic nesting limit exceeded");
+            }
+            try {
+                skipWhitespace();
+                if (consume('+')) return unary();
+                if (consume('-')) return -unary();
+                return primary();
+            } finally {
+                nestingDepth--;
+            }
         }
 
         private double primary() {
