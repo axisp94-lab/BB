@@ -1037,7 +1037,126 @@ public final class ScriptEngine implements Listener {
         return unquote(value);
     }
 
+    private boolean containsArithmeticOperator(String expression) {
+        boolean quoted = false;
+        for (int i = 0; i < expression.length(); i++) {
+            char character = expression.charAt(i);
+            if (character == '"' && (i == 0 || expression.charAt(i - 1) != '\\')) quoted = !quoted;
+            if (!quoted && (character == '+' || character == '*' || character == '/' || character == '%')) return true;
+            if (!quoted && character == '-' && i > 0) return true;
+        }
+        return false;
+    }
+
+    private final class ArithmeticParser {
+        private final ScriptContext context;
+        private final String source;
+        private int position;
+
+        private ArithmeticParser(ScriptContext context, String source) {
+            this.context = context;
+            this.source = source;
+        }
+
+        private Double parse() {
+            try {
+                double result = expression();
+                skipWhitespace();
+                return position == source.length() && Double.isFinite(result) ? result : null;
+            } catch (IllegalArgumentException exception) {
+                return null;
+            }
+        }
+
+        private double expression() {
+            double result = term();
+            while (true) {
+                skipWhitespace();
+                if (consume('+')) result += term();
+                else if (consume('-')) result -= term();
+                else return result;
+            }
+        }
+
+        private double term() {
+            double result = unary();
+            while (true) {
+                skipWhitespace();
+                if (consume('*')) result *= unary();
+                else if (consume('/')) {
+                    double divisor = unary();
+                    if (divisor == 0.0) throw new IllegalArgumentException("Division by zero");
+                    result /= divisor;
+                } else if (consume('%')) {
+                    double divisor = unary();
+                    if (divisor == 0.0) throw new IllegalArgumentException("Modulo by zero");
+                    result %= divisor;
+                } else return result;
+            }
+        }
+
+        private double unary() {
+            skipWhitespace();
+            if (consume('+')) return unary();
+            if (consume('-')) return -unary();
+            return primary();
+        }
+
+        private double primary() {
+            skipWhitespace();
+            if (consume('(')) {
+                double nested = expression();
+                skipWhitespace();
+                if (!consume(')')) throw new IllegalArgumentException("Missing closing parenthesis");
+                return nested;
+            }
+
+            int start = position;
+            while (position < source.length()) {
+                char character = source.charAt(position);
+                if (Character.isDigit(character) || character == '.') position++;
+                else break;
+            }
+            if (position > start) {
+                try {
+                    return Double.parseDouble(source.substring(start, position));
+                } catch (NumberFormatException exception) {
+                    throw new IllegalArgumentException("Invalid number", exception);
+                }
+            }
+
+            start = position;
+            while (position < source.length()) {
+                char character = source.charAt(position);
+                if (Character.isLetterOrDigit(character) || character == '_' || character == '-') position++;
+                else break;
+            }
+            if (position == start) throw new IllegalArgumentException("Expected a number or variable");
+            String variable = source.substring(start, position);
+            Object resolved = resolve(context, variable, false);
+            Double number = numericValue(resolved);
+            if (number == null) throw new IllegalArgumentException("Variable is not numeric");
+            return number;
+        }
+
+        private void skipWhitespace() {
+            while (position < source.length() && Character.isWhitespace(source.charAt(position))) position++;
+        }
+
+        private boolean consume(char expected) {
+            if (position < source.length() && source.charAt(position) == expected) {
+                position++;
+                return true;
+            }
+            return false;
+        }
+    }
+
     private Object resolve(ScriptContext context, String raw) {
+        return resolve(context, raw, true);
+    }
+
+    private Object resolve(ScriptContext context, String raw, boolean evaluateArithmetic) {
         String value = raw.trim();
         if (value.startsWith("\"") && value.endsWith("\"")) return unquote(value);
         if (value.equalsIgnoreCase("true") || value.equalsIgnoreCase("false")) return Boolean.parseBoolean(value);
@@ -1063,6 +1182,11 @@ public final class ScriptEngine implements Listener {
         if (value.equalsIgnoreCase("state of npc")) {
             String state = mainStates.get(context.npc().id().toLowerCase(Locale.ROOT));
             return state == null ? variables.get("npc", context.npc().id(), "state:main", "") : state;
+        }
+
+        if (evaluateArithmetic && containsArithmeticOperator(value)) {
+            Double calculated = new ArithmeticParser(context, value).parse();
+            if (calculated != null && Double.isFinite(calculated)) return calculated;
         }
 
         FunctionResult functionResult = invokeFunction(context, value);
