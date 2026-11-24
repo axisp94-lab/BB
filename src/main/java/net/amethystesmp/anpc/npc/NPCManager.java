@@ -476,7 +476,7 @@ public final class NPCManager implements Listener {
         if (worldInstance != null) return worldInstance;
 
         return npcs.values().stream()
-                .filter(npc -> npc.id().equalsIgnoreCase(id) && npc.location().getWorld().equals(world))
+                .filter(npc -> npc.id().equalsIgnoreCase(id) && world.equals(npc.location().getWorld()))
                 .findFirst()
                 .orElse(null);
     }
