@@ -153,7 +153,7 @@ public final class LocalSkinServer implements AutoCloseable {
                     }
                 });
                 created.start();
-            } catch (IOException | RuntimeException | Error exception) {
+            } catch (RuntimeException | Error exception) {
                 try {
                     created.stop(0);
                 } catch (RuntimeException cleanupFailure) {
