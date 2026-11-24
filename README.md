@@ -115,7 +115,7 @@ Les états principaux et secondaires sont sauvegardés dans SQLite et conservés
 - `amphibious to <cible>` combine sol praticable, parois escaladables et eau.
 - `follow @p at 2` maintient environ deux blocs ; `follow @p min 2 max 5` maintient une plage ; `keep distance 4 from @p` conserve une distance minimale ; `stop follow` arrête le suivi.
 
-Le pathfinding terrestre, aérien et spécial est réglable dans `config.yml` : activation terrestre, nombre maximal de nœuds, distance maximale, vitesse et espacement des checkpoints. Les modes d'escalade et de nage exigent respectivement une paroi solide contiguë et deux blocs d'eau libres en hauteur. Le mode amphibie combine ces surfaces et les sols praticables. Le calcul ne recherche que dans les chunks déjà chargés.
+Le pathfinding terrestre, aérien et spécial est réglable dans `config.yml` : activation terrestre, nombre maximal de nœuds, distance maximale, vitesse et espacement des checkpoints. Les modes d'escalade et de nage exigent respectivement une paroi solide contiguë et deux blocs d'eau libres en hauteur. Le mode amphibie combine ces surfaces et les sols praticables. Le calcul ne recherche que dans les chunks déjà chargés. Les valeurs numériques de déplacement et de détection sont bornées à des plages sûres au chargement (valeurs non finies remplacées par les valeurs par défaut, distance de détection limitée à 512 blocs, vitesse à 64 blocs/seconde et recherche à 100 000 nœuds maximum) afin d'éviter les configurations invalides ou excessives.
 
 ### Variables par joueur
 
