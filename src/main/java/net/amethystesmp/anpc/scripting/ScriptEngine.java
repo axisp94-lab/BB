@@ -1072,6 +1072,46 @@ public final class ScriptEngine implements Listener {
         return !quoted && parentheses == 0 && brackets == 0;
     }
 
+    private boolean isRecognizedCondition(ScriptContext context, String expression) {
+        if (!hasBalancedExpressionSyntax(expression)) return false;
+        String candidate = stripOuterParentheses(expression.trim());
+        if (candidate.isBlank()) return false;
+
+        List<String> orParts = splitLogical(candidate, " or ");
+        if (orParts.size() > 1) {
+            return orParts.stream().allMatch(part -> isRecognizedCondition(context, part));
+        }
+        List<String> andParts = splitLogical(candidate, " and ");
+        if (andParts.size() > 1) {
+            return andParts.stream().allMatch(part -> isRecognizedCondition(context, part));
+        }
+        if (candidate.regionMatches(true, 0, "not ", 0, 4)) {
+            return isRecognizedCondition(context, candidate.substring(4));
+        }
+
+        Comparison comparison = findComparison(candidate);
+        if (comparison != null) {
+            return comparison.valid() && !comparison.left().isBlank() && !comparison.right().isBlank();
+        }
+
+        String lower = candidate.toLowerCase(Locale.ROOT);
+        if (lower.equals("player is sneaking") || lower.equals("npc is under attack")) return true;
+        if (lower.startsWith("state is ") && !candidate.substring(9).isBlank()) return true;
+        if (lower.startsWith("has state ") && !candidate.substring(10).isBlank()) return true;
+        if (lower.startsWith("player has permission ")
+                && !candidate.substring(22).isBlank()) return true;
+        if (lower.startsWith("player has item ")
+                && !candidate.substring(16).isBlank()) return true;
+        if (lower.startsWith("flag (") && lower.contains(") is ")) {
+            int close = candidate.indexOf(')');
+            if (close <= 6) return false;
+            String expected = lower.substring(lower.indexOf(") is ") + 5).trim();
+            return !candidate.substring(6, close).isBlank()
+                    && (expected.equals("on") || expected.equals("off"));
+        }
+        return false;
+    }
+
     private boolean test(ScriptContext context, String expression) {
         if (!hasBalancedExpressionSyntax(expression)) return false;
         String expressionText = stripOuterParentheses(expression.trim());
@@ -1084,7 +1124,9 @@ public final class ScriptEngine implements Listener {
             return andParts.stream().allMatch(part -> test(context, part));
         }
         if (expressionText.regionMatches(true, 0, "not ", 0, 4)) {
-            return !test(context, expressionText.substring(4));
+            String operand = expressionText.substring(4).trim();
+            if (!isRecognizedCondition(context, operand)) return false;
+            return !test(context, operand);
         }
         String lower = expressionText.toLowerCase(Locale.ROOT);
         String npcId = context.npc().id().toLowerCase(Locale.ROOT);
