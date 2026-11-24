@@ -1121,6 +1121,7 @@ public final class ScriptEngine implements Listener {
         if (scopeDeclaration.toLowerCase(Locale.ROOT).startsWith("global")) {
             scope = "global";
             owner = "";
+            variables.set("meta", context.npc().id().toLowerCase(Locale.ROOT), name, "global|@");
             variables.set("meta", "", name, "global|@");
         } else if (scopeDeclaration.toLowerCase(Locale.ROOT).startsWith("shared")) {
             int open = scopeDeclaration.indexOf('[');
