@@ -612,11 +612,18 @@ public final class NPCManager implements Listener {
         }
 
         List<Location> previousLocations = matches.stream().map(ManagedNPC::location).toList();
+        int moved = 0;
         for (ManagedNPC npc : matches) {
             Location centered = npc.location();
             centered.setX(centered.getBlockX() + 0.5);
             centered.setZ(centered.getBlockZ() + 0.5);
-            npc.move(centered);
+            if (!npc.move(centered)) {
+                for (int index = 0; index < moved; index++) {
+                    matches.get(index).move(previousLocations.get(index));
+                }
+                return false;
+            }
+            moved++;
         }
         if (persistPosition(matches.get(0), matches.get(0).location())) return true;
         for (int index = 0; index < matches.size(); index++) {
@@ -629,8 +636,8 @@ public final class NPCManager implements Listener {
         ManagedNPC npc = get(id, location == null ? null : location.getWorld());
         if (npc == null || location == null || location.getWorld() == null) return;
         Location previousLocation = npc.location();
-        npc.move(location);
-        if (!persistPosition(npc, location)) npc.move(previousLocation);
+        if (!npc.move(location)) return;
+        if (!persistPosition(npc, npc.location())) npc.move(previousLocation);
         refreshVisibility();
     }
 
