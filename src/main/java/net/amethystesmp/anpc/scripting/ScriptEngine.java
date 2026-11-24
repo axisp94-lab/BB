@@ -532,8 +532,14 @@ public final class ScriptEngine implements Listener {
             if (line.startsWith("tp ")) {
                 Location target = parseLocation(context, line.substring(3).trim());
                 if (target != null) {
-                    stopFollow(context.npc());
-                    context.npc().move(target);
+                    Location current = context.npc().location();
+                    if (current.getWorld() == null || !current.getWorld().equals(target.getWorld())) {
+                        warnInstruction(context, instruction,
+                                "téléportation entre mondes non prise en charge ; chaque monde possède sa propre instance du NPC");
+                    } else {
+                        stopFollow(context.npc());
+                        context.npc().move(target);
+                    }
                 } else {
                     warnInstruction(context, instruction, "cible de téléportation invalide");
                 }
