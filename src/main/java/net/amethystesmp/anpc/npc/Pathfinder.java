@@ -144,7 +144,13 @@ public final class Pathfinder {
     }
 
     private static double heuristic(Node a, Node b) {
-        return distance(a, b) + Math.abs(a.y() - b.y()) * 0.5;
+        int dx = a.x() - b.x();
+        int dz = a.z() - b.z();
+        int dy = a.y() - b.y();
+        // Lower bound matching the movement cost: horizontal Euclidean
+        // distance plus 1.25 per vertical block. The previous 3D distance
+        // plus 0.5 * dy overestimated purely vertical moves.
+        return Math.sqrt(dx * dx + dz * dz) + Math.abs(dy) * 1.25;
     }
 
     private static double distance(Node a, Node b) {
