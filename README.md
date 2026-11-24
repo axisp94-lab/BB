@@ -68,6 +68,8 @@ on interval:
         say local "Je monte la garde."
     if has state (alert):
         say local "Je suis en alerte."
+    else:
+        say local "Tout est calme."
 
     loop 3 times:
         say local "Rappel numéro loop-number"
