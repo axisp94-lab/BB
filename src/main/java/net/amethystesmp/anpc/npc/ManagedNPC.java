@@ -35,17 +35,36 @@ public final class ManagedNPC {
         this.current = location.clone();
         this.backingEntity = null;
         this.backingCleanup = () -> { };
-        this.tracker = profile == null
-                ? renderer.create(BukkitAdapter.adapt(location))
-                : renderer.create(BukkitAdapter.adapt(location), profile);
-        this.hitbox = location.getWorld().spawn(location, Interaction.class, entity -> {
-            entity.setInteractionWidth(0.8f);
-            entity.setInteractionHeight(1.8f);
-            entity.setResponsive(true);
-            entity.setPersistent(false);
-            entity.setInvulnerable(true);
-            entity.addScoreboardTag("anpc:" + definition.id().toLowerCase(java.util.Locale.ROOT));
-        });
+
+        DummyTracker createdTracker = null;
+        Interaction createdHitbox;
+        try {
+            createdTracker = profile == null
+                    ? renderer.create(BukkitAdapter.adapt(location))
+                    : renderer.create(BukkitAdapter.adapt(location), profile);
+            if (createdTracker == null) {
+                throw new IllegalStateException("BetterModel n'a pas créé de tracker pour le NPC " + definition.id());
+            }
+            createdHitbox = location.getWorld().spawn(location, Interaction.class, entity -> {
+                entity.setInteractionWidth(0.8f);
+                entity.setInteractionHeight(1.8f);
+                entity.setResponsive(true);
+                entity.setPersistent(false);
+                entity.setInvulnerable(true);
+                entity.addScoreboardTag("anpc:" + definition.id().toLowerCase(java.util.Locale.ROOT));
+            });
+        } catch (RuntimeException | Error exception) {
+            if (createdTracker != null && !createdTracker.isClosed()) {
+                try {
+                    createdTracker.close();
+                } catch (RuntimeException cleanupFailure) {
+                    exception.addSuppressed(cleanupFailure);
+                }
+            }
+            throw exception;
+        }
+        this.tracker = createdTracker;
+        this.hitbox = createdHitbox;
     }
 
     public ManagedNPC(NPCDefinition definition, Entity backingEntity) {
