@@ -61,12 +61,17 @@ public final class ScriptEngine implements Listener {
         File directory = new File(plugin.getDataFolder(), "scripts");
         File[] files = directory.listFiles((dir, name) -> name.toLowerCase(Locale.ROOT).endsWith(".aa"));
         if (files == null) return;
-        Arrays.sort(files, Comparator.comparing(File::getName, String.CASE_INSENSITIVE_ORDER));
+        Arrays.sort(files, Comparator.comparing(File::getName, String.CASE_INSENSITIVE_ORDER)
+                .thenComparing(File::getName));
 
         for (File file : files) {
             String id = file.getName().substring(0, file.getName().length() - 3).toLowerCase(Locale.ROOT);
             try {
-                scripts.put(id, parse(Files.readAllLines(file.toPath()), file.getName()));
+                ScriptData parsed = parse(Files.readAllLines(file.toPath()), file.getName());
+                if (scripts.putIfAbsent(id, parsed) != null) {
+                    plugin.getLogger().warning("Script " + file.getName()
+                            + " ignoré : un autre fichier .aa utilise déjà l'identifiant '" + id + "'.");
+                }
             } catch (Exception exception) {
                 plugin.getLogger().warning("Erreur script " + file.getName() + " : " + exception.getMessage());
             }
