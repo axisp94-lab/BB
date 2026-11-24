@@ -172,12 +172,22 @@ public final class LocalSkinServer implements AutoCloseable {
     @Override
     public synchronized void close() {
         if (server != null) {
-            server.stop(0);
-            server = null;
+            try {
+                server.stop(0);
+            } catch (RuntimeException | LinkageError exception) {
+                plugin.getLogger().warning("Arrêt du serveur local de skins incomplet : " + exception.getMessage());
+            } finally {
+                server = null;
+            }
         }
         if (executor != null) {
-            executor.shutdownNow();
-            executor = null;
+            try {
+                executor.shutdownNow();
+            } catch (RuntimeException | LinkageError exception) {
+                plugin.getLogger().warning("Arrêt des threads de skins incomplet : " + exception.getMessage());
+            } finally {
+                executor = null;
+            }
         }
         skins.clear();
     }
