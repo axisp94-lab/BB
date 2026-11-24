@@ -20,6 +20,7 @@ public final class ManagedNPC {
     private final DummyTracker tracker;
     private final Set<String> viewers = new HashSet<>();
     private final Set<String> warnedViewerFailures = new HashSet<>();
+    private final Set<String> warnedTrackerFailures = new HashSet<>();
     private Location current;
     private final Interaction hitbox;
     private final Entity backingEntity;
@@ -63,10 +64,10 @@ public final class ManagedNPC {
                 entity.addScoreboardTag("anpc:" + definition.id().toLowerCase(java.util.Locale.ROOT));
             });
         } catch (RuntimeException | Error exception) {
-            if (createdTracker != null && !createdTracker.isClosed()) {
+            if (createdTracker != null) {
                 try {
-                    createdTracker.close();
-                } catch (RuntimeException cleanupFailure) {
+                    if (!createdTracker.isClosed()) createdTracker.close();
+                } catch (RuntimeException | LinkageError cleanupFailure) {
                     exception.addSuppressed(cleanupFailure);
                 }
             }
@@ -104,8 +105,13 @@ public final class ManagedNPC {
     public DummyTracker tracker() { return tracker; }
     public boolean isActive() {
         if (closed) return false;
-        if (backingEntity != null) return backingEntity.isValid();
-        return tracker != null && !tracker.isClosed();
+        try {
+            if (backingEntity != null) return backingEntity.isValid();
+            return tracker != null && !tracker.isClosed();
+        } catch (RuntimeException | LinkageError exception) {
+            warnTrackerFailure("is-active", exception);
+            return false;
+        }
     }
     public void updateDefinition(NPCDefinition next) {
         if (next == null) return;
@@ -176,21 +182,43 @@ public final class ManagedNPC {
     public void move(Location target) {
         if (closed || target == null || target.getWorld() == null) return;
         if (current.getWorld() != null && !current.getWorld().equals(target.getWorld())) return;
-        if (backingEntity != null) {
-            if (backingEntity.isValid() && backingEntity.teleport(target)) current = backingEntity.getLocation();
-            return;
+        try {
+            if (backingEntity != null) {
+                if (backingEntity.isValid() && backingEntity.teleport(target)) current = backingEntity.getLocation();
+                return;
+            }
+            if (tracker == null || tracker.isClosed()) return;
+            Location next = target.clone();
+            tracker.location(BukkitAdapter.adapt(next));
+            if (hitbox != null && hitbox.isValid()) hitbox.teleport(next);
+            current = next;
+            warnedTrackerFailures.remove("move");
+        } catch (RuntimeException | LinkageError exception) {
+            warnTrackerFailure("move", exception);
         }
-        if (tracker == null || tracker.isClosed()) return;
-        current = target.clone();
-        tracker.location(BukkitAdapter.adapt(current));
-        if (hitbox != null && hitbox.isValid()) hitbox.teleport(current);
     }
 
     public boolean animate(String name) {
-        if (closed || tracker == null || tracker.isClosed()) return false;
-        boolean ok = tracker.animate(name, AnimationModifier.DEFAULT);
-        if (ok) animation = name;
-        return ok;
+        if (closed || tracker == null) return false;
+        try {
+            if (tracker.isClosed()) return false;
+            boolean ok = tracker.animate(name, AnimationModifier.DEFAULT);
+            if (ok) {
+                animation = name;
+                warnedTrackerFailures.remove("animate");
+            }
+            return ok;
+        } catch (RuntimeException | LinkageError exception) {
+            warnTrackerFailure("animate", exception);
+            return false;
+        }
+    }
+
+    private void warnTrackerFailure(String operation, Throwable exception) {
+        if (warnedTrackerFailures.add(operation)) {
+            logger.warning("Opération BetterModel '" + operation + "' impossible pour le NPC '"
+                    + id() + "' : " + exception.getMessage());
+        }
     }
 
     public String animation() { return animation; }
@@ -200,11 +228,12 @@ public final class ManagedNPC {
         if (closed) return;
         closed = true;
 
-        if (tracker != null && !tracker.isClosed()) {
+        if (tracker != null) {
             try {
-                tracker.close();
+                if (!tracker.isClosed()) tracker.close();
             } catch (RuntimeException | LinkageError exception) {
-                logger.warning("Fermeture du tracker BetterModel impossible pour le NPC '" + id() + "' : " + exception.getMessage());
+                logger.warning("Fermeture du tracker BetterModel impossible pour le NPC '" + id()
+                        + "' : " + exception.getMessage());
                 // Continue : la hitbox et l'entité de support doivent être nettoyées
                 // même si BetterModel échoue pendant la fermeture du tracker.
             }
@@ -230,5 +259,6 @@ public final class ManagedNPC {
         }
         viewers.clear();
         warnedViewerFailures.clear();
+        warnedTrackerFailures.clear();
     }
 }
