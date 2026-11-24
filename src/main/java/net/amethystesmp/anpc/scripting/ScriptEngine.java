@@ -1508,18 +1508,39 @@ public final class ScriptEngine implements Listener {
             }
 
             int start = position;
+            boolean hasDigits = false;
+            boolean hasDecimalPoint = false;
             while (position < source.length()) {
                 char character = source.charAt(position);
-                if (Character.isDigit(character) || character == '.') position++;
-                else break;
+                if (Character.isDigit(character)) {
+                    hasDigits = true;
+                    position++;
+                } else if (character == '.' && !hasDecimalPoint) {
+                    hasDecimalPoint = true;
+                    position++;
+                } else {
+                    break;
+                }
             }
-            if (position > start) {
+            if (hasDigits) {
+                if (position < source.length()
+                        && (source.charAt(position) == 'e' || source.charAt(position) == 'E')) {
+                    position++;
+                    if (position < source.length()
+                            && (source.charAt(position) == '+' || source.charAt(position) == '-')) position++;
+                    int exponentStart = position;
+                    while (position < source.length() && Character.isDigit(source.charAt(position))) position++;
+                    if (position == exponentStart) throw new IllegalArgumentException("Invalid exponent");
+                }
                 try {
-                    return Double.parseDouble(source.substring(start, position));
+                    double number = Double.parseDouble(source.substring(start, position));
+                    if (!Double.isFinite(number)) throw new IllegalArgumentException("Non-finite number");
+                    return number;
                 } catch (NumberFormatException exception) {
                     throw new IllegalArgumentException("Invalid number", exception);
                 }
             }
+            position = start;
 
             start = position;
             while (position < source.length()) {
