@@ -1896,6 +1896,7 @@ public final class ScriptEngine implements Listener {
 
         String requiredType = null;
         int limit = MAX_SELECTOR_RESULTS;
+        boolean limitSpecified = false;
         if (!options.isBlank()) {
             for (String option : options.split(",", -1)) {
                 String[] pair = option.trim().split("=", 2);
@@ -1904,8 +1905,12 @@ public final class ScriptEngine implements Listener {
                     if (requiredType != null) return List.of();
                     requiredType = pair[1].trim().replace("minecraft:", "");
                 } else if (pair[0].equalsIgnoreCase("limit")) {
+                    if (limitSpecified) return List.of();
                     try {
-                        limit = Math.max(1, Math.min(MAX_SELECTOR_RESULTS, Integer.parseInt(pair[1].trim())));
+                        int requestedLimit = Integer.parseInt(pair[1].trim());
+                        if (requestedLimit < 1) return List.of();
+                        limit = Math.min(MAX_SELECTOR_RESULTS, requestedLimit);
+                        limitSpecified = true;
                     } catch (NumberFormatException ignored) {
                         return List.of();
                     }
