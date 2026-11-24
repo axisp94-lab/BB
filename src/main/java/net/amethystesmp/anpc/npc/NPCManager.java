@@ -51,7 +51,28 @@ public final class NPCManager implements Listener {
 
     public void validateReload() {
         file = new File(plugin.getDataFolder(), "npc.yml");
-        pendingReloadYaml = readYaml();
+        YamlConfiguration candidate = readYaml();
+        ConfigurationSection root = candidate.getConfigurationSection("npcs");
+        if (root != null) {
+            Set<String> validatedIds = new HashSet<>();
+            for (String id : root.getKeys(false)) {
+                ConfigurationSection section = root.getConfigurationSection(id);
+                if (section == null) {
+                    throw new IllegalStateException("npcs." + id + " doit être une section YAML.");
+                }
+                String normalizedId = id.toLowerCase(Locale.ROOT);
+                if (!validatedIds.add(normalizedId)) {
+                    throw new IllegalStateException("Identifiant NPC dupliqué (la casse est ignorée) : " + id);
+                }
+                try {
+                    NPCDefinition.read(id, section);
+                } catch (RuntimeException exception) {
+                    throw new IllegalStateException("Définition NPC invalide '"
+                            + id + "' : " + exception.getMessage(), exception);
+                }
+            }
+        }
+        pendingReloadYaml = candidate;
     }
 
     private YamlConfiguration readYaml() {
