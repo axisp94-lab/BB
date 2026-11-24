@@ -582,7 +582,7 @@ public final class ScriptEngine implements Listener {
 
             if (line.startsWith("loop ") && line.endsWith(":")) {
                 int end = findEnd(code, index + 1, instruction.indent());
-                LoopPlan plan = createLoopPlan(context, line);
+                LoopPlan plan = createLoopPlan(context, instruction, line);
                 if (plan != null && index + 1 < end) {
                     int bodyIndent = code.get(index + 1).indent();
                     ScriptContext.LoopState state = context.pushLoop();
@@ -938,12 +938,12 @@ public final class ScriptEngine implements Listener {
         continuation.run();
     }
 
-    private LoopPlan createLoopPlan(ScriptContext context, String line) {
+    private LoopPlan createLoopPlan(ScriptContext context, Instruction instruction, String line) {
         String lower = line.toLowerCase(Locale.ROOT);
 
         if (lower.equals("loop all players:")) {
             return new LoopPlan("loop-player",
-                    boundLoopValues(context, new ArrayList<>(Bukkit.getOnlinePlayers()), "joueurs connectés"));
+                    boundLoopValues(context, new ArrayList<>(Bukkit.getOnlinePlayers()), "joueurs connectés", instruction));
         }
         if (lower.equals("loop all npcs:")) {
             List<ManagedNPC> loaded = new ArrayList<>(npcs.all());
@@ -953,46 +953,47 @@ public final class ScriptEngine implements Listener {
                         org.bukkit.World world = npc.location().getWorld();
                         return world == null ? "" : world.getName().toLowerCase(Locale.ROOT);
                     }));
-            return new LoopPlan("loop-npc", boundLoopValues(context, new ArrayList<>(loaded), "NPC chargés"));
+            return new LoopPlan("loop-npc", boundLoopValues(context, new ArrayList<>(loaded), "NPC chargés", instruction));
         }
         if (lower.startsWith("loop all (") && lower.endsWith("):")) {
             String expression = line.substring(10, line.length() - 2).trim();
             Object value = resolve(context, expression);
             List<Object> values = asList(value);
             if (values == null) {
-                plugin.getLogger().warning("Script " + context.npc().id() + " : la valeur de boucle n'est pas une liste : " + expression);
+                warnInstruction(context, instruction, "la valeur de boucle n'est pas une liste : " + expression);
                 return null;
             }
-            return new LoopPlan("loop-value", boundLoopValues(context, values, "valeurs de la liste"));
+            return new LoopPlan("loop-value", boundLoopValues(context, values, "valeurs de la liste", instruction));
         }
         if (lower.startsWith("loop ") && lower.endsWith(" times:")) {
             String countText = line.substring(5, line.length() - 7).trim();
             try {
                 int requested = Integer.parseInt(countText);
                 if (requested < 0) {
-                    plugin.getLogger().warning("Script " + context.npc().id() + " : nombre de répétitions négatif : " + countText);
+                    warnInstruction(context, instruction, "nombre de répétitions négatif : " + countText);
                     return null;
                 }
                 int count = Math.min(MAX_LOOP_ITERATIONS, requested);
                 if (requested > MAX_LOOP_ITERATIONS) {
-                    plugin.getLogger().warning("Script " + context.npc().id() + " : boucle limitée à "
-                            + MAX_LOOP_ITERATIONS + " itérations (demandé : " + requested + ").");
+                    warnInstruction(context, instruction, "boucle limitée à "
+                            + MAX_LOOP_ITERATIONS + " itérations (demandé : " + requested + ")");
                 }
                 List<Object> values = new ArrayList<>(count);
                 for (int i = 1; i <= count; i++) values.add(i);
                 return new LoopPlan("loop-number", values);
             } catch (NumberFormatException exception) {
-                plugin.getLogger().warning("Script " + context.npc().id() + " : nombre de répétitions invalide : " + countText);
+                warnInstruction(context, instruction, "nombre de répétitions invalide : " + countText);
                 return null;
             }
         }
         return null;
     }
 
-    private List<Object> boundLoopValues(ScriptContext context, List<?> values, String description) {
+    private List<Object> boundLoopValues(ScriptContext context, List<?> values, String description,
+                                         Instruction instruction) {
         if (values.size() <= MAX_LOOP_ITERATIONS) return new ArrayList<>(values);
-        plugin.getLogger().warning("Script " + context.npc().id() + " : boucle sur " + description
-                + " limitée à " + MAX_LOOP_ITERATIONS + " éléments (disponibles : " + values.size() + ").");
+        warnInstruction(context, instruction, "boucle sur " + description
+                + " limitée à " + MAX_LOOP_ITERATIONS + " éléments (disponibles : " + values.size() + ")");
         return new ArrayList<>(values.subList(0, MAX_LOOP_ITERATIONS));
     }
 
