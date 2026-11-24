@@ -38,6 +38,11 @@ public final class ScriptEngine implements Listener {
     private record FunctionDefinition(List<String> parameters, List<Instruction> code) {}
     private record ScriptData(Map<String, List<Instruction>> events, Map<String, FunctionDefinition> functions) {}
     private record FunctionResult(boolean returned, Object value) {}
+    private static final class ScriptBudgetExceededException extends RuntimeException {
+        private ScriptBudgetExceededException() {
+            super(null, null, false, false);
+        }
+    }
     private record Comparison(String left, String operator, String right, boolean valid) {}
     private record NpcPair(ManagedNPC first, ManagedNPC second) {}
     private static final int MAX_LOOP_ITERATIONS = 256;
@@ -365,6 +370,8 @@ public final class ScriptEngine implements Listener {
         ScriptContext context = new ScriptContext(npc, player, eventNpc);
         try {
             runBlock(context, code, 0, baseIndent, () -> { });
+        } catch (ScriptBudgetExceededException ignored) {
+            // The budget warning has already been emitted at the point of exhaustion.
         } catch (RuntimeException exception) {
             logScriptException(context, exception);
         }
@@ -756,6 +763,8 @@ public final class ScriptEngine implements Listener {
                             || npcs.get(context.npc().id(), npcLocation.getWorld()) != context.npc()) return;
                     try {
                         runBlock(context, code, next, indent, continuation);
+                    } catch (ScriptBudgetExceededException ignored) {
+                        // The budget warning has already been emitted at the point of exhaustion.
                     } catch (RuntimeException exception) {
                         logScriptException(context, exception);
                     }
@@ -1530,7 +1539,9 @@ public final class ScriptEngine implements Listener {
             for (int i = 0; i < arguments.size(); i++) {
                 context.locals().put(function.parameters().get(i), resolve(parent, arguments.get(i)));
             }
-            return runFunctionBlock(context, function.code(), 0, 0);
+            FunctionResult result = runFunctionBlock(context, function.code(), 0, 0);
+            if (parent.executionBudgetExhausted()) throw new ScriptBudgetExceededException();
+            return result;
         } finally {
             functionDepth.set(depth);
         }
