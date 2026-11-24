@@ -43,6 +43,12 @@ Les scripts se trouvent dans `plugins/AmethyysNPCs/scripts/<id>.aa`. Les événe
 def message_accueil(joueur):
     return "Bienvenue sur le serveur !"
 
+def grade_joueur(niveau):
+    if niveau >= 10:
+        return "expert"
+    else:
+        return "debutant"
+
 on right click:
     set "message" message_accueil(event entity)
     say local message
