@@ -117,9 +117,8 @@ public final class ScriptEngine implements Listener {
                 if (SUPPORTED_EVENTS.contains(currentEvent)) {
                     currentBody = events.computeIfAbsent(currentEvent, ignored -> new ArrayList<>());
                 } else {
-                    plugin.getLogger().warning(source + ":" + (i + 1)
-                            + " : événement inconnu '" + currentEvent + "' ; bloc ignoré.");
-                    currentBody = new ArrayList<>();
+                    throw new IllegalArgumentException(source + ":" + (i + 1)
+                            + " : événement inconnu '" + currentEvent + "'.");
                 }
                 bodyIndent = -1;
                 continue;
@@ -131,10 +130,7 @@ public final class ScriptEngine implements Listener {
                 int open = signature.indexOf('(');
                 int close = signature.lastIndexOf(')');
                 if (open <= 0 || close != signature.length() - 1 || close < open) {
-                    plugin.getLogger().warning(source + ":" + (i + 1) + " : définition de fonction invalide.");
-                    currentBody = null;
-                    bodyIndent = -1;
-                    continue;
+                    throw new IllegalArgumentException(source + ":" + (i + 1) + " : définition de fonction invalide.");
                 }
                 String name = signature.substring(0, open).trim().toLowerCase(Locale.ROOT);
                 String rawParameters = signature.substring(open + 1, close).trim();
@@ -147,18 +143,12 @@ public final class ScriptEngine implements Listener {
                 if (!name.matches("[a-z_][a-z0-9_]*")
                         || parameters.stream().anyMatch(parameter -> !parameter.matches("[a-z_][a-z0-9_]*"))
                         || uniqueParameters.size() != parameters.size()) {
-                    plugin.getLogger().warning(source + ":" + (i + 1)
+                    throw new IllegalArgumentException(source + ":" + (i + 1)
                             + " : nom de fonction ou paramètres invalides (noms simples et uniques requis).");
-                    currentBody = null;
-                    bodyIndent = -1;
-                    continue;
                 }
                 if (functions.containsKey(name)) {
-                    plugin.getLogger().warning(source + ":" + (i + 1)
-                            + " : fonction '" + name + "' déjà définie ; cette déclaration est ignorée.");
-                    currentBody = null;
-                    bodyIndent = -1;
-                    continue;
+                    throw new IllegalArgumentException(source + ":" + (i + 1)
+                            + " : fonction '" + name + "' déjà définie.");
                 }
                 currentBody = new ArrayList<>();
                 functions.put(name, new FunctionDefinition(parameters, currentBody));
@@ -167,30 +157,25 @@ public final class ScriptEngine implements Listener {
             }
 
             if (currentBody == null) {
-                plugin.getLogger().warning(source + ":" + (i + 1) + " : instruction ignorée hors d'un événement ou d'une fonction.");
-                continue;
+                throw new IllegalArgumentException(source + ":" + (i + 1)
+                        + " : instruction hors d'un événement ou d'une fonction.");
             }
 
             if (bodyIndent < 0) {
                 bodyIndent = indent;
                 if (bodyIndent == 0) {
-                    plugin.getLogger().warning(source + ":" + (i + 1) + " : le contenu doit être indenté.");
-                    currentBody = null;
-                    currentEvent = null;
-                    continue;
+                    throw new IllegalArgumentException(source + ":" + (i + 1) + " : le contenu doit être indenté.");
                 }
             }
 
             if (indent < bodyIndent) {
-                plugin.getLogger().warning(source + ":" + (i + 1) + " : indentation inattendue ; instruction ignorée.");
-                currentBody = null;
-                currentEvent = null;
-                continue;
+                throw new IllegalArgumentException(source + ":" + (i + 1) + " : indentation inattendue.");
             }
 
             int relativeIndent = indent - bodyIndent;
             if (relativeIndent % 4 != 0) {
-                plugin.getLogger().warning(source + ":" + (i + 1) + " : indentation non multiple de quatre espaces.");
+                throw new IllegalArgumentException(source + ":" + (i + 1)
+                        + " : indentation non multiple de quatre espaces.");
             }
             currentBody.add(new Instruction(relativeIndent, text, i + 1));
         }
