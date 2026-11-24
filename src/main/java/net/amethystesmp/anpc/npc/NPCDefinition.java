@@ -14,8 +14,8 @@ public record NPCDefinition(String id, String displayName, String type, List<Str
                             double x, double y, double z, float yaw, float pitch, String skin) {
 
     public NPCDefinition {
-        if (id == null || id.isBlank()) {
-            throw new IllegalArgumentException("Identifiant NPC vide.");
+        if (id == null || !id.matches("[A-Za-z0-9_-]+")) {
+            throw new IllegalArgumentException("Identifiant NPC invalide : seuls les lettres, chiffres, '_' et '-' sont autorisés.");
         }
         displayName = displayName == null || displayName.isBlank() ? id : displayName;
         type = type == null ? "" : type.trim();
