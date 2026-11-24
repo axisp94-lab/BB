@@ -39,6 +39,8 @@ public final class ScriptEngine implements Listener {
     private record FunctionResult(boolean returned, Object value) {}
     private record Comparison(String left, String operator, String right, boolean valid) {}
     private record NpcPair(ManagedNPC first, ManagedNPC second) {}
+    private static final int MAX_LOOP_ITERATIONS = 256;
+    private static final int MAX_SELECTOR_RESULTS = 256;
     private final ANPCPlugin plugin; private final NPCManager npcs; private final VariableStore variables;
     private final Map<String, ScriptData> scripts = new ConcurrentHashMap<>();
     private final ThreadLocal<Integer> functionDepth = ThreadLocal.withInitial(() -> 0);
@@ -729,7 +731,8 @@ public final class ScriptEngine implements Listener {
         String lower = line.toLowerCase(Locale.ROOT);
 
         if (lower.equals("loop all players:")) {
-            return new LoopPlan("loop-player", new ArrayList<>(Bukkit.getOnlinePlayers()));
+            return new LoopPlan("loop-player",
+                    boundLoopValues(context, new ArrayList<>(Bukkit.getOnlinePlayers()), "joueurs connectés"));
         }
         if (lower.equals("loop all npcs:")) {
             List<ManagedNPC> loaded = new ArrayList<>(npcs.all());
@@ -739,7 +742,7 @@ public final class ScriptEngine implements Listener {
                         org.bukkit.World world = npc.location().getWorld();
                         return world == null ? "" : world.getName().toLowerCase(Locale.ROOT);
                     }));
-            return new LoopPlan("loop-npc", new ArrayList<>(loaded));
+            return new LoopPlan("loop-npc", boundLoopValues(context, new ArrayList<>(loaded), "NPC chargés"));
         }
         if (lower.startsWith("loop all (") && lower.endsWith("):")) {
             String expression = line.substring(10, line.length() - 2).trim();
@@ -749,12 +752,21 @@ public final class ScriptEngine implements Listener {
                 plugin.getLogger().warning("Script " + context.npc().id() + " : la valeur de boucle n'est pas une liste : " + expression);
                 return null;
             }
-            return new LoopPlan("loop-value", values);
+            return new LoopPlan("loop-value", boundLoopValues(context, values, "valeurs de la liste"));
         }
         if (lower.startsWith("loop ") && lower.endsWith(" times:")) {
             String countText = line.substring(5, line.length() - 7).trim();
             try {
-                int count = Math.max(0, Math.min(10000, Integer.parseInt(countText)));
+                int requested = Integer.parseInt(countText);
+                if (requested < 0) {
+                    plugin.getLogger().warning("Script " + context.npc().id() + " : nombre de répétitions négatif : " + countText);
+                    return null;
+                }
+                int count = Math.min(MAX_LOOP_ITERATIONS, requested);
+                if (requested > MAX_LOOP_ITERATIONS) {
+                    plugin.getLogger().warning("Script " + context.npc().id() + " : boucle limitée à "
+                            + MAX_LOOP_ITERATIONS + " itérations (demandé : " + requested + ").");
+                }
                 List<Object> values = new ArrayList<>(count);
                 for (int i = 1; i <= count; i++) values.add(i);
                 return new LoopPlan("loop-number", values);
@@ -764,6 +776,13 @@ public final class ScriptEngine implements Listener {
             }
         }
         return null;
+    }
+
+    private List<Object> boundLoopValues(ScriptContext context, List<?> values, String description) {
+        if (values.size() <= MAX_LOOP_ITERATIONS) return new ArrayList<>(values);
+        plugin.getLogger().warning("Script " + context.npc().id() + " : boucle sur " + description
+                + " limitée à " + MAX_LOOP_ITERATIONS + " éléments (disponibles : " + values.size() + ").");
+        return new ArrayList<>(values.subList(0, MAX_LOOP_ITERATIONS));
     }
 
     private List<Object> asList(Object value) {
@@ -935,7 +954,30 @@ public final class ScriptEngine implements Listener {
         return parts;
     }
 
+    private boolean hasBalancedExpressionSyntax(String expression) {
+        boolean quoted = false;
+        int parentheses = 0;
+        int brackets = 0;
+        for (int i = 0; i < expression.length(); i++) {
+            char character = expression.charAt(i);
+            if (character == '"') {
+                int backslashes = 0;
+                for (int previous = i - 1; previous >= 0 && expression.charAt(previous) == '\\'; previous--) {
+                    backslashes++;
+                }
+                if (backslashes % 2 == 0) quoted = !quoted;
+            }
+            if (quoted) continue;
+            if (character == '(') parentheses++;
+            else if (character == ')' && --parentheses < 0) return false;
+            else if (character == '[') brackets++;
+            else if (character == ']' && --brackets < 0) return false;
+        }
+        return !quoted && parentheses == 0 && brackets == 0;
+    }
+
     private boolean test(ScriptContext context, String expression) {
+        if (!hasBalancedExpressionSyntax(expression)) return false;
         String expressionText = stripOuterParentheses(expression.trim());
         List<String> orParts = splitLogical(expressionText, " or ");
         if (orParts.size() > 1) {
@@ -1236,7 +1278,10 @@ public final class ScriptEngine implements Listener {
             }
             return selected;
         }
-        if (value.regionMatches(true, 0, "player:", 0, 7)) return Bukkit.getPlayerExact(value.substring(7));
+        if (value.regionMatches(true, 0, "player:", 0, 7)) {
+            Player player = Bukkit.getPlayerExact(value.substring(7));
+            return player != null && isWithinSelectorRange(context.npc().location(), player) ? player : null;
+        }
         if (value.regionMatches(true, 0, "npc:", 0, 4)) {
             return npcs.get(value.substring(4), context.npc().location().getWorld());
         }
@@ -1638,7 +1683,7 @@ public final class ScriptEngine implements Listener {
         }
         if (target.regionMatches(true, 0, "player:", 0, 7)) {
             Player player = Bukkit.getPlayerExact(target.substring(7));
-            return player == null ? List.of() : List.of(player);
+            return player != null && isWithinSelectorRange(origin, player) ? List.of(player) : List.of();
         }
 
         Object value = resolve(context, target);
@@ -1647,7 +1692,7 @@ public final class ScriptEngine implements Listener {
             return collection.stream().filter(Player.class::isInstance).map(Player.class::cast).toList();
         }
         Player player = Bukkit.getPlayerExact(target);
-        return player == null ? List.of() : List.of(player);
+        return player != null && isWithinSelectorRange(origin, player) ? List.of(player) : List.of();
     }
 
     private List<Entity> selectEntities(ScriptContext context, String selector) {
@@ -1669,7 +1714,7 @@ public final class ScriptEngine implements Listener {
         if (target.equalsIgnoreCase("event entity") && context.player() != null) return List.of(context.player());
         if (target.regionMatches(true, 0, "player:", 0, 7)) {
             Player player = Bukkit.getPlayerExact(target.substring(7));
-            return player == null ? List.of() : List.of(player);
+            return player != null && isWithinSelectorRange(origin, player) ? List.of(player) : List.of();
         }
 
         String selectorName = target;
@@ -1682,14 +1727,23 @@ public final class ScriptEngine implements Listener {
         if (!selectorName.equalsIgnoreCase("@e") && !selectorName.equalsIgnoreCase("@n")) return List.of();
 
         String requiredType = null;
-        int limit = Integer.MAX_VALUE;
-        for (String option : options.split(",")) {
-            String[] pair = option.trim().split("=", 2);
-            if (pair.length != 2) continue;
-            if (pair[0].equalsIgnoreCase("type")) requiredType = pair[1].trim().replace("minecraft:", "");
-            if (pair[0].equalsIgnoreCase("limit")) {
-                try { limit = Math.max(1, Integer.parseInt(pair[1].trim())); }
-                catch (NumberFormatException ignored) { }
+        int limit = MAX_SELECTOR_RESULTS;
+        if (!options.isBlank()) {
+            for (String option : options.split(",", -1)) {
+                String[] pair = option.trim().split("=", 2);
+                if (pair.length != 2 || pair[0].isBlank() || pair[1].isBlank()) return List.of();
+                if (pair[0].equalsIgnoreCase("type")) {
+                    if (requiredType != null) return List.of();
+                    requiredType = pair[1].trim().replace("minecraft:", "");
+                } else if (pair[0].equalsIgnoreCase("limit")) {
+                    try {
+                        limit = Math.max(1, Math.min(MAX_SELECTOR_RESULTS, Integer.parseInt(pair[1].trim())));
+                    } catch (NumberFormatException ignored) {
+                        return List.of();
+                    }
+                } else {
+                    return List.of();
+                }
             }
         }
 
@@ -1734,7 +1788,8 @@ public final class ScriptEngine implements Listener {
         }
         if (target.regionMatches(true, 0, "player:", 0, 7)) {
             Player player = Bukkit.getPlayerExact(target.substring(7));
-            return player == null ? null : player.getLocation();
+            return player != null && isWithinSelectorRange(context.npc().location(), player)
+                    ? player.getLocation() : null;
         }
         if (target.equalsIgnoreCase("event entity") && context.player() != null) return context.player().getLocation();
 
@@ -1748,10 +1803,12 @@ public final class ScriptEngine implements Listener {
             String[] coordinates = target.substring(1, target.length() - 1).split(",");
             if (coordinates.length == 3) {
                 try {
-                    return new Location(context.npc().location().getWorld(),
-                            Double.parseDouble(coordinates[0].trim()),
-                            Double.parseDouble(coordinates[1].trim()),
-                            Double.parseDouble(coordinates[2].trim()));
+                    double x = Double.parseDouble(coordinates[0].trim());
+                    double y = Double.parseDouble(coordinates[1].trim());
+                    double z = Double.parseDouble(coordinates[2].trim());
+                    if (!Double.isFinite(x) || !Double.isFinite(y) || !Double.isFinite(z)
+                            || context.npc().location().getWorld() == null) return null;
+                    return new Location(context.npc().location().getWorld(), x, y, z);
                 } catch (NumberFormatException ignored) {
                 }
             }
