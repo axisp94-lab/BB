@@ -14,6 +14,7 @@ import java.util.Set;
 
 public final class ScriptContext {
     private static final int MAX_INSTRUCTIONS = 10_000;
+    static final int MAX_TOTAL_LOOP_ITERATIONS = 1024;
 
     static final class ExecutionBudget {
         private int remaining = MAX_INSTRUCTIONS;
@@ -32,7 +33,7 @@ public final class ScriptContext {
         }
 
         boolean consumeLoopIteration() {
-            if (loopIterations >= 1024) return false;
+            if (loopIterations >= MAX_TOTAL_LOOP_ITERATIONS) return false;
             loopIterations++;
             return true;
         }
