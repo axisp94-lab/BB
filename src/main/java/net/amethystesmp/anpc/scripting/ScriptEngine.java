@@ -58,6 +58,7 @@ public final class ScriptEngine implements Listener {
     private final Set<BukkitTask> tasks = ConcurrentHashMap.newKeySet();
     private final Map<String, BukkitTask> movementTasks = new ConcurrentHashMap<>();
     private final Map<String, BukkitTask> intervalTasks = new ConcurrentHashMap<>();
+    private final Map<String, ScriptContext> runningIntervalScripts = new ConcurrentHashMap<>();
     private final Map<String, BukkitTask> followTasks = new ConcurrentHashMap<>();
     private final Map<String, Long> followPathAttemptAt = new ConcurrentHashMap<>();
     private final Map<String, Set<BukkitTask>> delayedTasks = new ConcurrentHashMap<>();
@@ -219,8 +220,11 @@ public final class ScriptEngine implements Listener {
         List<Instruction> interval = script.events().get("interval");
         if (interval != null && !intervalTasks.containsKey(key)) {
             long period = Math.max(1L, Math.min(72_000L, plugin.getConfig().getLong("script-default-interval", 20L)));
-            BukkitTask task = Bukkit.getScheduler().runTaskTimer(plugin,
-                    () -> execute(npc, null, interval, 0), period, period);
+            BukkitTask task = Bukkit.getScheduler().runTaskTimer(plugin, () -> {
+                ScriptContext context = new ScriptContext(npc, null);
+                if (runningIntervalScripts.putIfAbsent(key, context) != null) return;
+                execute(context, interval, 0, () -> runningIntervalScripts.remove(key, context));
+            }, period, period);
             intervalTasks.put(key, task);
             tasks.add(task);
         }
@@ -244,6 +248,7 @@ public final class ScriptEngine implements Listener {
             interval.cancel();
             tasks.remove(interval);
         }
+        runningIntervalScripts.remove(key);
         stopFollow(npc);
         stopMovement(npc);
         Set<BukkitTask> delayed = delayedTasks.remove(key);
@@ -375,13 +380,19 @@ public final class ScriptEngine implements Listener {
 
     private void execute(ManagedNPC npc, Player player, ManagedNPC eventNpc,
                          List<Instruction> code, int baseIndent) {
-        ScriptContext context = new ScriptContext(npc, player, eventNpc);
+        execute(new ScriptContext(npc, player, eventNpc), code, baseIndent, () -> { });
+    }
+
+    private void execute(ScriptContext context, List<Instruction> code, int baseIndent, Runnable completion) {
+        context.setCompletion(completion);
         try {
-            runBlock(context, code, 0, baseIndent, () -> { });
+            runBlock(context, code, 0, baseIndent, context::finish);
         } catch (ScriptBudgetExceededException ignored) {
             // The budget warning has already been emitted at the point of exhaustion.
+            context.finish();
         } catch (RuntimeException exception) {
             logScriptException(context, exception);
+            context.finish();
         }
     }
 
@@ -798,14 +809,19 @@ public final class ScriptEngine implements Listener {
                     }
                     Location npcLocation = context.npc().location();
                     if (npcLocation.getWorld() == null
-                            || npcs.get(context.npc().id(), npcLocation.getWorld()) != context.npc()) return;
+                            || npcs.get(context.npc().id(), npcLocation.getWorld()) != context.npc()) {
+                        context.finish();
+                        return;
+                    }
                     refreshPersistentVariables(context);
                     try {
                         runBlock(context, code, next, indent, continuation);
                     } catch (ScriptBudgetExceededException ignored) {
                         // The budget warning has already been emitted at the point of exhaustion.
+                        context.finish();
                     } catch (RuntimeException exception) {
                         logScriptException(context, exception);
+                        context.finish();
                     }
                 }, ticks);
                 tasks.add(holder[0]);
@@ -2581,6 +2597,7 @@ public final class ScriptEngine implements Listener {
         tasks.clear();
         movementTasks.clear();
         intervalTasks.clear();
+        runningIntervalScripts.clear();
         followTasks.clear();
         followPathAttemptAt.clear();
         delayedTasks.clear();
