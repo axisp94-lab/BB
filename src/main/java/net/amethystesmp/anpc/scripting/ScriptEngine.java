@@ -41,6 +41,8 @@ public final class ScriptEngine implements Listener {
     private record NpcPair(ManagedNPC first, ManagedNPC second) {}
     private static final int MAX_LOOP_ITERATIONS = 256;
     private static final int MAX_SELECTOR_RESULTS = 256;
+    private static final java.util.regex.Pattern MESSAGE_VARIABLE_PATTERN =
+            java.util.regex.Pattern.compile("(?<![\\p{L}\\p{N}_])([A-Za-z_][A-Za-z0-9_-]*)(?![\\p{L}\\p{N}_])");
     private final ANPCPlugin plugin; private final NPCManager npcs; private final VariableStore variables;
     private final Map<String, ScriptData> scripts = new ConcurrentHashMap<>();
     private final ThreadLocal<Integer> functionDepth = ThreadLocal.withInitial(() -> 0);
@@ -396,9 +398,46 @@ public final class ScriptEngine implements Listener {
         storeVariable(context, name, value);
     }
 
+    private String renderMessage(ScriptContext context, String raw) {
+        String source = raw.trim();
+        boolean quoted = source.length() >= 2 && source.startsWith("\"") && source.endsWith("\"");
+        String template = quoted ? unquote(source) : source;
+        if (!quoted) {
+            Object direct = resolve(context, template);
+            if (direct != null && !Objects.equals(String.valueOf(direct), template)) {
+                return formatMessageValue(direct);
+            }
+        }
+
+        java.util.regex.Matcher matcher = MESSAGE_VARIABLE_PATTERN.matcher(template);
+        StringBuffer rendered = new StringBuffer();
+        while (matcher.find()) {
+            String token = matcher.group(1);
+            Object value = resolve(context, token);
+            String replacement = value == null ? token : formatMessageValue(value);
+            matcher.appendReplacement(rendered, java.util.regex.Matcher.quoteReplacement(replacement));
+        }
+        matcher.appendTail(rendered);
+        return rendered.toString();
+    }
+
+    private String formatMessageValue(Object value) {
+        if (value instanceof Player player) return player.getName();
+        if (value instanceof ManagedNPC npc) return npc.id();
+        if (value instanceof Entity entity) return entity.getType().name().toLowerCase(Locale.ROOT);
+        if (value instanceof Number number) {
+            double numeric = number.doubleValue();
+            if (Double.isFinite(numeric) && numeric == Math.rint(numeric)
+                    && numeric >= Long.MIN_VALUE && numeric <= Long.MAX_VALUE) {
+                return Long.toString((long) numeric);
+            }
+        }
+        return String.valueOf(value);
+    }
+
     private void sendScriptMessage(ScriptContext context, boolean global, String message) {
         String rendered = ChatColor.translateAlternateColorCodes('&',
-                context.npc().definition().displayName() + " » " + message);
+                context.npc().definition().displayName() + " » " + renderMessage(context, message));
         if (global) {
             Bukkit.broadcastMessage(rendered);
         } else if (context.player() != null) {
@@ -553,7 +592,7 @@ public final class ScriptEngine implements Listener {
 
             if (line.startsWith("say local ") || line.startsWith("say global ")) {
                 boolean global = line.startsWith("say global ");
-                sendScriptMessage(context, global, unquote(line.substring(global ? 11 : 10)));
+                sendScriptMessage(context, global, line.substring(global ? 11 : 10));
                 index++;
                 continue;
             }
@@ -562,7 +601,7 @@ public final class ScriptEngine implements Listener {
                 int separator = line.indexOf(' ', 8);
                 if (separator > 0) {
                     String target = line.substring(8, separator);
-                    String message = ChatColor.translateAlternateColorCodes('&', unquote(line.substring(separator + 1)));
+                    String message = ChatColor.translateAlternateColorCodes('&', renderMessage(context, line.substring(separator + 1)));
                     for (Player player : selectPlayers(context, target)) player.sendMessage(message);
                 }
                 index++;
@@ -570,13 +609,13 @@ public final class ScriptEngine implements Listener {
             }
 
             if (line.startsWith("play anime ")) {
-                context.npc().animate(unquote(line.substring(11)));
+                context.npc().animate(renderMessage(context, line.substring(11)));
                 index++;
                 continue;
             }
 
             if (line.startsWith("play sound ")) {
-                String name = unquote(line.substring(11));
+                String name = renderMessage(context, line.substring(11));
                 Location location = context.npc().location();
                 if (location.getWorld() != null) {
                     if (name.contains(":")) {
@@ -691,7 +730,7 @@ public final class ScriptEngine implements Listener {
             }
 
             if (line.startsWith("run command ")) {
-                String command = unquote(line.substring(12));
+                String command = renderMessage(context, line.substring(12));
                 String playerName = context.player() == null ? "" : context.player().getName();
                 Bukkit.dispatchCommand(Bukkit.getConsoleSender(), command.replace("%player%", playerName));
                 index++;
@@ -1508,13 +1547,13 @@ public final class ScriptEngine implements Listener {
 
             if (line.startsWith("say local ") || line.startsWith("say global ")) {
                 boolean global = line.startsWith("say global ");
-                sendScriptMessage(context, global, unquote(line.substring(global ? 11 : 10)));
+                sendScriptMessage(context, global, line.substring(global ? 11 : 10));
                 index++;
                 continue;
             }
 
             if (line.startsWith("play anime ")) {
-                context.npc().animate(unquote(line.substring(11)));
+                context.npc().animate(renderMessage(context, line.substring(11)));
                 index++;
                 continue;
             }
