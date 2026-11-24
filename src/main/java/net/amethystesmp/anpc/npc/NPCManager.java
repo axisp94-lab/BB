@@ -196,7 +196,7 @@ public final class NPCManager implements Listener {
                 previous.close();
             }
             if (plugin.scripts() != null) plugin.scripts().onNpcLoaded(managed);
-        } catch (RuntimeException exception) {
+        } catch (RuntimeException | LinkageError exception) {
             plugin.getLogger().warning("Impossible de créer le NPC '" + definition.id() + "' dans " + world.getName()
                     + " : " + exception.getMessage());
         }
@@ -498,7 +498,7 @@ public final class NPCManager implements Listener {
             if (plugin.scripts() != null) plugin.scripts().onNpcLoaded(managed);
             refreshVisibility();
             return true;
-        } catch (RuntimeException e) {
+        } catch (RuntimeException | LinkageError e) {
             if (managed != null) {
                 npcs.remove(instanceKey(id, location.getWorld()), managed);
                 if (plugin.scripts() != null) plugin.scripts().onNpcUnloaded(managed);
