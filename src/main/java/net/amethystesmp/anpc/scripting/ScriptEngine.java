@@ -421,16 +421,33 @@ public final class ScriptEngine implements Listener {
 
             if (line.startsWith("if ") && line.endsWith(":")) {
                 int end = findEnd(code, index + 1, instruction.indent());
+                int elseStart = end;
+                int afterElse = end;
+                if (elseStart < code.size()
+                        && code.get(elseStart).indent() == instruction.indent()
+                        && code.get(elseStart).text().equalsIgnoreCase("else:")) {
+                    afterElse = findEnd(code, elseStart + 1, instruction.indent());
+                }
+
                 if (test(context, line.substring(3, line.length() - 1))) {
                     if (index + 1 < end) {
                         int childIndent = code.get(index + 1).indent();
-                        int next = end;
+                        int next = afterElse;
                         runBlock(context, code, index + 1, childIndent,
                                 () -> runBlock(context, code, next, indent, continuation));
                         return;
                     }
+                } else if (afterElse > elseStart) {
+                    int elseBodyStart = elseStart + 1;
+                    if (elseBodyStart < afterElse) {
+                        int childIndent = code.get(elseBodyStart).indent();
+                        int next = afterElse;
+                        runBlock(context, code, elseBodyStart, childIndent,
+                                () -> runBlock(context, code, next, indent, continuation));
+                        return;
+                    }
                 }
-                index = end;
+                index = afterElse;
                 continue;
             }
 
