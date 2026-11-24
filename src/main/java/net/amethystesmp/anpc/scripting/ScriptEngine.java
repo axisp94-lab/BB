@@ -49,7 +49,7 @@ public final class ScriptEngine implements Listener {
     private static final int MAX_SELECTOR_RESULTS = 256;
     private static final int MAX_CONDITION_LENGTH = 1024;
     private static final int MAX_ARITHMETIC_EXPRESSION_LENGTH = 512;
-    private static final String STORED_STRING_PREFIX = "\u001FANPC:S:";
+    private static final String STORED_STRING_PREFIX = String.valueOf((char) 31) + "ANPC:S:";
     private static final Set<String> LOOP_VARIABLE_NAMES = Set.of("loop-number", "loop-player", "loop-npc", "loop-value");
     private static final java.util.regex.Pattern MESSAGE_VARIABLE_PATTERN =
             java.util.regex.Pattern.compile("(?<![\\p{L}\\p{N}_])([\\p{L}_][\\p{L}\\p{N}_-]*)(?![\\p{L}\\p{N}_])");
