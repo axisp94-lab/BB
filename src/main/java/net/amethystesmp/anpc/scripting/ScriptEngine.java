@@ -1095,10 +1095,18 @@ public final class ScriptEngine implements Listener {
         boolean quoted = false;
         for (int i = 0; i < expression.length(); i++) {
             char character = expression.charAt(i);
-            if (character == '"' && (i == 0 || expression.charAt(i - 1) != '\\')) quoted = !quoted;
+            if (character == '"') {
+                int backslashes = 0;
+                for (int previous = i - 1; previous >= 0 && expression.charAt(previous) == '\\'; previous--) {
+                    backslashes++;
+                }
+                if (backslashes % 2 == 0) quoted = !quoted;
+            }
             if (!quoted && (character == '+' || character == '*' || character == '/' || character == '%')) return true;
             if (!quoted && character == '-' && i > 0) return true;
         }
+        return false;
+    }
         return false;
     }
 
@@ -1215,7 +1223,8 @@ public final class ScriptEngine implements Listener {
         if (value.startsWith("\"") && value.endsWith("\"")) return unquote(value);
         if (value.equalsIgnoreCase("true") || value.equalsIgnoreCase("false")) return Boolean.parseBoolean(value);
         try {
-            return Double.parseDouble(value);
+            double number = Double.parseDouble(value);
+            if (Double.isFinite(number)) return number;
         } catch (NumberFormatException ignored) {
         }
         for (Map.Entry<String, Object> local : context.locals().entrySet()) {
@@ -1447,7 +1456,17 @@ public final class ScriptEngine implements Listener {
         return new FunctionResult(false, null);
     }
 
-    private Object parseStored(String s){if(s.equalsIgnoreCase("true")||s.equalsIgnoreCase("false"))return Boolean.parseBoolean(s);try{return Double.parseDouble(s);}catch(Exception e){return s;}}
+    private Object parseStored(String value) {
+        if (value.equalsIgnoreCase("true") || value.equalsIgnoreCase("false")) {
+            return Boolean.parseBoolean(value);
+        }
+        try {
+            double number = Double.parseDouble(value);
+            return Double.isFinite(number) ? number : value;
+        } catch (NumberFormatException ignored) {
+            return value;
+        }
+    }
     private void createVariable(ScriptContext context, String declaration) {
         List<String> arguments = extractGroups(declaration);
         if (arguments.size() < 2) {
@@ -1561,6 +1580,18 @@ public final class ScriptEngine implements Listener {
         variables.set(scope, owner, name, value);
     }
     private Double numericValue(Object value) {
+        if (value == null) return null;
+        if (value instanceof Number number) {
+            double parsed = number.doubleValue();
+            return Double.isFinite(parsed) ? parsed : null;
+        }
+        try {
+            double parsed = Double.parseDouble(String.valueOf(value).trim());
+            return Double.isFinite(parsed) ? parsed : null;
+        } catch (NumberFormatException ignored) {
+            return null;
+        }
+    }
         if (value instanceof Number number) return number.doubleValue();
         if (value == null) return null;
         try {
