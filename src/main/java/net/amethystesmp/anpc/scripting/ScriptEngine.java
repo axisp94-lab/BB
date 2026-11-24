@@ -49,6 +49,8 @@ public final class ScriptEngine implements Listener {
     private static final int MAX_SELECTOR_RESULTS = 256;
     private static final int MAX_CONDITION_LENGTH = 1024;
     private static final int MAX_ARITHMETIC_EXPRESSION_LENGTH = 512;
+    private static final int MAX_ARGUMENT_COUNT = 256;
+    private static final int MAX_ARGUMENT_TEXT_LENGTH = 16_384;
     private static final String STORED_STRING_PREFIX = String.valueOf((char) 31) + "ANPC:S:";
     private static final Set<String> LOOP_VARIABLE_NAMES = Set.of("loop-number", "loop-player", "loop-npc", "loop-value");
     private static final java.util.regex.Pattern MESSAGE_VARIABLE_PATTERN =
@@ -1742,6 +1744,7 @@ public final class ScriptEngine implements Listener {
     }
 
     private List<String> parseFunctionArguments(String raw) {
+        if (raw.length() > MAX_ARGUMENT_TEXT_LENGTH) return null;
         List<String> arguments = new ArrayList<>();
         if (raw.isBlank()) return arguments;
 
@@ -1769,6 +1772,7 @@ public final class ScriptEngine implements Listener {
                 String argument = raw.substring(start, i).trim();
                 if (argument.isEmpty()) return null;
                 arguments.add(argument);
+                if (arguments.size() > MAX_ARGUMENT_COUNT) return null;
                 start = i + 1;
             }
         }
@@ -1776,6 +1780,7 @@ public final class ScriptEngine implements Listener {
         String finalArgument = raw.substring(start).trim();
         if (finalArgument.isEmpty()) return null;
         arguments.add(finalArgument);
+        if (arguments.size() > MAX_ARGUMENT_COUNT) return null;
         return arguments;
     }
 
@@ -1985,6 +1990,7 @@ public final class ScriptEngine implements Listener {
     }
 
     private List<String> extractGroups(String declaration) {
+        if (declaration.length() > MAX_ARGUMENT_TEXT_LENGTH) return List.of();
         List<String> groups = new ArrayList<>();
         boolean quoted = false;
         int start = -1;
