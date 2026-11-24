@@ -35,7 +35,7 @@ public final class ANPCCommand implements TabExecutor {
         }
 
         if (args.length == 0 || args[0].equalsIgnoreCase("help")) {
-            msg(sender, "/anpc list | create <id> <modele|limb:nom|mythicmob:id> | tp <id> | center <id> | rename <id> <nom> | kill <id> | reload");
+            msg(sender, "/anpc list | create <id> <modele|limb:nom|mythicmob:id> | tp <id> | center <id> | rename <id> <nom> | kill <id> | reload | reload-scripts");
             return true;
         }
 
@@ -126,10 +126,15 @@ public final class ANPCCommand implements TabExecutor {
                 else msg(sender, "NPC introuvable : " + args[1]);
             }
             case "reload-scripts" -> {
-                if (plugin.scripts().loadAll()) {
-                    msg(sender, "Scripts .aa rechargés sans recréer les NPC. Les événements de proximité déjà actifs sont conservés.");
-                } else {
-                    msg(sender, "Rechargement des scripts annulé : au moins un fichier .aa est invalide ou illisible. Les scripts actifs sont conservés.");
+                try {
+                    if (plugin.scripts().loadAll()) {
+                        msg(sender, "Scripts .aa rechargés sans recréer les NPC. Les événements de proximité déjà actifs sont conservés.");
+                    } else {
+                        msg(sender, "Rechargement des scripts annulé : au moins un fichier .aa est invalide ou illisible. Les scripts actifs sont conservés.");
+                    }
+                } catch (RuntimeException | LinkageError exception) {
+                    plugin.getLogger().severe("Erreur pendant /anpc reload-scripts : " + exception.getMessage());
+                    msg(sender, "Le rechargement des scripts a échoué. Consulte la console pour le détail.");
                 }
             }
             case "reload" -> {
