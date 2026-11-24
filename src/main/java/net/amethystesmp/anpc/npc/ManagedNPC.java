@@ -155,11 +155,13 @@ public final class ManagedNPC {
     public void hide(Player player) {
         if (player == null || tracker == null) return;
         String viewerId = player.getUniqueId().toString();
-        if (!viewers.remove(viewerId)) return;
+        if (!viewers.contains(viewerId)) return;
         try {
             if (!tracker.isClosed()) tracker.remove(BukkitAdapter.adapt(player));
+            viewers.remove(viewerId);
             warnedViewerFailures.remove("remove:" + viewerId);
         } catch (RuntimeException | LinkageError exception) {
+            // Keep the viewer registered so the next visibility pass retries the removal.
             warnViewerFailure("remove", player, exception);
         }
     }
