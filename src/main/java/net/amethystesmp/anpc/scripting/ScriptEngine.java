@@ -1560,7 +1560,7 @@ public final class ScriptEngine implements Listener {
             }
             FunctionResult result = runFunctionBlock(context, function.code(), 0, 0);
             if (parent.executionBudgetExhausted()) throw new ScriptBudgetExceededException();
-            for (String variable : context.persistentVariables()) {
+            for (String variable : context.dirtyPersistentVariables()) {
                 if (LOOP_VARIABLE_NAMES.contains(variable)) continue;
                 if (context.locals().containsKey(variable)) parent.locals().put(variable, context.locals().get(variable));
                 else parent.locals().remove(variable);
