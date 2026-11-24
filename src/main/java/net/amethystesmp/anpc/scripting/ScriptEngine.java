@@ -646,7 +646,7 @@ public final class ScriptEngine implements Listener {
             loaded.sort(Comparator
                     .comparing((ManagedNPC npc) -> npc.id().toLowerCase(Locale.ROOT))
                     .thenComparing(npc -> {
-                        World world = npc.location().getWorld();
+                        org.bukkit.World world = npc.location().getWorld();
                         return world == null ? "" : world.getName().toLowerCase(Locale.ROOT);
                     }));
             return new LoopPlan("loop-npc", new ArrayList<>(loaded));
