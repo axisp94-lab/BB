@@ -52,6 +52,7 @@ public final class ScriptEngine implements Listener {
     private final Map<String, Set<String>> secondaryStates = new ConcurrentHashMap<>();
     private final Map<String, Long> cooldowns = new ConcurrentHashMap<>();
     private final Map<String, Long> lastAttackedAt = new ConcurrentHashMap<>();
+    private final Set<String> warnedInstructions = ConcurrentHashMap.newKeySet();
     public ScriptEngine(ANPCPlugin plugin,NPCManager npcs,VariableStore variables){this.plugin=plugin;this.npcs=npcs;this.variables=variables;}
     public void loadAll() {
         File directory = new File(plugin.getDataFolder(), "scripts");
@@ -858,6 +859,8 @@ public final class ScriptEngine implements Listener {
     }
 
     private void warnInstruction(ScriptContext context, Instruction instruction, String reason) {
+        String warningKey = npcKey(context.npc()) + ":" + instruction.line() + ":" + reason;
+        if (!warnedInstructions.add(warningKey)) return;
         plugin.getLogger().warning("Script " + context.npc().id() + ", ligne " + instruction.line()
                 + " : " + reason + " (" + instruction.text() + ").");
     }
@@ -2043,6 +2046,7 @@ public final class ScriptEngine implements Listener {
         activeNpcPairs.clear();
         lastAttackedAt.clear();
         cooldowns.clear();
+        warnedInstructions.clear();
     }
 
     public void shutdown() {
