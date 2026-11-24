@@ -388,10 +388,31 @@ public final class ScriptEngine implements Listener {
     private void refreshPersistentVariables(ScriptContext context) {
         for (String variable : context.persistentVariables()) {
             if (LOOP_VARIABLE_NAMES.contains(variable)) continue;
-            context.locals().remove(variable);
-            Object value = resolve(context, variable);
+            Object value = readPersistentVariable(context, variable);
             if (value != null) context.locals().put(variable, value);
+            else context.locals().remove(variable);
         }
+    }
+
+    private Object readPersistentVariable(ScriptContext context, String name) {
+        String normalizedNpcId = context.npc().id().toLowerCase(Locale.ROOT);
+        String metadata = variables.get("meta", normalizedNpcId, name, null);
+        if (metadata == null && !normalizedNpcId.equals(context.npc().id())) {
+            metadata = variables.get("meta", context.npc().id(), name, null);
+        }
+        if (metadata == null) metadata = variables.get("meta", "", name, null);
+        if (metadata == null) return null;
+
+        String[] parts = metadata.split("\\|", 2);
+        String scope = parts[0];
+        String owner = parts.length > 1 ? parts[1] : context.npc().id();
+        if (scope.equalsIgnoreCase("global") && owner.equals("@")) owner = "";
+        if (scope.equalsIgnoreCase("player")) {
+            if (context.player() == null) return null;
+            owner = context.player().getUniqueId().toString();
+        }
+        String stored = variables.get(scope, owner, name, null);
+        return stored == null ? null : parseStored(stored);
     }
 
     private void logScriptException(ScriptContext context, RuntimeException exception) {
