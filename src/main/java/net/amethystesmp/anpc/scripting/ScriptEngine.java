@@ -78,6 +78,10 @@ public final class ScriptEngine implements Listener {
     private boolean hasLoadedScripts;
     public ScriptEngine(ANPCPlugin plugin,NPCManager npcs,VariableStore variables){this.plugin=plugin;this.npcs=npcs;this.variables=variables;}
     public boolean loadAll() {
+        return loadAll(true);
+    }
+
+    public boolean loadAll(boolean triggerSpawnForExisting) {
         File directory = new File(plugin.getDataFolder(), "scripts");
         File[] files = directory.listFiles((dir, name) -> name.toLowerCase(Locale.ROOT).endsWith(".aa"));
         if (files == null) {
@@ -117,7 +121,11 @@ public final class ScriptEngine implements Listener {
 
         if (!hasLoadedScripts) {
             hasLoadedScripts = true;
-            for (ManagedNPC npc : npcs.all()) onNpcLoaded(npc);
+            if (triggerSpawnForExisting) {
+                for (ManagedNPC npc : npcs.all()) onNpcLoaded(npc);
+            } else {
+                scheduleIntervals();
+            }
         } else {
             scheduleIntervals();
         }
