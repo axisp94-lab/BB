@@ -499,6 +499,10 @@ public final class ScriptEngine implements Listener {
             if (direct != null && !Objects.equals(String.valueOf(direct), template)) {
                 return formatMessageValue(direct);
             }
+            if (context.recognizesValue(template)) return "";
+        } else if (context.recognizesValue(template)) {
+            Object direct = resolve(context, template);
+            return direct == null ? "" : formatMessageValue(direct);
         }
 
         java.util.regex.Matcher matcher = MESSAGE_VARIABLE_PATTERN.matcher(template);
@@ -1603,7 +1607,9 @@ public final class ScriptEngine implements Listener {
         if (local != null) return parseStored(local);
         String global = variables.get("global", "", value, null);
         if (global != null) return parseStored(global);
-        return context.value(value);
+        Object contextValue = context.value(value);
+        if (contextValue == null && context.recognizesValue(value)) return null;
+        return contextValue == null ? value : contextValue;
     }
     private FunctionResult invokeFunction(ScriptContext parent, String expression) {
         int open = expression.indexOf('(');
