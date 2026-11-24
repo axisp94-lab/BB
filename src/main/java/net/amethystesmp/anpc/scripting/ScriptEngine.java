@@ -363,10 +363,16 @@ public final class ScriptEngine implements Listener {
     }
 
     private void firePlayerEvent(ManagedNPC npc, String event, Player player) {
+        fireEntityEvent(npc, event, player);
+    }
+
+    private void fireEntityEvent(ManagedNPC npc, String event, Entity eventEntity) {
         ScriptData script = scripts.get(npc.id().toLowerCase(Locale.ROOT));
         if (script == null) return;
         List<Instruction> code = script.events().get(event.toLowerCase(Locale.ROOT));
-        if (code != null) execute(npc, player, code, 0);
+        if (code == null) return;
+        Player player = eventEntity instanceof Player selectedPlayer ? selectedPlayer : null;
+        execute(npc, player, null, eventEntity, code, 0);
     }
 
     private String npcKey(ManagedNPC npc) {
@@ -392,6 +398,11 @@ public final class ScriptEngine implements Listener {
     private void execute(ManagedNPC npc, Player player, ManagedNPC eventNpc,
                          List<Instruction> code, int baseIndent) {
         execute(new ScriptContext(npc, player, eventNpc), code, baseIndent, () -> { });
+    }
+
+    private void execute(ManagedNPC npc, Player player, ManagedNPC eventNpc, Entity eventEntity,
+                         List<Instruction> code, int baseIndent) {
+        execute(new ScriptContext(npc, player, eventNpc, eventEntity), code, baseIndent, () -> { });
     }
 
     private void execute(ScriptContext context, List<Instruction> code, int baseIndent, Runnable completion) {
@@ -1609,7 +1620,8 @@ public final class ScriptEngine implements Listener {
                 return new FunctionResult(true, null);
             }
 
-            ScriptContext context = new ScriptContext(parent.npc(), parent.player(), parent.eventNpc(), parent.executionBudget());
+            ScriptContext context = new ScriptContext(parent.npc(), parent.player(), parent.eventNpc(),
+                    parent.eventEntity(), parent.executionBudget());
             context.locals().putAll(parent.locals());
             context.inheritPersistentVariables(parent);
             for (int i = 0; i < arguments.size(); i++) {
@@ -1994,7 +2006,9 @@ public final class ScriptEngine implements Listener {
     private List<Player> selectPlayers(ScriptContext context, String selector) {
         String target = selector.trim();
         Location origin = context.npc().location();
-        if (target.equalsIgnoreCase("event entity") && context.player() != null) return List.of(context.player());
+        if (target.equalsIgnoreCase("event entity") && context.eventEntity() instanceof Player selectedPlayer) {
+            return List.of(selectedPlayer);
+        }
         if (target.equalsIgnoreCase("@p")) {
             Player nearest = nearest(origin);
             return nearest == null ? List.of() : List.of(nearest);
@@ -2034,7 +2048,7 @@ public final class ScriptEngine implements Listener {
                     .map(player -> (Entity) player)
                     .toList();
         }
-        if (target.equalsIgnoreCase("event entity") && context.player() != null) return List.of(context.player());
+        if (target.equalsIgnoreCase("event entity") && context.eventEntity() != null) return List.of(context.eventEntity());
         if (target.regionMatches(true, 0, "player:", 0, 7)) {
             Player player = Bukkit.getPlayerExact(target.substring(7));
             return player != null && isWithinSelectorRange(origin, player) ? List.of(player) : List.of();
@@ -2119,7 +2133,7 @@ public final class ScriptEngine implements Listener {
             return player != null && isWithinSelectorRange(context.npc().location(), player)
                     ? player.getLocation() : null;
         }
-        if (target.equalsIgnoreCase("event entity") && context.player() != null) return context.player().getLocation();
+        if (target.equalsIgnoreCase("event entity") && context.eventEntity() != null) return context.eventEntity().getLocation();
 
         Object resolved = resolve(context, target);
         if (resolved instanceof Location location) return location.clone();
@@ -2559,22 +2573,15 @@ public final class ScriptEngine implements Listener {
         // environmental damage such as fire, falling or suffocation.
         lastAttackedAt.put(npcKey(id, target.getWorld()), System.currentTimeMillis());
 
-        Player attacker = null;
-        if (byEntity.getDamager() instanceof Player player) {
-            attacker = player;
-        } else if (byEntity.getDamager() instanceof Projectile projectile) {
+        Entity attackerEntity = byEntity.getDamager();
+        if (attackerEntity instanceof Projectile projectile) {
             ProjectileSource shooter = projectile.getShooter();
-            if (shooter instanceof Player player) attacker = player;
-        }
-
-        if (attacker == null) {
-            if (managed != null) firePlayerEvent(managed, "damage", null);
-            return;
+            if (shooter instanceof Entity shooterEntity) attackerEntity = shooterEntity;
         }
         if (managed != null) {
             // The Paper pre-attack event already fires the left-click script.
             // Keep damage separate so one swing cannot trigger the click twice.
-            firePlayerEvent(managed, "damage", attacker);
+            fireEntityEvent(managed, "damage", attackerEntity);
         }
     }
     @EventHandler
