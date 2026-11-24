@@ -14,6 +14,7 @@ import org.bukkit.entity.Player;
 import org.bukkit.entity.Entity;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
+import org.bukkit.event.player.PlayerQuitEvent;
 import org.bukkit.event.world.WorldLoadEvent;
 import org.bukkit.event.world.WorldUnloadEvent;
 import org.bukkit.scheduler.BukkitTask;
@@ -122,6 +123,12 @@ public final class NPCManager implements Listener {
 
     private String instanceKey(String id, World world) {
         return id.toLowerCase(Locale.ROOT) + "@" + world.getName().toLowerCase(Locale.ROOT);
+    }
+
+    @EventHandler
+    public void onPlayerQuit(PlayerQuitEvent event) {
+        Player player = event.getPlayer();
+        for (ManagedNPC npc : npcs.values()) npc.hide(player);
     }
 
     @EventHandler
