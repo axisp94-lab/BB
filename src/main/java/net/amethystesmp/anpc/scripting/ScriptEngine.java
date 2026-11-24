@@ -11,6 +11,7 @@ import org.bukkit.Location;
 import org.bukkit.Sound;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
+import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
 import org.bukkit.event.player.PlayerInteractEntityEvent;
 import org.bukkit.event.entity.EntityDamageByEntityEvent;
@@ -2390,7 +2391,7 @@ public final class ScriptEngine implements Listener {
             return -1L;
         }
     }
-    @EventHandler
+    @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
     public void onNpcRightClick(PlayerInteractEntityEvent event) {
         if (event.isCancelled()) return;
         String id = event.getRightClicked().getScoreboardTags().stream()
@@ -2422,7 +2423,7 @@ public final class ScriptEngine implements Listener {
         fire(id, event.getPlayer().isSneaking() ? "left click while sneaking" : "left click",
                 event.getPlayer());
     }
-    @EventHandler
+    @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
     public void onNpcDamaged(EntityDamageEvent event) {
         if (event.isCancelled()) return;
         Entity target = event.getEntity();
