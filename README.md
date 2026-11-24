@@ -138,8 +138,9 @@ La valeur est stockée dans SQLite sous l'UUID du joueur. Les variables de port�
 - `/anpc rename <id> <nom>`
 - `/anpc kill <id>`
 - `/anpc reload`
+- `/anpc reload-scripts`
 
-`/anpc list` affiche toutes les définitions de `npc.yml`, y compris celles dont le monde n'est pas chargé, avec leur statut. Les commandes de renommage, suppression et centrage fonctionnent également sur ces définitions non chargées.
+`/anpc list` affiche toutes les définitions de `npc.yml`, y compris celles dont le monde n'est pas chargé, avec leur statut. Les commandes de renommage, suppression et centrage fonctionnent également sur ces définitions non chargées. `/anpc reload-scripts` recharge uniquement les fichiers `.aa`, sans recréer les NPC : les proximités déjà actives sont conservées et les événements `on spawn` ne sont pas rejoués. `/anpc reload` reste le rechargement complet de la configuration, des NPC et des scripts ; comme il recrée les instances, leurs événements de spawn et de nouvelle approche peuvent se déclencher.
 
 ## État de cette livraison (0.1.0)
 Le socle comprend le chargement de `npc.yml`, les NPC BetterModel basés sur `DummyTracker`, les hitboxes d'interaction, le suivi des joueurs visibles, les commandes de base, les événements/conditions/actions de première tranche et le stockage SQLite.
