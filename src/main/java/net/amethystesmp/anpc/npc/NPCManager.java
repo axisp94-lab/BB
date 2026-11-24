@@ -373,8 +373,7 @@ public final class NPCManager implements Listener {
         for (String key : keys) {
             ManagedNPC npc = npcs.remove(key);
             if (npc != null) {
-                if (plugin.scripts() != null) plugin.scripts().onNpcUnloaded(npc);
-                npc.close();
+                closeManagedNPC(npc);
             }
         }
     }
