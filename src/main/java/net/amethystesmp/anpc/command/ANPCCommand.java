@@ -140,7 +140,7 @@ public final class ANPCCommand implements TabExecutor {
             case "reload" -> {
                 try {
                     plugin.npcs().validateReload();
-                    if (!plugin.scripts().loadAll()) {
+                    if (!plugin.scripts().loadAll(false)) {
                         msg(sender, "Rechargement annulé : au moins un script .aa est invalide ou illisible. La configuration et les NPC actuels sont conservés.");
                         return true;
                     }
