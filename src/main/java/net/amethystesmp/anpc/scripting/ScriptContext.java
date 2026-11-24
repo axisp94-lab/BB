@@ -77,6 +77,10 @@ public final class ScriptContext {
         return executionBudget.markWarningEmitted();
     }
 
+    boolean executionBudgetExhausted() {
+        return executionBudget.exhausted();
+    }
+
     ExecutionBudget executionBudget() {
         return executionBudget;
     }
