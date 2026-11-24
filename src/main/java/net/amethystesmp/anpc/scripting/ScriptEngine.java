@@ -1975,45 +1975,58 @@ public final class ScriptEngine implements Listener {
         ScriptContext selectorContext = new ScriptContext(npc, null);
 
         BukkitTask task = Bukkit.getScheduler().runTaskTimer(plugin, () -> {
-            Entity target = fixedPlayer == null
-                    ? selectEntities(selectorContext, selector).stream().findFirst().orElse(null)
-                    : Bukkit.getPlayer(fixedPlayer);
+            try {
+                Entity target = fixedPlayer == null
+                        ? selectEntities(selectorContext, selector).stream().findFirst().orElse(null)
+                        : Bukkit.getPlayer(fixedPlayer);
 
-            if (target == null) {
-                if (fixedPlayer != null && Bukkit.getPlayer(fixedPlayer) == null) stopFollow(npc);
-                return;
-            }
-            if (!target.isValid()) {
-                stopFollow(npc);
-                return;
-            }
+                if (target == null) {
+                    if (fixedPlayer != null && Bukkit.getPlayer(fixedPlayer) == null) stopFollow(npc);
+                    return;
+                }
+                if (!target.isValid()) {
+                    stopFollow(npc);
+                    return;
+                }
 
-            Location npcLocation = npc.location();
-            Location targetLocation = target.getLocation();
-            if (npcLocation.getWorld() == null || !npcLocation.getWorld().equals(targetLocation.getWorld())) {
-                stopMovement(npc);
-                return;
-            }
+                Location npcLocation = npc.location();
+                Location targetLocation = target.getLocation();
+                if (npcLocation.getWorld() == null || !npcLocation.getWorld().equals(targetLocation.getWorld())) {
+                    stopMovement(npc);
+                    return;
+                }
 
-            double distance = npcLocation.distance(targetLocation);
-            boolean tooFar = !keepDistance && distance > maximumDistance + 0.35;
-            boolean tooClose = distance < minimumDistance - 0.35;
-            if (!tooFar && !tooClose) {
-                stopMovement(npc);
-                return;
-            }
+                double distance = npcLocation.distance(targetLocation);
+                boolean tooFar = !keepDistance && distance > maximumDistance + 0.35;
+                boolean tooClose = distance < minimumDistance - 0.35;
+                if (!tooFar && !tooClose) {
+                    stopMovement(npc);
+                    return;
+                }
 
-            long now = System.currentTimeMillis();
-            long nextAttempt = followPathAttemptAt.getOrDefault(key, 0L);
-            if (!movementTasks.containsKey(key) && now >= nextAttempt) {
-                followPathAttemptAt.put(key, now + 1000L);
-                double desiredDistance = tooFar ? maximumDistance : minimumDistance;
-                org.bukkit.util.Vector offset = npcLocation.toVector().subtract(targetLocation.toVector());
-                if (offset.lengthSquared() < 0.000001) offset = new org.bukkit.util.Vector(1, 0, 0);
-                offset.normalize().multiply(desiredDistance);
-                Location destination = targetLocation.clone().add(offset);
-                destination.setY(targetLocation.getY());
-                move(npc, destination);
+                long now = System.currentTimeMillis();
+                long nextAttempt = followPathAttemptAt.getOrDefault(key, 0L);
+                if (!movementTasks.containsKey(key) && now >= nextAttempt) {
+                    followPathAttemptAt.put(key, now + 1000L);
+                    double desiredDistance = tooFar ? maximumDistance : minimumDistance;
+                    org.bukkit.util.Vector offset = npcLocation.toVector().subtract(targetLocation.toVector());
+                    if (offset.lengthSquared() < 0.000001) offset = new org.bukkit.util.Vector(1, 0, 0);
+                    offset.normalize().multiply(desiredDistance);
+                    Location destination = targetLocation.clone().add(offset);
+                    destination.setY(targetLocation.getY());
+                    move(npc, destination);
+                }
+            } catch (RuntimeException exception) {
+                plugin.getLogger().log(java.util.logging.Level.WARNING,
+                        "Suivi interrompu pour le NPC '" + npc.id() + "' : "
+                                + Objects.toString(exception.getMessage(), exception.getClass().getSimpleName()),
+                        exception);
+                try {
+                    stopFollow(npc);
+                } catch (RuntimeException cleanupException) {
+                    plugin.getLogger().warning("Nettoyage du suivi impossible pour " + npc.id()
+                            + " : " + cleanupException.getMessage());
+                }
             }
         }, 10L, 10L);
 
