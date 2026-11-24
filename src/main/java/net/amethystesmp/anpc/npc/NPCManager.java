@@ -420,7 +420,14 @@ public final class NPCManager implements Listener {
             npcs.put(instanceKey(id, location.getWorld()), managed);
             definitions.put(id.toLowerCase(Locale.ROOT), definition);
             if (plugin.scripts() != null) plugin.scripts().onNpcLoaded(managed);
-            saveDefinition(definition);
+            if (!saveDefinition(definition)) {
+                npcs.remove(instanceKey(id, location.getWorld()), managed);
+                if (plugin.scripts() != null) plugin.scripts().onNpcUnloaded(managed);
+                managed.close();
+                definitions.remove(id.toLowerCase(Locale.ROOT));
+                plugin.getLogger().severe("NPC '" + id + "' créé en mémoire mais retiré : sa sauvegarde a échoué.");
+                return false;
+            }
             refreshVisibility();
             return true;
         } catch (RuntimeException e) {
@@ -495,8 +502,7 @@ public final class NPCManager implements Listener {
             NPCDefinition centered = new NPCDefinition(definition.id(), definition.displayName(), definition.type(),
                     definition.worlds(), Math.floor(definition.x()) + 0.5, definition.y(),
                     Math.floor(definition.z()) + 0.5, definition.yaw(), definition.pitch(), definition.skin());
-            saveDefinition(centered);
-            return true;
+            return saveDefinition(centered);
         }
 
         for (ManagedNPC npc : matches) {
@@ -533,9 +539,9 @@ public final class NPCManager implements Listener {
         return root.getKeys(false).stream().filter(key -> key.equalsIgnoreCase(id)).toList();
     }
 
-    private void saveDefinition(NPCDefinition definition) {
+    private boolean saveDefinition(NPCDefinition definition) {
+        if (yaml == null) return false;
         definitions.put(definition.id().toLowerCase(Locale.ROOT), definition);
-        if (yaml == null) return;
         String path = "npcs." + definition.id() + ".";
         yaml.set(path + "display-name", definition.displayName());
         yaml.set(path + "type", definition.type());
@@ -547,7 +553,7 @@ public final class NPCManager implements Listener {
         yaml.set(path + "pitch", definition.pitch());
         if (definition.skin().isBlank()) yaml.set(path + "skin", null);
         else yaml.set(path + "skin", definition.skin());
-        save();
+        return save();
     }
 
     private boolean save() {
