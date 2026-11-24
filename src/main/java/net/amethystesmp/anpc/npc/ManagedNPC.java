@@ -13,6 +13,8 @@ import org.bukkit.entity.Entity;
 
 import java.util.HashSet;
 import java.util.Set;
+import java.util.Objects;
+import java.util.function.Consumer;
 
 public final class ManagedNPC {
     private NPCDefinition definition;
@@ -21,6 +23,7 @@ public final class ManagedNPC {
     private Location current;
     private final Interaction hitbox;
     private final Entity backingEntity;
+    private final Runnable backingCleanup;
     private String animation = "idle";
     private boolean closed;
 
@@ -33,6 +36,7 @@ public final class ManagedNPC {
         this.definition = definition;
         this.current = location.clone();
         this.backingEntity = null;
+        this.backingCleanup = () -> { };
         this.tracker = profile == null
                 ? renderer.create(BukkitAdapter.adapt(location))
                 : renderer.create(BukkitAdapter.adapt(location), profile);
@@ -47,8 +51,13 @@ public final class ManagedNPC {
     }
 
     public ManagedNPC(NPCDefinition definition, Entity backingEntity) {
+        this(definition, backingEntity, () -> { });
+    }
+
+    public ManagedNPC(NPCDefinition definition, Entity backingEntity, Runnable backingCleanup) {
         this.definition = definition;
         this.backingEntity = backingEntity;
+        this.backingCleanup = backingCleanup == null ? () -> { } : backingCleanup;
         this.current = backingEntity.getLocation();
         this.tracker = null;
         this.hitbox = null;
@@ -62,6 +71,11 @@ public final class ManagedNPC {
         return current.clone();
     }
     public DummyTracker tracker() { return tracker; }
+    public boolean isActive() {
+        if (closed) return false;
+        if (backingEntity != null) return backingEntity.isValid();
+        return tracker != null && !tracker.isClosed();
+    }
     public void updateDefinition(NPCDefinition next) {
         if (next == null) return;
         definition = next;
@@ -120,7 +134,13 @@ public final class ManagedNPC {
         closed = true;
         if (tracker != null && !tracker.isClosed()) tracker.close();
         if (hitbox != null && hitbox.isValid()) hitbox.remove();
-        if (backingEntity != null && backingEntity.isValid()) backingEntity.remove();
+        if (backingEntity != null) {
+            try {
+                backingCleanup.run();
+            } catch (RuntimeException ignored) {
+            }
+            if (backingEntity.isValid()) backingEntity.remove();
+        }
         viewers.clear();
     }
 }
