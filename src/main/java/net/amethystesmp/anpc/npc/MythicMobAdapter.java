@@ -56,18 +56,14 @@ public final class MythicMobAdapter {
             return null;
         }
 
+        Object activeMob = null;
         try {
             Class<?> mythicBukkitClass = Class.forName("io.lumine.mythic.bukkit.MythicBukkit");
             Object mythicBukkit = mythicBukkitClass.getMethod("inst").invoke(null);
             Object mobManager = mythicBukkit.getClass().getMethod("getMobManager").invoke(mythicBukkit);
             Object optionalMob = mobManager.getClass().getMethod("getMythicMob", String.class).invoke(mobManager, mobId);
 
-            Object mythicMob;
-            if (optionalMob instanceof Optional<?> optional) {
-                mythicMob = optional.orElse(null);
-            } else {
-                mythicMob = optionalMob;
-            }
+            Object mythicMob = optionalMob instanceof Optional<?> optional ? optional.orElse(null) : optionalMob;
             if (mythicMob == null) {
                 plugin.getLogger().severe("MythicMob introuvable : " + mobId);
                 return null;
@@ -91,7 +87,7 @@ public final class MythicMobAdapter {
                     .findFirst()
                     .orElseThrow(() -> new NoSuchMethodException("MythicMob.spawn(AbstractLocation, double)"));
 
-            Object activeMob = spawn.invoke(mythicMob, abstractLocation, 1.0d);
+            activeMob = spawn.invoke(mythicMob, abstractLocation, 1.0d);
             if (activeMob == null) {
                 plugin.getLogger().severe("MythicMobs n'a pas pu créer le mob : " + mobId);
                 return null;
@@ -100,6 +96,7 @@ public final class MythicMobAdapter {
             Object abstractEntity = activeMob.getClass().getMethod("getEntity").invoke(activeMob);
             Object bukkitEntity = abstractEntity.getClass().getMethod("getBukkitEntity").invoke(abstractEntity);
             if (!(bukkitEntity instanceof Entity entity)) {
+                cleanupActiveMob(plugin, activeMob);
                 plugin.getLogger().severe("MythicMobs a renvoyé une entité Bukkit invalide pour " + mobId);
                 return null;
             }
@@ -114,9 +111,19 @@ public final class MythicMobAdapter {
             entity.setCustomName(ChatColor.translateAlternateColorCodes('&', displayName));
             entity.setCustomNameVisible(true);
             return entity;
-        } catch (ReflectiveOperationException | LinkageError exception) {
+        } catch (ReflectiveOperationException | RuntimeException | LinkageError exception) {
+            if (activeMob != null) cleanupActiveMob(plugin, activeMob);
             plugin.getLogger().severe("Échec de l'adaptateur MythicMobs pour '" + mobId + "' : " + exception.getMessage());
             return null;
+        }
+    }
+
+    private static void cleanupActiveMob(ANPCPlugin plugin, Object activeMob) {
+        try {
+            activeMob.getClass().getMethod("despawn").invoke(activeMob);
+        } catch (ReflectiveOperationException | RuntimeException | LinkageError cleanupFailure) {
+            plugin.getLogger().warning("Impossible de nettoyer un MythicMob créé partiellement : "
+                    + cleanupFailure.getMessage());
         }
     }
 }
