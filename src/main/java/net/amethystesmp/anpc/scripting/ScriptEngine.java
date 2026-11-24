@@ -1158,7 +1158,7 @@ public final class ScriptEngine implements Listener {
         }
         List<String> andParts = splitLogical(candidate, " and ");
         if (andParts.size() > 1) {
-            return andParts.stream().allMatch(part -> isRecognizedCondition(context, part));
+            return andParts.stream().allMatch(part -> isRecognizedCondition(context, part, depth + 1));
         }
         if (candidate.regionMatches(true, 0, "not ", 0, 4)) {
             return isRecognizedCondition(context, candidate.substring(4), depth + 1);
@@ -1200,7 +1200,7 @@ public final class ScriptEngine implements Listener {
         }
         List<String> andParts = splitLogical(expressionText, " and ");
         if (andParts.size() > 1) {
-            return andParts.stream().allMatch(part -> test(context, part));
+            return andParts.stream().allMatch(part -> test(context, part, depth + 1));
         }
         if (expressionText.regionMatches(true, 0, "not ", 0, 4)) {
             String operand = expressionText.substring(4).trim();
