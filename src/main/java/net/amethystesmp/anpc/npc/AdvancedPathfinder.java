@@ -160,9 +160,9 @@ public final class AdvancedPathfinder {
     }
 
     private static double distance(Node a, Node b) {
-        int dx = a.x() - b.x();
-        int dy = a.y() - b.y();
-        int dz = a.z() - b.z();
+        double dx = (double) a.x() - b.x();
+        double dy = (double) a.y() - b.y();
+        double dz = (double) a.z() - b.z();
         return Math.sqrt(dx * dx + dy * dy + dz * dz);
     }
 
