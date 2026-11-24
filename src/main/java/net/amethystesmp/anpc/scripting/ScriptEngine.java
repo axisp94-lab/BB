@@ -51,7 +51,7 @@ public final class ScriptEngine implements Listener {
     private static final int MAX_ARITHMETIC_EXPRESSION_LENGTH = 512;
     private static final Set<String> LOOP_VARIABLE_NAMES = Set.of("loop-number", "loop-player", "loop-npc", "loop-value");
     private static final java.util.regex.Pattern MESSAGE_VARIABLE_PATTERN =
-            java.util.regex.Pattern.compile("(?<![\\p{L}\\p{N}_])([A-Za-z_][A-Za-z0-9_-]*)(?![\\p{L}\\p{N}_])");
+            java.util.regex.Pattern.compile("(?<![\\p{L}\\p{N}_])([\\p{L}_][\\p{L}\\p{N}_-]*)(?![\\p{L}\\p{N}_])");
     private static final java.util.regex.Pattern MESSAGE_PLACEHOLDER_PATTERN =
             java.util.regex.Pattern.compile("%([^%]+)%");
     private final ANPCPlugin plugin; private final NPCManager npcs; private final VariableStore variables;
