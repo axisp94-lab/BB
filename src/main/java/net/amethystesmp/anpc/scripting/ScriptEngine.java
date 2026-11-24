@@ -1139,8 +1139,9 @@ public final class ScriptEngine implements Listener {
             variables.set("meta", context.npc().id().toLowerCase(Locale.ROOT), name, "local|" + owner);
         }
 
-        variables.set(scope, owner, name, defaultValue);
-        context.locals().put(name, defaultValue);
+        variables.setIfAbsent(scope, owner, name, defaultValue);
+        String storedValue = variables.get(scope, owner, name, String.valueOf(defaultValue));
+        context.locals().put(name, parseStored(storedValue));
     }
 
     private List<String> extractGroups(String declaration) {
