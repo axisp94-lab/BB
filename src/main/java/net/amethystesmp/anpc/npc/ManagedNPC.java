@@ -113,7 +113,13 @@ public final class ManagedNPC {
     public String id() { return definition.id(); }
     public NPCDefinition definition() { return definition; }
     public Location location() {
-        if (backingEntity != null && backingEntity.isValid()) return backingEntity.getLocation();
+        if (backingEntity != null) {
+            try {
+                if (backingEntity.isValid()) return backingEntity.getLocation();
+            } catch (RuntimeException | LinkageError exception) {
+                warnTrackerFailure("backing-location", exception);
+            }
+        }
         return current.clone();
     }
     public DummyTracker tracker() { return tracker; }
@@ -130,9 +136,14 @@ public final class ManagedNPC {
     public void updateDefinition(NPCDefinition next) {
         if (next == null) return;
         definition = next;
-        if (backingEntity != null && backingEntity.isValid()) {
-            backingEntity.setCustomName(ChatColor.translateAlternateColorCodes('&', next.displayName()));
-            backingEntity.setCustomNameVisible(true);
+        if (backingEntity == null) return;
+        try {
+            if (backingEntity.isValid()) {
+                backingEntity.setCustomName(ChatColor.translateAlternateColorCodes('&', next.displayName()));
+                backingEntity.setCustomNameVisible(true);
+            }
+        } catch (RuntimeException | LinkageError exception) {
+            warnTrackerFailure("update-definition", exception);
         }
     }
 
