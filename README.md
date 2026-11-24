@@ -48,8 +48,10 @@ on right click:
     say local message
 
 on offhand item click:
-    set "objet_secondaire" event offhand item
-    say local "Tu utilises un objet dans ta main secondaire."
+    if type of event offhand item == DIAMOND:
+        say local "Un diamant dans ta main secondaire !"
+    else:
+        say local "Tu utilises un objet dans ta main secondaire."
 
 on entity approach:
     loop all players:
@@ -93,6 +95,7 @@ on interval:
 - blocs `if` / `else if` / `else`, conditions combinables avec `and`, `or`, `not` et parenthèses, variables locales/partagées/globales persistantes et variables `player` persistantes par UUID (les valeurs existantes ne sont pas réinitialisées lors du spawn ou d'un reload), et fonctions avec paramètres et `return` ;
 - boucles `loop all players`, `loop all npcs`, `loop all (liste)` et `loop N times`, avec `stop loop` et `skip loop` ; `loop all npcs` parcourt chaque instance chargée, y compris les copies dans plusieurs mondes, avec `name of loop-npc` / `location of loop-npc` ; `name of loop-player` / `location of loop-player` sont aussi disponibles ;
 - sélecteurs `@p`, `@a`, `@n`, `@e[type=...]`, `player:<pseudo>` et `npc:<id>` pour les cibles compatibles ;
+- valeurs `event item` / `event offhand item` et leurs types avec `type of event item` / `type of event offhand item` ;
 - actions de message, son vanilla ou identifiant custom `namespace:sound` (ItemsAdder), animation BetterModel, déplacement, téléportation, suivi, maintien de distance, déplacement aérien direct, états, simulation de blocs et commande console.
 
 Les états principaux et secondaires sont sauvegardés dans SQLite et conservés après un redémarrage du serveur. La condition `npc is under attack` devient vraie après un dégât reçu par le NPC (attaque directe, projectile ou autre source) et reste active pendant `script-under-attack-duration-ticks` ticks (100 par défaut, soit 5 secondes) après le dernier dégât. `setblock (position) (bloc)` ne modifie pas le monde : il joue seulement les particules et le son. Le préfixe explicite `setblock real` applique réellement le changement. Le bloc `cooldown 10 seconds:` limite la fréquence d'exécution de son contenu. Les fonctions sont synchrones : `wait` n'est pas accepté dans une fonction qui retourne une valeur. Les sélecteurs d'entités sont limités au rayon défini par `selector-range` (64 blocs par défaut). Les listes sauvegardées sont actuellement interprétées depuis une chaîne séparée par des virgules.
