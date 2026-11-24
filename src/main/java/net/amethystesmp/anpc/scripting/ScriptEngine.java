@@ -1590,7 +1590,12 @@ public final class ScriptEngine implements Listener {
             return null;
         }
     }
-        if (value instanceof Number number) return number.doubleValue();
+    private String unquote(String value) {
+        String trimmed = value.trim();
+        return trimmed.length() >= 2 && trimmed.startsWith("\"") && trimmed.endsWith("\"")
+                ? trimmed.substring(1, trimmed.length() - 1) : trimmed;
+    }
+
     private double selectorRangeSquared(Location origin) {
         double range = configDouble("selector-range", 64.0, 1.0, 512.0);
         return range * range;
