@@ -84,6 +84,12 @@ public final class ScriptContext {
         if (normalized.equalsIgnoreCase("name of player") && player != null) return player.getName();
         if (normalized.equalsIgnoreCase("event item") && player != null) return player.getInventory().getItemInMainHand();
         if (normalized.equalsIgnoreCase("event offhand item") && player != null) return player.getInventory().getItemInOffHand();
+        if (normalized.equalsIgnoreCase("type of event item") && player != null) {
+            return player.getInventory().getItemInMainHand().getType().name();
+        }
+        if (normalized.equalsIgnoreCase("type of event offhand item") && player != null) {
+            return player.getInventory().getItemInOffHand().getType().name();
+        }
         for (Map.Entry<String, Object> entry : locals.entrySet()) {
             if (entry.getKey().equalsIgnoreCase(normalized)) return entry.getValue();
         }
