@@ -1034,7 +1034,7 @@ public final class ScriptEngine implements Listener {
             char character = expression.charAt(i);
             if (character == '"') {
                 int backslashes = 0;
-                for (int previous = i - 1; previous >= 0 && expression.charAt(previous) == '\\\\'; previous--) {
+                for (int previous = i - 1; previous >= 0 && expression.charAt(previous) == '\\'; previous--) {
                     backslashes++;
                 }
                 if (backslashes % 2 == 0) quoted = !quoted;
