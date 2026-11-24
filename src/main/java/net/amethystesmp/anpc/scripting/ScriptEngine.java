@@ -813,8 +813,8 @@ public final class ScriptEngine implements Listener {
                         context.finish();
                         return;
                     }
-                    refreshPersistentVariables(context);
                     try {
+                        refreshPersistentVariables(context);
                         runBlock(context, code, next, indent, continuation);
                     } catch (ScriptBudgetExceededException ignored) {
                         // The budget warning has already been emitted at the point of exhaustion.
