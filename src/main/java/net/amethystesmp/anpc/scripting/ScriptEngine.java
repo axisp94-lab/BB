@@ -9,6 +9,8 @@ import org.bukkit.Bukkit;
 import org.bukkit.ChatColor;
 import org.bukkit.Location;
 import org.bukkit.Sound;
+import org.bukkit.Registry;
+import org.bukkit.NamespacedKey;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
@@ -784,8 +786,15 @@ public final class ScriptEngine implements Listener {
                         location.getWorld().playSound(location, name, 1f, 1f);
                     } else {
                         try {
-                            Sound sound = Sound.valueOf(name.toUpperCase(Locale.ROOT).replace('.', '_'));
-                            location.getWorld().playSound(location, sound, 1f, 1f);
+                            NamespacedKey soundKey = NamespacedKey.minecraft(
+                                    name.toLowerCase(Locale.ROOT).replace('.', '_'));
+                            Sound sound = Registry.SOUNDS.get(soundKey);
+                            if (sound == null) {
+                                warnInstruction(context, instruction, "son inconnu : " + name
+                                        + " (utilise un identifiant namespace:sound pour un son custom)");
+                            } else {
+                                location.getWorld().playSound(location, sound, 1f, 1f);
+                            }
                         } catch (IllegalArgumentException exception) {
                             warnInstruction(context, instruction, "son inconnu : " + name
                                     + " (utilise un identifiant namespace:sound pour un son custom)");
