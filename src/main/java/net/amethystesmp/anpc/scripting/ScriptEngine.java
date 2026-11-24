@@ -1953,7 +1953,12 @@ public final class ScriptEngine implements Listener {
         if (task != null) {
             task.cancel();
             tasks.remove(task);
-            npc.animate("idle");
+            try {
+                npc.animate("idle");
+            } catch (RuntimeException exception) {
+                plugin.getLogger().warning("Impossible de réinitialiser l'animation du NPC '"
+                        + npc.id() + "' après l'arrêt du déplacement : " + exception.getMessage());
+            }
         }
     }
 
@@ -2394,6 +2399,7 @@ public final class ScriptEngine implements Listener {
         }
     }
     private void cancelTasks() {
+        for (ManagedNPC npc : npcs.all()) stopFollow(npc);
         tasks.forEach(BukkitTask::cancel);
         tasks.clear();
         movementTasks.clear();
