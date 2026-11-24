@@ -492,6 +492,11 @@ public final class ScriptEngine implements Listener {
                 if (plan != null && index + 1 < end) {
                     int bodyIndent = code.get(index + 1).indent();
                     ScriptContext.LoopState state = context.pushLoop();
+                    if (state == null) {
+                        warnInstruction(context, instruction, "profondeur maximale de boucles imbriquées atteinte (16)");
+                        index = end;
+                        continue;
+                    }
                     Set<String> existed = new HashSet<>();
                     Map<String, Object> previous = new HashMap<>();
                     for (String key : List.of(plan.variable(), "loop-number")) {
