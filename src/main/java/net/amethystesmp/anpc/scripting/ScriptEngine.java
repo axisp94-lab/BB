@@ -346,7 +346,18 @@ public final class ScriptEngine implements Listener {
     private void execute(ManagedNPC npc, Player player, ManagedNPC eventNpc,
                          List<Instruction> code, int baseIndent) {
         ScriptContext context = new ScriptContext(npc, player, eventNpc);
-        runBlock(context, code, 0, baseIndent, () -> { });
+        try {
+            runBlock(context, code, 0, baseIndent, () -> { });
+        } catch (RuntimeException exception) {
+            logScriptException(context, exception);
+        }
+    }
+
+    private void logScriptException(ScriptContext context, RuntimeException exception) {
+        plugin.getLogger().log(java.util.logging.Level.WARNING,
+                "Erreur d'exécution du script du NPC '" + context.npc().id() + "' : "
+                        + Objects.toString(exception.getMessage(), exception.getClass().getSimpleName()),
+                exception);
     }
     private void runBlock(ScriptContext context, List<Instruction> code, int start, int indent, Runnable continuation) {
         int index = start;
@@ -641,7 +652,11 @@ public final class ScriptEngine implements Listener {
                     Location npcLocation = context.npc().location();
                     if (npcLocation.getWorld() == null
                             || npcs.get(context.npc().id(), npcLocation.getWorld()) != context.npc()) return;
-                    runBlock(context, code, next, indent, continuation);
+                    try {
+                        runBlock(context, code, next, indent, continuation);
+                    } catch (RuntimeException exception) {
+                        logScriptException(context, exception);
+                    }
                 }, ticks);
                 tasks.add(holder[0]);
                 delayedTasks.computeIfAbsent(npcTaskKey, ignored -> ConcurrentHashMap.newKeySet()).add(holder[0]);
