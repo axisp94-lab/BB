@@ -128,6 +128,7 @@ public final class ANPCCommand implements TabExecutor {
             case "reload" -> {
                 try {
                     plugin.reloadConfig();
+                    plugin.npcs().validateReload();
                     plugin.scripts().shutdown();
                     plugin.npcs().reload();
                     plugin.scripts().loadAll();
