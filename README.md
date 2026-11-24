@@ -34,7 +34,7 @@ Le champ `skin` accepte :
 - le nom d'un joueur actuellement connecté ;
 - `file:nom.png`, pour un fichier placé directement dans `plugins/AmethyysNPCs/npcs/`.
 
-Les PNG doivent mesurer 64×64 ou 64×32 pixels. Pour le modèle bras fins (slim), termine le nom par `_slim.png` ou `-slim.png`. Le serveur local de textures écoute uniquement sur l'interface de boucle locale et s'arrête avec le plugin.
+Les PNG doivent mesurer 64×64 ou 64×32 pixels. Pour le modèle bras fins (slim), termine le nom par `_slim.png` ou `-slim.png`. Le serveur local de textures écoute uniquement sur l'interface de boucle locale, s'arrête avec le plugin et limite son cache à 256 skins / 64 Mio pour éviter une consommation mémoire sans borne.
 
 ## Scripts .aa
 Les scripts se trouvent dans `plugins/AmethyysNPCs/scripts/<id>.aa`. Les événements et blocs utilisent une indentation de quatre espaces.
