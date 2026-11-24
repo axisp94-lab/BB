@@ -1618,13 +1618,17 @@ public final class ScriptEngine implements Listener {
     }
     private FunctionResult invokeFunction(ScriptContext parent, String expression) {
         int open = expression.indexOf('(');
-        if (open <= 0 || !expression.endsWith(")")) return null;
+        if (open <= 0) return null;
 
         String name = expression.substring(0, open).trim().toLowerCase(Locale.ROOT);
         ScriptData script = scripts.get(parent.npc().id().toLowerCase(Locale.ROOT));
         if (script == null) return null;
         FunctionDefinition function = script.functions().get(name);
         if (function == null) return null;
+        if (!expression.endsWith(")")) {
+            warnFunction(parent, name, "appel mal formé : parenthèse fermante manquante");
+            return new FunctionResult(true, null);
+        }
 
         int depth = functionDepth.get();
         if (depth >= 32) {
