@@ -47,6 +47,8 @@ public final class ScriptEngine implements Listener {
     private record NpcPair(ManagedNPC first, ManagedNPC second) {}
     private static final int MAX_LOOP_ITERATIONS = 256;
     private static final int MAX_SELECTOR_RESULTS = 256;
+    private static final int MAX_CONDITION_LENGTH = 1024;
+    private static final int MAX_ARITHMETIC_EXPRESSION_LENGTH = 512;
     private static final java.util.regex.Pattern MESSAGE_VARIABLE_PATTERN =
             java.util.regex.Pattern.compile("(?<![\\p{L}\\p{N}_])([A-Za-z_][A-Za-z0-9_-]*)(?![\\p{L}\\p{N}_])");
     private final ANPCPlugin plugin; private final NPCManager npcs; private final VariableStore variables;
@@ -192,6 +194,10 @@ public final class ScriptEngine implements Listener {
             }
 
             int relativeIndent = indent - bodyIndent;
+            if (relativeIndent > 128) {
+                throw new IllegalArgumentException(source + ":" + (i + 1)
+                        + " : profondeur de blocs maximale dépassée (32 niveaux).");
+            }
             if (relativeIndent % 4 != 0) {
                 throw new IllegalArgumentException(source + ":" + (i + 1)
                         + " : indentation non multiple de quatre espaces.");
@@ -1105,7 +1111,7 @@ public final class ScriptEngine implements Listener {
     }
 
     private boolean isRecognizedCondition(ScriptContext context, String expression) {
-        if (!hasBalancedExpressionSyntax(expression)) return false;
+        if (expression.length() > MAX_CONDITION_LENGTH || !hasBalancedExpressionSyntax(expression)) return false;
         String candidate = stripOuterParentheses(expression.trim());
         if (candidate.isBlank()) return false;
 
@@ -1145,7 +1151,7 @@ public final class ScriptEngine implements Listener {
     }
 
     private boolean test(ScriptContext context, String expression) {
-        if (!hasBalancedExpressionSyntax(expression)) return false;
+        if (expression.length() > MAX_CONDITION_LENGTH || !hasBalancedExpressionSyntax(expression)) return false;
         String expressionText = stripOuterParentheses(expression.trim());
         List<String> orParts = splitLogical(expressionText, " or ");
         if (orParts.size() > 1) {
@@ -1331,6 +1337,7 @@ public final class ScriptEngine implements Listener {
         }
 
         private Double parse() {
+            if (source.length() > MAX_ARITHMETIC_EXPRESSION_LENGTH) return null;
             try {
                 double result = expression();
                 skipWhitespace();
