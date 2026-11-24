@@ -474,6 +474,13 @@ public final class ScriptEngine implements Listener {
                 return;
             }
             Instruction instruction = code.get(index);
+            if (!context.consumeInstruction()) {
+                if (context.markExecutionBudgetWarning()) {
+                    plugin.getLogger().warning("Script " + context.npc().id()
+                            + " : budget maximal de 10 000 instructions atteint ; exécution interrompue.");
+                }
+                return;
+            }
             if (instruction.indent() < indent) {
                 continuation.run();
                 return;
@@ -1518,7 +1525,7 @@ public final class ScriptEngine implements Listener {
                 return new FunctionResult(true, null);
             }
 
-            ScriptContext context = new ScriptContext(parent.npc(), parent.player(), parent.eventNpc());
+            ScriptContext context = new ScriptContext(parent.npc(), parent.player(), parent.eventNpc(), parent.executionBudget());
             context.locals().putAll(parent.locals());
             for (int i = 0; i < arguments.size(); i++) {
                 context.locals().put(function.parameters().get(i), resolve(parent, arguments.get(i)));
@@ -1571,6 +1578,13 @@ public final class ScriptEngine implements Listener {
         int index = start;
         while (index < code.size()) {
             Instruction instruction = code.get(index);
+            if (!context.consumeInstruction()) {
+                if (context.markExecutionBudgetWarning()) {
+                    plugin.getLogger().warning("Script " + context.npc().id()
+                            + " : budget maximal de 10 000 instructions atteint ; exécution interrompue.");
+                }
+                return;
+            }
             if (instruction.indent() < indent) return new FunctionResult(false, null);
             if (instruction.indent() > indent) {
                 index = findEnd(code, index + 1, instruction.indent());
