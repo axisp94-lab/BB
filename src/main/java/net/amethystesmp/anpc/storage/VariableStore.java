@@ -7,7 +7,9 @@ import java.util.Locale;
 
 public final class VariableStore implements AutoCloseable {
     private final Connection connection;
+    private final java.util.logging.Logger logger;
     public VariableStore(ANPCPlugin plugin) throws SQLException {
+        logger = plugin.getLogger();
         File db = new File(plugin.getDataFolder(), "variables.db");
         Connection opened = DriverManager.getConnection("jdbc:sqlite:" + db.getAbsolutePath());
         try (Statement statement = opened.createStatement()) {
@@ -51,8 +53,7 @@ public final class VariableStore implements AutoCloseable {
         } catch (SQLException exception) {
             // La fermeture ne doit pas masquer l'arrêt du plugin, mais l'erreur
             // doit rester visible pour diagnostiquer une éventuelle perte de données.
-            java.util.logging.Logger.getLogger(VariableStore.class.getName())
-                    .warning("Impossible de fermer proprement variables.db : " + exception.getMessage());
+            logger.warning("Impossible de fermer proprement variables.db : " + exception.getMessage());
         }
     }
 }
