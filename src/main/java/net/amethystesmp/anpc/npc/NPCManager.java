@@ -164,8 +164,7 @@ public final class NPCManager implements Listener {
         if (existing != null) {
             if (existing.isActive()) return;
             if (npcs.remove(key, existing)) {
-                if (plugin.scripts() != null) plugin.scripts().onNpcUnloaded(existing);
-                existing.close();
+                closeManagedNPC(existing);
             }
         }
 
@@ -192,8 +191,7 @@ public final class NPCManager implements Listener {
 
             ManagedNPC previous = npcs.put(key, managed);
             if (previous != null) {
-                if (plugin.scripts() != null) plugin.scripts().onNpcUnloaded(previous);
-                previous.close();
+                closeManagedNPC(previous);
             }
             if (plugin.scripts() != null) plugin.scripts().onNpcLoaded(managed);
         } catch (RuntimeException | LinkageError exception) {
@@ -281,6 +279,24 @@ public final class NPCManager implements Listener {
         return id.toLowerCase(Locale.ROOT) + "@" + world.getName().toLowerCase(Locale.ROOT);
     }
 
+    private void closeManagedNPC(ManagedNPC npc) {
+        if (npc == null) return;
+        if (plugin.scripts() != null) {
+            try {
+                plugin.scripts().onNpcUnloaded(npc);
+            } catch (RuntimeException | LinkageError exception) {
+                plugin.getLogger().warning("Nettoyage des tâches du NPC '" + npc.id()
+                        + "' impossible : " + exception.getMessage());
+            }
+        }
+        try {
+            npc.close();
+        } catch (RuntimeException | LinkageError exception) {
+            plugin.getLogger().warning("Fermeture du NPC '" + npc.id()
+                    + "' incomplète : " + exception.getMessage());
+        }
+    }
+
     @EventHandler
     public void onPlayerJoin(PlayerJoinEvent event) {
         Player player = event.getPlayer();
@@ -321,8 +337,7 @@ public final class NPCManager implements Listener {
         for (String key : keys) {
             ManagedNPC npc = npcs.remove(key);
             if (npc == null) continue;
-            if (plugin.scripts() != null) plugin.scripts().onNpcUnloaded(npc);
-            npc.close();
+            closeManagedNPC(npc);
         }
     }
 
@@ -503,8 +518,7 @@ public final class NPCManager implements Listener {
             definitions.put(id.toLowerCase(Locale.ROOT), definition);
             if (!saveDefinition(definition)) {
                 npcs.remove(instanceKey(id, location.getWorld()), managed);
-                if (plugin.scripts() != null) plugin.scripts().onNpcUnloaded(managed);
-                managed.close();
+                closeManagedNPC(managed);
                 definitions.remove(id.toLowerCase(Locale.ROOT));
                 plugin.getLogger().severe("NPC '" + id + "' créé en mémoire mais retiré : sa sauvegarde a échoué.");
                 return false;
@@ -515,8 +529,7 @@ public final class NPCManager implements Listener {
         } catch (RuntimeException | LinkageError e) {
             if (managed != null) {
                 npcs.remove(instanceKey(id, location.getWorld()), managed);
-                if (plugin.scripts() != null) plugin.scripts().onNpcUnloaded(managed);
-                managed.close();
+                closeManagedNPC(managed);
             }
             definitions.remove(id.toLowerCase(Locale.ROOT));
             plugin.getLogger().warning("Création du NPC '" + id + "' impossible : " + e.getMessage());
@@ -702,8 +715,7 @@ public final class NPCManager implements Listener {
             visibilityTask = null;
         }
         npcs.values().forEach(npc -> {
-            if (plugin.scripts() != null) plugin.scripts().onNpcUnloaded(npc);
-            npc.close();
+            closeManagedNPC(npc);
         });
         npcs.clear();
         definitions.clear();
