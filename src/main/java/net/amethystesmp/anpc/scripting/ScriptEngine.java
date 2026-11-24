@@ -71,13 +71,13 @@ public final class ScriptEngine implements Listener {
     private final Set<String> warnedInstructions = ConcurrentHashMap.newKeySet();
     private boolean hasLoadedScripts;
     public ScriptEngine(ANPCPlugin plugin,NPCManager npcs,VariableStore variables){this.plugin=plugin;this.npcs=npcs;this.variables=variables;}
-    public void loadAll() {
+    public boolean loadAll() {
         File directory = new File(plugin.getDataFolder(), "scripts");
         File[] files = directory.listFiles((dir, name) -> name.toLowerCase(Locale.ROOT).endsWith(".aa"));
         if (files == null) {
             plugin.getLogger().severe("Chargement des scripts annulé : dossier scripts inaccessible. "
                     + "Les scripts actuellement actifs sont conservés.");
-            return;
+            return false;
         }
         Arrays.sort(files, Comparator.comparing(File::getName, String.CASE_INSENSITIVE_ORDER)
                 .thenComparing(File::getName));
@@ -101,7 +101,7 @@ public final class ScriptEngine implements Listener {
         if (readFailure) {
             plugin.getLogger().severe("Rechargement des scripts annulé : au moins un fichier n'a pas pu être lu. "
                     + "Les scripts actuellement actifs sont conservés.");
-            return;
+            return false;
         }
 
         // Replace the live script set only after every file has been read.
@@ -119,6 +119,7 @@ public final class ScriptEngine implements Listener {
         }
         scheduleProximity();
         scheduleNpcProximity();
+        return true;
     }
     private ScriptData parse(List<String> lines, String source) {
         Map<String, List<Instruction>> events = new LinkedHashMap<>();
