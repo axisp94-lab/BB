@@ -489,7 +489,7 @@ public final class ScriptEngine implements Listener {
                 String body = line.substring(4).trim();
                 int closingQuote = body.indexOf('"', 1);
                 if (body.startsWith("\"") && closingQuote > 0) {
-                    String name = body.substring(1, closingQuote);
+                    String name = body.substring(1, closingQuote).toLowerCase(Locale.ROOT);
                     String valueText = body.substring(closingQuote + 1).trim();
                     if (valueText.startsWith("(") && valueText.endsWith(")")) {
                         valueText = valueText.substring(1, valueText.length() - 1);
