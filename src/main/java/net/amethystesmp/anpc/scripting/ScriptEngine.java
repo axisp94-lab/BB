@@ -325,7 +325,17 @@ public final class ScriptEngine implements Listener {
                     NpcPair pair = new NpcPair(first, second);
                     currentPairs.put(pairKey, pair);
 
-                    if (!activeNpcPairs.containsKey(pairKey)) {
+                    NpcPair previousPair = activeNpcPairs.get(pairKey);
+                    if (previousPair == null) {
+                        fire(first, "npc approach", second);
+                        fire(second, "npc approach", first);
+                    } else if (previousPair.first() != first || previousPair.second() != second) {
+                        if (loaded.contains(previousPair.first())) {
+                            fire(previousPair.first(), "npc leave", previousPair.second());
+                        }
+                        if (loaded.contains(previousPair.second())) {
+                            fire(previousPair.second(), "npc leave", previousPair.first());
+                        }
                         fire(first, "npc approach", second);
                         fire(second, "npc approach", first);
                     }
