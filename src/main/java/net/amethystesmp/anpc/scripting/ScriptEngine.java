@@ -49,6 +49,7 @@ public final class ScriptEngine implements Listener {
     private static final int MAX_SELECTOR_RESULTS = 256;
     private static final int MAX_CONDITION_LENGTH = 1024;
     private static final int MAX_ARITHMETIC_EXPRESSION_LENGTH = 512;
+    private static final Set<String> LOOP_VARIABLE_NAMES = Set.of("loop-number", "loop-player", "loop-npc", "loop-value");
     private static final java.util.regex.Pattern MESSAGE_VARIABLE_PATTERN =
             java.util.regex.Pattern.compile("(?<![\\p{L}\\p{N}_])([A-Za-z_][A-Za-z0-9_-]*)(?![\\p{L}\\p{N}_])");
     private final ANPCPlugin plugin; private final NPCManager npcs; private final VariableStore variables;
@@ -380,6 +381,15 @@ public final class ScriptEngine implements Listener {
             // The budget warning has already been emitted at the point of exhaustion.
         } catch (RuntimeException exception) {
             logScriptException(context, exception);
+        }
+    }
+
+    private void refreshPersistentVariables(ScriptContext context) {
+        for (String variable : context.persistentVariables()) {
+            if (LOOP_VARIABLE_NAMES.contains(variable)) continue;
+            context.locals().remove(variable);
+            Object value = resolve(context, variable);
+            if (value != null) context.locals().put(variable, value);
         }
     }
 
@@ -767,6 +777,7 @@ public final class ScriptEngine implements Listener {
                     Location npcLocation = context.npc().location();
                     if (npcLocation.getWorld() == null
                             || npcs.get(context.npc().id(), npcLocation.getWorld()) != context.npc()) return;
+                    refreshPersistentVariables(context);
                     try {
                         runBlock(context, code, next, indent, continuation);
                     } catch (ScriptBudgetExceededException ignored) {
@@ -1543,11 +1554,18 @@ public final class ScriptEngine implements Listener {
 
             ScriptContext context = new ScriptContext(parent.npc(), parent.player(), parent.eventNpc(), parent.executionBudget());
             context.locals().putAll(parent.locals());
+            context.inheritPersistentVariables(parent);
             for (int i = 0; i < arguments.size(); i++) {
                 context.locals().put(function.parameters().get(i), resolve(parent, arguments.get(i)));
             }
             FunctionResult result = runFunctionBlock(context, function.code(), 0, 0);
             if (parent.executionBudgetExhausted()) throw new ScriptBudgetExceededException();
+            for (String variable : context.persistentVariables()) {
+                if (LOOP_VARIABLE_NAMES.contains(variable)) continue;
+                if (context.locals().containsKey(variable)) parent.locals().put(variable, context.locals().get(variable));
+                else parent.locals().remove(variable);
+                parent.markPersistentVariable(variable);
+            }
             return result;
         } finally {
             functionDepth.set(depth);
@@ -1788,6 +1806,7 @@ public final class ScriptEngine implements Listener {
                 ? String.valueOf(defaultValue)
                 : variables.get(scope, owner, name, String.valueOf(defaultValue));
         context.locals().put(name, parseStored(storedValue));
+        if (!scope.equals("player") || context.player() != null) context.markPersistentVariable(name);
     }
 
     private List<String> extractGroups(String declaration) {
@@ -1847,6 +1866,7 @@ public final class ScriptEngine implements Listener {
             owner = context.player().getUniqueId().toString();
         }
         variables.set(scope, owner, name, value);
+        context.markPersistentVariable(name);
     }
     private Double numericValue(Object value) {
         if (value == null) return null;
