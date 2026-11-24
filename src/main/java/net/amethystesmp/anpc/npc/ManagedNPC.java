@@ -19,6 +19,7 @@ public final class ManagedNPC {
     private NPCDefinition definition;
     private final DummyTracker tracker;
     private final Set<String> viewers = new HashSet<>();
+    private final Set<String> warnedViewerFailures = new HashSet<>();
     private Location current;
     private final Interaction hitbox;
     private final Entity backingEntity;
@@ -124,10 +125,10 @@ public final class ManagedNPC {
             // A failed spawn must remain eligible for the next visibility refresh.
             tracker.spawn(BukkitAdapter.adapt(player));
             viewers.add(viewerId);
+            warnedViewerFailures.remove("spawn:" + viewerId);
         } catch (RuntimeException | LinkageError exception) {
             viewers.remove(viewerId);
-            logger.warning("Affichage BetterModel impossible pour le NPC '" + id()
-                    + "' au joueur " + player.getName() + " : " + exception.getMessage());
+            warnViewerFailure("spawn", player, exception);
         }
     }
 
@@ -137,9 +138,9 @@ public final class ManagedNPC {
         if (!viewers.remove(viewerId)) return;
         try {
             if (!tracker.isClosed()) tracker.remove(BukkitAdapter.adapt(player));
+            warnedViewerFailures.remove("remove:" + viewerId);
         } catch (RuntimeException | LinkageError exception) {
-            logger.warning("Masquage BetterModel impossible pour le NPC '" + id()
-                    + "' au joueur " + player.getName() + " : " + exception.getMessage());
+            warnViewerFailure("remove", player, exception);
         }
     }
 
@@ -150,17 +151,24 @@ public final class ManagedNPC {
         try {
             if (!tracker.isClosed()) tracker.remove(BukkitAdapter.adapt(player));
         } catch (RuntimeException | LinkageError exception) {
-            logger.warning("Nettoyage avant resynchronisation impossible pour le NPC '" + id()
-                    + "' au joueur " + player.getName() + " : " + exception.getMessage());
+            warnViewerFailure("resync-remove", player, exception);
         }
         try {
             if (!tracker.isClosed() && player.getWorld().equals(current.getWorld())) {
                 tracker.spawn(BukkitAdapter.adapt(player));
                 viewers.add(viewerId);
+                warnedViewerFailures.remove("spawn:" + viewerId);
             }
         } catch (RuntimeException | LinkageError exception) {
             viewers.remove(viewerId);
-            logger.warning("Resynchronisation BetterModel impossible pour le NPC '" + id()
+            warnViewerFailure("resync-spawn", player, exception);
+        }
+    }
+
+    private void warnViewerFailure(String operation, Player player, Throwable exception) {
+        String key = operation + ":" + player.getUniqueId();
+        if (warnedViewerFailures.add(key)) {
+            logger.warning("Opération BetterModel '" + operation + "' impossible pour le NPC '" + id()
                     + "' au joueur " + player.getName() + " : " + exception.getMessage());
         }
     }
@@ -221,5 +229,6 @@ public final class ManagedNPC {
             }
         }
         viewers.clear();
+        warnedViewerFailures.clear();
     }
 }
