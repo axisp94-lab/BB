@@ -13,6 +13,43 @@ import java.util.Optional;
 public final class MythicMobAdapter {
     private MythicMobAdapter() { }
 
+    private static void keepAlive(ANPCPlugin plugin, Object activeMob) {
+        try {
+            Method setter = Arrays.stream(activeMob.getClass().getMethods())
+                    .filter(method -> method.getName().equals("setDespawnMode")
+                            && method.getParameterCount() == 1
+                            && method.getParameterTypes()[0].isEnum())
+                    .findFirst()
+                    .orElseThrow(() -> new NoSuchMethodException("ActiveMob.setDespawnMode"));
+            @SuppressWarnings({"rawtypes", "unchecked"})
+            Object never = Enum.valueOf((Class<? extends Enum>) setter.getParameterTypes()[0], "NEVER");
+            setter.invoke(activeMob, never);
+        } catch (ReflectiveOperationException | IllegalArgumentException exception) {
+            plugin.getLogger().warning("Impossible de désactiver le despawn automatique du NPC MythicMobs : "
+                    + exception.getMessage());
+        }
+    }
+
+    public static void despawn(ANPCPlugin plugin, Entity entity) {
+        if (entity == null) return;
+        try {
+            Class<?> mythicBukkitClass = Class.forName("io.lumine.mythic.bukkit.MythicBukkit");
+            Object mythicBukkit = mythicBukkitClass.getMethod("inst").invoke(null);
+            Object mobManager = mythicBukkit.getClass().getMethod("getMobManager").invoke(mythicBukkit);
+            Method lookup = Arrays.stream(mobManager.getClass().getMethods())
+                    .filter(method -> method.getName().equals("getActiveMob")
+                            && method.getParameterCount() == 1
+                            && method.getParameterTypes()[0] == java.util.UUID.class)
+                    .findFirst()
+                    .orElseThrow(() -> new NoSuchMethodException("MobManager.getActiveMob(UUID)"));
+            Object result = lookup.invoke(mobManager, entity.getUniqueId());
+            Object activeMob = result instanceof Optional<?> optional ? optional.orElse(null) : result;
+            if (activeMob != null) activeMob.getClass().getMethod("despawn").invoke(activeMob);
+        } catch (ReflectiveOperationException | LinkageError exception) {
+            plugin.getLogger().warning("Nettoyage MythicMobs incomplet pour le NPC : " + exception.getMessage());
+        }
+    }
+
     public static Entity spawn(ANPCPlugin plugin, String mobId, Location location, String displayName) {
         if (plugin.getServer().getPluginManager().getPlugin("MythicMobs") == null) {
             plugin.getLogger().severe("Le type '" + mobId + "' nécessite MythicMobs, qui n'est pas installé.");
@@ -67,6 +104,7 @@ public final class MythicMobAdapter {
                 return null;
             }
 
+            keepAlive(plugin, activeMob);
             if (entity instanceof LivingEntity living) living.setAI(false);
             entity.setGravity(false);
             entity.setPersistent(false);
