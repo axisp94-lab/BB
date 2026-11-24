@@ -145,6 +145,7 @@ public final class ANPCCommand implements TabExecutor {
 
     @Override
     public List<String> onTabComplete(CommandSender sender, Command command, String alias, String[] args) {
+        if (!sender.hasPermission("anpc.admin")) return Collections.emptyList();
         if (args.length == 1) {
             return filter(List.of("help", "list", "create", "tp", "center", "rename", "kill", "remove", "delete", "reload"), args[0]);
         }
