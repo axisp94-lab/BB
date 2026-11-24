@@ -14,11 +14,19 @@ public final class ScriptContext {
     static final class ExecutionBudget {
         private int remaining = MAX_INSTRUCTIONS;
         private boolean warningEmitted;
+        private boolean exhausted;
 
         boolean consume() {
-            if (remaining <= 0) return false;
+            if (remaining <= 0) {
+                exhausted = true;
+                return false;
+            }
             remaining--;
             return true;
+        }
+
+        boolean exhausted() {
+            return exhausted;
         }
 
         boolean markWarningEmitted() {
