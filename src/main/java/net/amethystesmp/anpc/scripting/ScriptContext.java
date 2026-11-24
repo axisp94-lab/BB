@@ -57,6 +57,8 @@ public final class ScriptContext {
     private final Set<String> persistentVariables = new HashSet<>();
     private final Set<String> dirtyPersistentVariables = new HashSet<>();
     private final Deque<LoopState> loops = new ArrayDeque<>();
+    private Runnable completion = () -> { };
+    private boolean finished;
     private final ExecutionBudget executionBudget;
 
     public ScriptContext(ManagedNPC npc, Player player) {
@@ -112,6 +114,16 @@ public final class ScriptContext {
 
     void inheritPersistentVariables(ScriptContext other) {
         persistentVariables.addAll(other.persistentVariables);
+    }
+
+    void setCompletion(Runnable completion) {
+        this.completion = completion == null ? () -> { } : completion;
+    }
+
+    void finish() {
+        if (finished) return;
+        finished = true;
+        completion.run();
     }
 
     public LoopState pushLoop() {
