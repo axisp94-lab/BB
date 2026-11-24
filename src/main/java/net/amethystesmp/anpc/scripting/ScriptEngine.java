@@ -915,7 +915,11 @@ public final class ScriptEngine implements Listener {
         FunctionResult functionResult = invokeFunction(context, value);
         if (functionResult != null) return functionResult.value();
 
-        String metadata = variables.get("meta", context.npc().id(), value, null);
+        String normalizedNpcId = context.npc().id().toLowerCase(Locale.ROOT);
+        String metadata = variables.get("meta", normalizedNpcId, value, null);
+        if (metadata == null && !normalizedNpcId.equals(context.npc().id())) {
+            metadata = variables.get("meta", context.npc().id(), value, null);
+        }
         if (metadata == null) metadata = variables.get("meta", "", value, null);
         if (metadata != null) {
             String[] parts = metadata.split("\\|", 2);
@@ -1100,7 +1104,7 @@ public final class ScriptEngine implements Listener {
             owner = String.join(",", members);
             for (String member : members) variables.set("meta", member, name, "shared|" + owner);
         } else {
-            variables.set("meta", context.npc().id(), name, "local|" + owner);
+            variables.set("meta", context.npc().id().toLowerCase(Locale.ROOT), name, "local|" + owner);
         }
 
         variables.set(scope, owner, name, defaultValue);
@@ -1132,11 +1136,15 @@ public final class ScriptEngine implements Listener {
         return groups;
     }
     private void storeVariable(ScriptContext context, String name, Object value) {
-        String metadata = variables.get("meta", context.npc().id(), name, null);
+        String normalizedNpcId = context.npc().id().toLowerCase(Locale.ROOT);
+        String metadata = variables.get("meta", normalizedNpcId, name, null);
+        if (metadata == null && !normalizedNpcId.equals(context.npc().id())) {
+            metadata = variables.get("meta", context.npc().id(), name, null);
+        }
         if (metadata == null) metadata = variables.get("meta", "", name, null);
         if (metadata == null) {
             metadata = "local|" + context.npc().id();
-            variables.set("meta", context.npc().id(), name, metadata);
+            variables.set("meta", normalizedNpcId, name, metadata);
         }
         String[] parts = metadata.split("\\|", 2);
         String scope = parts[0];
