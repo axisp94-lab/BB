@@ -501,6 +501,12 @@ public final class ScriptEngine implements Listener {
         storeVariable(context, name, value);
     }
 
+    private boolean looksLikeFunctionCall(String expression) {
+        int open = expression.indexOf('(');
+        return open > 0 && expression.endsWith(")")
+                && expression.substring(0, open).trim().matches("[a-z_][a-z0-9_]*");
+    }
+
     private String renderMessage(ScriptContext context, String raw) {
         String source = raw.trim();
         boolean quoted = isQuotedString(source);
@@ -510,7 +516,7 @@ public final class ScriptEngine implements Listener {
             if (direct != null && !Objects.equals(String.valueOf(direct), template)) {
                 return formatMessageValue(direct);
             }
-            if (context.recognizesValue(template)) return "";
+            if (context.recognizesValue(template) || looksLikeFunctionCall(template)) return "";
         } else if (context.recognizesValue(template)) {
             Object direct = resolve(context, template);
             return direct == null ? "" : formatMessageValue(direct);
@@ -522,7 +528,7 @@ public final class ScriptEngine implements Listener {
             String expression = placeholders.group(1).trim();
             Object value = resolve(context, expression);
             String replacement = value != null ? formatMessageValue(value)
-                    : context.recognizesValue(expression) ? "" : placeholders.group();
+                    : context.recognizesValue(expression) || looksLikeFunctionCall(expression) ? "" : placeholders.group();
             placeholders.appendReplacement(placeholderResult, java.util.regex.Matcher.quoteReplacement(replacement));
         }
         placeholders.appendTail(placeholderResult);
