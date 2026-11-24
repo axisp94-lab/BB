@@ -15,6 +15,19 @@ public final class VariableStore implements AutoCloseable {
     public synchronized void set(String scope,String owner,String name,Object value) {
         try(PreparedStatement p=connection.prepareStatement("INSERT INTO variables(scope,owner,name,value) VALUES(?,?,?,?) ON CONFLICT(scope,owner,name) DO UPDATE SET value=excluded.value")) { p.setString(1,scope);p.setString(2,owner==null?"":owner);p.setString(3,name.toLowerCase(Locale.ROOT));p.setString(4,String.valueOf(value));p.executeUpdate(); } catch(SQLException e){throw new IllegalStateException(e);}
     }
+    public synchronized boolean setIfAbsent(String scope, String owner, String name, Object value) {
+        try (PreparedStatement statement = connection.prepareStatement(
+                "INSERT OR IGNORE INTO variables(scope,owner,name,value) VALUES(?,?,?,?)")) {
+            statement.setString(1, scope);
+            statement.setString(2, owner == null ? "" : owner);
+            statement.setString(3, name.toLowerCase(Locale.ROOT));
+            statement.setString(4, String.valueOf(value));
+            return statement.executeUpdate() > 0;
+        } catch (SQLException exception) {
+            throw new IllegalStateException(exception);
+        }
+    }
+
     public synchronized String get(String scope,String owner,String name,String fallback) {
         try(PreparedStatement p=connection.prepareStatement("SELECT value FROM variables WHERE scope=? AND owner=? AND name=?")){p.setString(1,scope);p.setString(2,owner==null?"":owner);p.setString(3,name.toLowerCase(Locale.ROOT));try(ResultSet r=p.executeQuery()){return r.next()?r.getString(1):fallback;}}catch(SQLException e){throw new IllegalStateException(e);}
     }
