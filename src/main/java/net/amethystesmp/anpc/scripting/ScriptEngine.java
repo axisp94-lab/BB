@@ -984,7 +984,7 @@ public final class ScriptEngine implements Listener {
         if (lower.startsWith("loop all (") && lower.endsWith("):")) {
             String expression = line.substring(10, line.length() - 2).trim();
             Object value = resolve(context, expression);
-            List<Object> values = asList(value);
+            List<Object> values = isQuotedString(expression) ? List.of(value) : asList(value);
             if (values == null) {
                 warnInstruction(context, instruction, "la valeur de boucle n'est pas une liste : " + expression);
                 return null;
@@ -1038,7 +1038,10 @@ public final class ScriptEngine implements Listener {
         List<String> items = parseFunctionArguments(content);
         if (items == null) return null;
         List<Object> result = new ArrayList<>();
-        for (String item : items) result.add(parseStored(unquote(item.trim())));
+        for (String item : items) {
+            String trimmed = item.trim();
+            result.add(isQuotedString(trimmed) ? unquote(trimmed) : parseStored(trimmed));
+        }
         return result;
     }
 
