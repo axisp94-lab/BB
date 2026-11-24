@@ -163,51 +163,77 @@ public final class ScriptContext {
         return state != null && (state.stopped() || state.skipped());
     }
 
+    public boolean recognizesValue(String key) {
+        return switch (key.trim().toLowerCase(Locale.ROOT)) {
+            case "event entity", "player", "event npc", "other npc",
+                    "name of event entity", "location of event entity", "type of event entity",
+                    "name of event npc", "location of event npc",
+                    "name of npc", "location of npc", "x of npc", "y of npc", "z of npc",
+                    "name of player", "location of player",
+                    "loop-number", "loop-value", "loop-player", "loop-npc",
+                    "name of loop-player", "location of loop-player",
+                    "name of loop-npc", "location of loop-npc",
+                    "event item", "event offhand item",
+                    "type of event item", "type of event offhand item" -> true;
+            default -> false;
+        };
+    }
+
     public Object value(String key) {
         String normalized = key.trim();
-        if (normalized.equalsIgnoreCase("event entity")) return eventEntity;
-        if (normalized.equalsIgnoreCase("player")) return player;
-        if (normalized.equalsIgnoreCase("event npc") || normalized.equalsIgnoreCase("other npc")) return eventNpc;
-        if (normalized.equalsIgnoreCase("name of event entity") && eventEntity != null) {
-            if (eventEntity instanceof Player selectedPlayer) return selectedPlayer.getName();
-            String customName = eventEntity.getCustomName();
-            return customName == null || customName.isBlank()
-                    ? eventEntity.getType().name().toLowerCase(Locale.ROOT) : customName;
+        String lower = normalized.toLowerCase(Locale.ROOT);
+        switch (lower) {
+            case "event entity": return eventEntity;
+            case "player": return player;
+            case "event npc":
+            case "other npc": return eventNpc;
+            case "name of event npc": return eventNpc == null ? null : eventNpc.id();
+            case "location of event npc": return eventNpc == null ? null : eventNpc.location();
+            case "name of npc": return npc.id();
+            case "location of npc": return npc.location();
+            case "x of npc": return npc.location().getX();
+            case "y of npc": return npc.location().getY();
+            case "z of npc": return npc.location().getZ();
+            case "name of event entity":
+                if (eventEntity == null) return null;
+                if (eventEntity instanceof Player selectedPlayer) return selectedPlayer.getName();
+                String customName = eventEntity.getCustomName();
+                return customName == null || customName.isBlank()
+                        ? eventEntity.getType().name().toLowerCase(Locale.ROOT) : customName;
+            case "location of event entity": return eventEntity == null ? null : eventEntity.getLocation();
+            case "type of event entity": return eventEntity == null ? null : eventEntity.getType().name();
+            case "name of player": return player == null ? null : player.getName();
+            case "location of player": return player == null ? null : player.getLocation();
+            case "event item": return player == null ? null : player.getInventory().getItemInMainHand();
+            case "event offhand item": return player == null ? null : player.getInventory().getItemInOffHand();
+            case "type of event item":
+                return player == null ? null : player.getInventory().getItemInMainHand().getType().name();
+            case "type of event offhand item":
+                return player == null ? null : player.getInventory().getItemInOffHand().getType().name();
+            case "loop-number":
+            case "loop-value":
+            case "loop-player":
+            case "loop-npc": return locals.get(lower);
+            case "name of loop-npc": {
+                Object loopNpc = locals.get("loop-npc");
+                return loopNpc instanceof ManagedNPC managed ? managed.id() : null;
+            }
+            case "location of loop-npc": {
+                Object loopNpc = locals.get("loop-npc");
+                return loopNpc instanceof ManagedNPC managed ? managed.location() : null;
+            }
+            case "name of loop-player": {
+                Object loopPlayer = locals.get("loop-player");
+                return loopPlayer instanceof Player selectedPlayer ? selectedPlayer.getName() : null;
+            }
+            case "location of loop-player": {
+                Object loopPlayer = locals.get("loop-player");
+                return loopPlayer instanceof Player selectedPlayer ? selectedPlayer.getLocation() : null;
+            }
+            default:
+                for (Map.Entry<String, Object> entry : locals.entrySet()) {
+                    if (entry.getKey().equalsIgnoreCase(normalized)) return entry.getValue();
+                }
+                return normalized;
         }
-        if (normalized.equalsIgnoreCase("location of event entity") && eventEntity != null) return eventEntity.getLocation();
-        if (normalized.equalsIgnoreCase("type of event entity") && eventEntity != null) {
-            return eventEntity.getType().name();
-        }
-        if (normalized.equalsIgnoreCase("location of player") && player != null) return player.getLocation();
-        if (normalized.equalsIgnoreCase("name of event npc") && eventNpc != null) return eventNpc.id();
-        if (normalized.equalsIgnoreCase("location of event npc") && eventNpc != null) return eventNpc.location();
-        if (normalized.equalsIgnoreCase("name of npc")) return npc.id();
-        if (normalized.equalsIgnoreCase("location of npc")) return npc.location();
-        if (normalized.equalsIgnoreCase("x of npc")) return npc.location().getX();
-        if (normalized.equalsIgnoreCase("y of npc")) return npc.location().getY();
-        if (normalized.equalsIgnoreCase("z of npc")) return npc.location().getZ();
-        Object loopNpc = locals.get("loop-npc");
-        if (loopNpc instanceof ManagedNPC managed) {
-            if (normalized.equalsIgnoreCase("name of loop-npc")) return managed.id();
-            if (normalized.equalsIgnoreCase("location of loop-npc")) return managed.location();
-        }
-        Object loopPlayer = locals.get("loop-player");
-        if (loopPlayer instanceof Player selectedPlayer) {
-            if (normalized.equalsIgnoreCase("name of loop-player")) return selectedPlayer.getName();
-            if (normalized.equalsIgnoreCase("location of loop-player")) return selectedPlayer.getLocation();
-        }
-        if (normalized.equalsIgnoreCase("name of player") && player != null) return player.getName();
-        if (normalized.equalsIgnoreCase("event item") && player != null) return player.getInventory().getItemInMainHand();
-        if (normalized.equalsIgnoreCase("event offhand item") && player != null) return player.getInventory().getItemInOffHand();
-        if (normalized.equalsIgnoreCase("type of event item") && player != null) {
-            return player.getInventory().getItemInMainHand().getType().name();
-        }
-        if (normalized.equalsIgnoreCase("type of event offhand item") && player != null) {
-            return player.getInventory().getItemInOffHand().getType().name();
-        }
-        for (Map.Entry<String, Object> entry : locals.entrySet()) {
-            if (entry.getKey().equalsIgnoreCase(normalized)) return entry.getValue();
-        }
-        return normalized;
-    }
-}
+    }}
