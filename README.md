@@ -110,9 +110,12 @@ Une variable déclarée avec la portée `player` conserve une valeur différente
 
 ```python
 on right click:
-    create variable ("visites", 0, player)
-    set "visites" (visites + 1)
-    say local "Tu m'as parlé visites fois."
+    create variable ("deja_vu", false, player)
+    if deja_vu == false:
+        send to event entity "Bonjour, bienvenue !"
+        set "deja_vu" true
+    else:
+        send to event entity "Content de te revoir !"
 ```
 
 La valeur est stockée dans SQLite sous l'UUID du joueur. Les variables de portée `player` doivent être lues ou modifiées depuis un événement associé à un joueur.
