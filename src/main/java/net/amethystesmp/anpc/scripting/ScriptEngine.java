@@ -48,6 +48,7 @@ public final class ScriptEngine implements Listener {
     private final Map<String, BukkitTask> movementTasks = new ConcurrentHashMap<>();
     private final Map<String, BukkitTask> intervalTasks = new ConcurrentHashMap<>();
     private final Map<String, BukkitTask> followTasks = new ConcurrentHashMap<>();
+    private final Map<String, Long> followPathAttemptAt = new ConcurrentHashMap<>();
     private final Map<String, Set<BukkitTask>> delayedTasks = new ConcurrentHashMap<>();
     private final Map<String, Set<UUID>> nearbyPlayers = new ConcurrentHashMap<>();
     private final Map<String, NpcPair> activeNpcPairs = new HashMap<>();
@@ -1896,6 +1897,7 @@ public final class ScriptEngine implements Listener {
             follow.cancel();
             tasks.remove(follow);
         }
+        followPathAttemptAt.remove(key);
         stopMovement(npc);
     }
 
@@ -1910,15 +1912,24 @@ public final class ScriptEngine implements Listener {
         int max = lower.lastIndexOf(" max ");
         try {
             if (at > 0) {
+                if (min >= 0 || max >= 0) throw new NumberFormatException();
                 selector = arguments.substring(0, at).trim();
                 minimum = maximum = Double.parseDouble(arguments.substring(at + 4).trim());
-            } else if (min > 0 && max > min) {
+            } else if (min >= 0 || max >= 0) {
+                if (min <= 0 || max <= min) throw new NumberFormatException();
                 selector = arguments.substring(0, min).trim();
                 minimum = Double.parseDouble(arguments.substring(min + 5, max).trim());
                 maximum = Double.parseDouble(arguments.substring(max + 5).trim());
             }
+            if (!Double.isFinite(minimum) || !Double.isFinite(maximum) || maximum < minimum) {
+                throw new NumberFormatException();
+            }
             minimum = Math.max(0.5, Math.min(32.0, minimum));
             maximum = Math.max(minimum, Math.min(32.0, maximum));
+            if (selector.equalsIgnoreCase("event entity") && context.player() == null) {
+                warnInstruction(context, instruction, "event entity nécessite un événement associé à un joueur");
+                return;
+            }
             startFollow(context.npc(), selector, minimum, maximum, false, context.player());
         } catch (NumberFormatException exception) {
             warnInstruction(context, instruction, "syntaxe : follow <cible> at <distance> ou follow <cible> min <min> max <max>");
@@ -1940,7 +1951,12 @@ public final class ScriptEngine implements Listener {
                 selector = arguments.substring(0, separator).trim();
                 distance = Double.parseDouble(arguments.substring(separator + 1).trim());
             }
+            if (!Double.isFinite(distance)) throw new NumberFormatException();
             distance = Math.max(0.5, Math.min(32.0, distance));
+            if (selector.equalsIgnoreCase("event entity") && context.player() == null) {
+                warnInstruction(context, instruction, "event entity nécessite un événement associé à un joueur");
+                return;
+            }
             startFollow(context.npc(), selector, distance, distance, true, context.player());
         } catch (NumberFormatException exception) {
             warnInstruction(context, instruction, "syntaxe : keep distance <distance> from <cible>");
@@ -1962,7 +1978,11 @@ public final class ScriptEngine implements Listener {
                     ? selectEntities(selectorContext, selector).stream().findFirst().orElse(null)
                     : Bukkit.getPlayer(fixedPlayer);
 
-            if (target == null || !target.isValid()) {
+            if (target == null) {
+                if (fixedPlayer != null && Bukkit.getPlayer(fixedPlayer) == null) stopFollow(npc);
+                return;
+            }
+            if (!target.isValid()) {
                 stopFollow(npc);
                 return;
             }
@@ -1982,7 +2002,10 @@ public final class ScriptEngine implements Listener {
                 return;
             }
 
-            if (!movementTasks.containsKey(key)) {
+            long now = System.currentTimeMillis();
+            long nextAttempt = followPathAttemptAt.getOrDefault(key, 0L);
+            if (!movementTasks.containsKey(key) && now >= nextAttempt) {
+                followPathAttemptAt.put(key, now + 1000L);
                 double desiredDistance = tooFar ? maximumDistance : minimumDistance;
                 org.bukkit.util.Vector offset = npcLocation.toVector().subtract(targetLocation.toVector());
                 if (offset.lengthSquared() < 0.000001) offset = new org.bukkit.util.Vector(1, 0, 0);
@@ -2276,6 +2299,7 @@ public final class ScriptEngine implements Listener {
         movementTasks.clear();
         intervalTasks.clear();
         followTasks.clear();
+        followPathAttemptAt.clear();
         delayedTasks.clear();
         activeNpcPairs.clear();
         lastAttackedAt.clear();
