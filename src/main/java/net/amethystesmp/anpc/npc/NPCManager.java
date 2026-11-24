@@ -37,6 +37,7 @@ public final class NPCManager implements Listener {
     private BukkitTask visibilityTask;
     private File file;
     private YamlConfiguration yaml;
+    private YamlConfiguration pendingReloadYaml;
     private BukkitTask modelRetryTask;
     private int modelRetryAttempts;
     private final Set<String> warnedMissingModels = ConcurrentHashMap.newKeySet();
@@ -46,8 +47,12 @@ public final class NPCManager implements Listener {
         this.plugin = plugin;
     }
 
-    public void load() {
+    public void validateReload() {
         file = new File(plugin.getDataFolder(), "npc.yml");
+        pendingReloadYaml = readYaml();
+    }
+
+    private YamlConfiguration readYaml() {
         YamlConfiguration loadedYaml = new YamlConfiguration();
         if (file.isFile()) {
             try {
@@ -58,6 +63,13 @@ public final class NPCManager implements Listener {
                 throw new IllegalStateException("Impossible de lire npc.yml.", exception);
             }
         }
+        return loadedYaml;
+    }
+
+    public void load() {
+        file = new File(plugin.getDataFolder(), "npc.yml");
+        YamlConfiguration loadedYaml = pendingReloadYaml != null ? pendingReloadYaml : readYaml();
+        pendingReloadYaml = null;
 
         // Parse the complete YAML before touching live NPCs. A malformed file
         // must never erase the currently working NPC set during /anpc reload.
