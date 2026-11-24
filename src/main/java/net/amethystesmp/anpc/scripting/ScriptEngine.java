@@ -528,7 +528,7 @@ public final class ScriptEngine implements Listener {
                     plugin.getLogger().warning("Script " + context.npc().id()
                             + " : budget maximal de 10 000 instructions atteint ; exécution interrompue.");
                 }
-                return;
+                throw new ScriptBudgetExceededException();
             }
             if (instruction.indent() > indent) {
                 plugin.getLogger().warning("Script " + context.npc().id() + ", ligne " + instruction.line()
@@ -1642,7 +1642,7 @@ public final class ScriptEngine implements Listener {
                     plugin.getLogger().warning("Script " + context.npc().id()
                             + " : budget maximal de 10 000 instructions atteint ; exécution interrompue.");
                 }
-                return new FunctionResult(false, null);
+                throw new ScriptBudgetExceededException();
             }
             if (instruction.indent() > indent) {
                 index = findEnd(code, index + 1, instruction.indent());
