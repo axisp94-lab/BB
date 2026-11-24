@@ -6,6 +6,7 @@ import kr.toxicity.model.api.data.renderer.ModelRenderer;
 import kr.toxicity.model.api.tracker.DummyTracker;
 import kr.toxicity.model.api.profile.ModelProfile;
 import org.bukkit.Location;
+import org.bukkit.ChatColor;
 import org.bukkit.entity.Player;
 import org.bukkit.entity.Interaction;
 import org.bukkit.entity.Entity;
@@ -61,7 +62,14 @@ public final class ManagedNPC {
         return current.clone();
     }
     public DummyTracker tracker() { return tracker; }
-    public void updateDefinition(NPCDefinition next) { definition = next; }
+    public void updateDefinition(NPCDefinition next) {
+        if (next == null) return;
+        definition = next;
+        if (backingEntity != null && backingEntity.isValid()) {
+            backingEntity.setCustomName(ChatColor.translateAlternateColorCodes('&', next.displayName()));
+            backingEntity.setCustomNameVisible(true);
+        }
+    }
 
     public void show(Player player) {
         if (tracker == null || closed || tracker.isClosed() || !player.getWorld().equals(current.getWorld())) return;
