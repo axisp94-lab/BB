@@ -69,7 +69,7 @@ public final class ScriptEngine implements Listener {
     private final Map<String, String> mainStates = new ConcurrentHashMap<>();
     private final Map<String, Set<String>> secondaryStates = new ConcurrentHashMap<>();
     private final Map<String, Long> cooldowns = new ConcurrentHashMap<>();
-    private final Map<String, Long> lastAttackedAt = new ConcurrentHashMap<>();
+    private final Map<String, Integer> lastAttackedAt = new ConcurrentHashMap<>();
     private final Set<String> warnedInstructions = ConcurrentHashMap.newKeySet();
     private boolean hasLoadedScripts;
     public ScriptEngine(ANPCPlugin plugin,NPCManager npcs,VariableStore variables){this.plugin=plugin;this.npcs=npcs;this.variables=variables;}
@@ -1352,10 +1352,12 @@ public final class ScriptEngine implements Listener {
             }
         }
         if (lower.equals("npc is under attack")) {
-            long lastAttack = lastAttackedAt.getOrDefault(npcKey(context.npc()), 0L);
+            Integer lastAttack = lastAttackedAt.get(npcKey(context.npc()));
             long durationTicks = Math.max(1L, Math.min(2_000_000_000L,
                     plugin.getConfig().getLong("script-under-attack-duration-ticks", 100L)));
-            return lastAttack > 0L && System.currentTimeMillis() - lastAttack <= durationTicks * 50L;
+            if (lastAttack == null) return false;
+            int elapsedTicks = Bukkit.getCurrentTick() - lastAttack;
+            return elapsedTicks >= 0 && (long) elapsedTicks <= durationTicks;
         }
         return false;
     }
@@ -2647,7 +2649,7 @@ public final class ScriptEngine implements Listener {
 
         // "Under attack" only tracks damage caused by another entity, not
         // environmental damage such as fire, falling or suffocation.
-        lastAttackedAt.put(npcKey(id, target.getWorld()), System.currentTimeMillis());
+        lastAttackedAt.put(npcKey(id, target.getWorld()), Bukkit.getCurrentTick());
 
         Entity attackerEntity = byEntity.getDamager();
         if (attackerEntity instanceof Projectile projectile) {
