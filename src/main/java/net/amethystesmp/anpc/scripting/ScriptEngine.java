@@ -1108,8 +1108,6 @@ public final class ScriptEngine implements Listener {
         return false;
     }
         return false;
-    }
-
     private final class ArithmeticParser {
         private final ScriptContext context;
         private final String source;
@@ -1593,14 +1591,6 @@ public final class ScriptEngine implements Listener {
         }
     }
         if (value instanceof Number number) return number.doubleValue();
-        if (value == null) return null;
-        try {
-            return Double.parseDouble(String.valueOf(value).trim());
-        } catch (NumberFormatException ignored) {
-            return null;
-        }
-    }
-    private String unquote(String s){s=s.trim();return s.length()>=2&&s.startsWith("\"")&&s.endsWith("\"")?s.substring(1,s.length()-1):s;}
     private double selectorRangeSquared(Location origin) {
         double range = configDouble("selector-range", 64.0, 1.0, 512.0);
         return range * range;
