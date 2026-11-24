@@ -123,35 +123,47 @@ public final class LocalSkinServer implements AutoCloseable {
     private synchronized String registerSkin(String digest, byte[] bytes) throws IOException {
         if (!skins.containsKey(digest)) skins.put(digest, bytes);
         if (server == null) {
-            server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
-            executor = Executors.newCachedThreadPool(task -> {
+            HttpServer created = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
+            ExecutorService createdExecutor = Executors.newFixedThreadPool(2, task -> {
                 Thread thread = new Thread(task, "AmethyysNPCs-local-skins");
                 thread.setDaemon(true);
                 return thread;
             });
-            server.setExecutor(executor);
-            server.createContext("/skin/", exchange -> {
-                String key = exchange.getRequestURI().getPath().substring("/skin/".length());
-                byte[] skinBytes = skins.get(key);
-                if (!"GET".equalsIgnoreCase(exchange.getRequestMethod())) {
-                    exchange.getResponseHeaders().set("Allow", "GET");
-                    exchange.sendResponseHeaders(405, -1);
-                    exchange.close();
-                    return;
+            try {
+                created.setExecutor(createdExecutor);
+                created.createContext("/skin/", exchange -> {
+                    String key = exchange.getRequestURI().getPath().substring("/skin/".length());
+                    byte[] skinBytes = skins.get(key);
+                    if (!"GET".equalsIgnoreCase(exchange.getRequestMethod())) {
+                        exchange.getResponseHeaders().set("Allow", "GET");
+                        exchange.sendResponseHeaders(405, -1);
+                        exchange.close();
+                        return;
+                    }
+                    if (skinBytes == null) {
+                        exchange.sendResponseHeaders(404, -1);
+                        exchange.close();
+                        return;
+                    }
+                    exchange.getResponseHeaders().set("Content-Type", "image/png");
+                    exchange.getResponseHeaders().set("Cache-Control", "no-store");
+                    exchange.sendResponseHeaders(200, skinBytes.length);
+                    try (OutputStream output = exchange.getResponseBody()) {
+                        output.write(skinBytes);
+                    }
+                });
+                created.start();
+            } catch (IOException | RuntimeException | Error exception) {
+                try {
+                    created.stop(0);
+                } catch (RuntimeException cleanupFailure) {
+                    exception.addSuppressed(cleanupFailure);
                 }
-                if (skinBytes == null) {
-                    exchange.sendResponseHeaders(404, -1);
-                    exchange.close();
-                    return;
-                }
-                exchange.getResponseHeaders().set("Content-Type", "image/png");
-                exchange.getResponseHeaders().set("Cache-Control", "no-store");
-                exchange.sendResponseHeaders(200, skinBytes.length);
-                try (OutputStream output = exchange.getResponseBody()) {
-                    output.write(skinBytes);
-                }
-            });
-            server.start();
+                createdExecutor.shutdownNow();
+                throw exception;
+            }
+            server = created;
+            executor = createdExecutor;
             plugin.getLogger().info("Serveur local de skins démarré sur le port " + server.getAddress().getPort() + ".");
         }
         return "http://127.0.0.1:" + server.getAddress().getPort() + "/skin/" + digest;
