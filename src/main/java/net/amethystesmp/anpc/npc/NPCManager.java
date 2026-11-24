@@ -175,7 +175,7 @@ public final class NPCManager implements Listener {
                 String mythicId = definition.type().substring("mythicmob:".length()).trim();
                 Entity entity = MythicMobAdapter.spawn(plugin, mythicId, definition.location(world), definition.displayName());
                 if (entity == null) return;
-                managed = new ManagedNPC(definition, entity, () -> MythicMobAdapter.despawn(plugin, entity));
+                managed = new ManagedNPC(definition, entity, () -> MythicMobAdapter.despawn(plugin, entity), plugin.getLogger());
             } else {
                 ModelRenderer renderer = resolveRenderer(definition);
                 if (renderer == null) {
@@ -186,7 +186,7 @@ public final class NPCManager implements Listener {
                     scheduleModelRetry();
                     return;
                 }
-                managed = new ManagedNPC(definition, renderer, definition.location(world), skinProfile(definition));
+                managed = new ManagedNPC(definition, renderer, definition.location(world), skinProfile(definition), plugin.getLogger());
                 warnedMissingModels.remove(key);
             }
 
@@ -478,11 +478,11 @@ public final class NPCManager implements Listener {
                 String mythicId = type.substring("mythicmob:".length()).trim();
                 Entity entity = MythicMobAdapter.spawn(plugin, mythicId, location, definition.displayName());
                 if (entity == null) return false;
-                managed = new ManagedNPC(definition, entity, () -> MythicMobAdapter.despawn(plugin, entity));
+                managed = new ManagedNPC(definition, entity, () -> MythicMobAdapter.despawn(plugin, entity), plugin.getLogger());
             } else {
                 ModelRenderer renderer = resolveRenderer(type);
                 if (renderer == null) return false;
-                managed = new ManagedNPC(definition, renderer, location, skinProfile(definition));
+                managed = new ManagedNPC(definition, renderer, location, skinProfile(definition), plugin.getLogger());
             }
 
             npcs.put(instanceKey(id, location.getWorld()), managed);
