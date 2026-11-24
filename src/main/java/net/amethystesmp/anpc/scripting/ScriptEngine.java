@@ -673,8 +673,9 @@ public final class ScriptEngine implements Listener {
             }
 
             if (line.startsWith("set state ")) {
-                mainStates.put(context.npc().id().toLowerCase(Locale.ROOT),
-                        normalizeArgument(line.substring(10)));
+                String state = normalizeArgument(line.substring(10));
+                mainStates.put(context.npc().id().toLowerCase(Locale.ROOT), state);
+                variables.set("npc", context.npc().id(), "state:main", state);
                 index++;
                 continue;
             }
@@ -683,6 +684,7 @@ public final class ScriptEngine implements Listener {
                 String state = normalizeArgument(line.substring(10)).toLowerCase(Locale.ROOT);
                 secondaryStates.computeIfAbsent(context.npc().id().toLowerCase(Locale.ROOT),
                         ignored -> ConcurrentHashMap.newKeySet()).add(state);
+                variables.set("npc", context.npc().id(), "state:secondary:" + state, true);
                 index++;
                 continue;
             }
@@ -691,6 +693,7 @@ public final class ScriptEngine implements Listener {
                 String state = normalizeArgument(line.substring(13)).toLowerCase(Locale.ROOT);
                 secondaryStates.computeIfAbsent(context.npc().id().toLowerCase(Locale.ROOT),
                         ignored -> ConcurrentHashMap.newKeySet()).remove(state);
+                variables.set("npc", context.npc().id(), "state:secondary:" + state, false);
                 index++;
                 continue;
             }
@@ -930,11 +933,16 @@ public final class ScriptEngine implements Listener {
         }
         if (lower.startsWith("state is ")) {
             String expected = normalizeArgument(expressionText.substring(9));
-            return mainStates.getOrDefault(npcId, "").equalsIgnoreCase(expected);
+            String current = mainStates.get(npcId);
+            if (current == null) current = variables.get("npc", context.npc().id(), "state:main", "");
+            return current.equalsIgnoreCase(expected);
         }
         if (lower.startsWith("has state ")) {
             String expected = normalizeArgument(expressionText.substring(10)).toLowerCase(Locale.ROOT);
-            return secondaryStates.getOrDefault(npcId, Set.of()).contains(expected);
+            Set<String> current = secondaryStates.getOrDefault(npcId, Set.of());
+            return current.contains(expected)
+                    || Boolean.parseBoolean(variables.get("npc", context.npc().id(),
+                    "state:secondary:" + expected, "false"));
         }
 
         String[] operators = {" >= ", " <= ", " != ", " == ", " > ", " < ", " contains "};
@@ -1019,7 +1027,8 @@ public final class ScriptEngine implements Listener {
             return npcs.get(value.substring(4), context.npc().location().getWorld());
         }
         if (value.equalsIgnoreCase("state of npc")) {
-            return mainStates.getOrDefault(context.npc().id().toLowerCase(Locale.ROOT), "");
+            String state = mainStates.get(context.npc().id().toLowerCase(Locale.ROOT));
+            return state == null ? variables.get("npc", context.npc().id(), "state:main", "") : state;
         }
 
         FunctionResult functionResult = invokeFunction(context, value);
