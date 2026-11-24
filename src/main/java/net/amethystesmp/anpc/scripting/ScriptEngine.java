@@ -54,29 +54,44 @@ public final class ScriptEngine implements Listener {
     private final Map<String, Long> lastAttackedAt = new ConcurrentHashMap<>();
     public ScriptEngine(ANPCPlugin plugin,NPCManager npcs,VariableStore variables){this.plugin=plugin;this.npcs=npcs;this.variables=variables;}
     public void loadAll() {
-        cancelTasks();
-        scripts.clear();
-        nearbyPlayers.clear();
-        lastAttackedAt.clear();
-
         File directory = new File(plugin.getDataFolder(), "scripts");
         File[] files = directory.listFiles((dir, name) -> name.toLowerCase(Locale.ROOT).endsWith(".aa"));
-        if (files == null) return;
+        if (files == null) {
+            plugin.getLogger().severe("Chargement des scripts annulé : dossier scripts inaccessible. "
+                    + "Les scripts actuellement actifs sont conservés.");
+            return;
+        }
         Arrays.sort(files, Comparator.comparing(File::getName, String.CASE_INSENSITIVE_ORDER)
                 .thenComparing(File::getName));
 
+        Map<String, ScriptData> loadedScripts = new LinkedHashMap<>();
+        boolean readFailure = false;
         for (File file : files) {
             String id = file.getName().substring(0, file.getName().length() - 3).toLowerCase(Locale.ROOT);
             try {
                 ScriptData parsed = parse(Files.readAllLines(file.toPath()), file.getName());
-                if (scripts.putIfAbsent(id, parsed) != null) {
+                if (loadedScripts.putIfAbsent(id, parsed) != null) {
                     plugin.getLogger().warning("Script " + file.getName()
                             + " ignoré : un autre fichier .aa utilise déjà l'identifiant '" + id + "'.");
                 }
             } catch (Exception exception) {
+                readFailure = true;
                 plugin.getLogger().warning("Erreur script " + file.getName() + " : " + exception.getMessage());
             }
         }
+
+        if (readFailure) {
+            plugin.getLogger().severe("Rechargement des scripts annulé : au moins un fichier n'a pas pu être lu. "
+                    + "Les scripts actuellement actifs sont conservés.");
+            return;
+        }
+
+        // Replace the live script set only after every file has been read.
+        cancelTasks();
+        scripts.clear();
+        scripts.putAll(loadedScripts);
+        nearbyPlayers.clear();
+        lastAttackedAt.clear();
 
         scheduleIntervals();
         scheduleProximity();
