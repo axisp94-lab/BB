@@ -71,6 +71,16 @@ public final class ScriptContext {
         if (normalized.equalsIgnoreCase("x of npc")) return npc.location().getX();
         if (normalized.equalsIgnoreCase("y of npc")) return npc.location().getY();
         if (normalized.equalsIgnoreCase("z of npc")) return npc.location().getZ();
+        Object loopNpc = locals.get("loop-npc");
+        if (loopNpc instanceof ManagedNPC managed) {
+            if (normalized.equalsIgnoreCase("name of loop-npc")) return managed.id();
+            if (normalized.equalsIgnoreCase("location of loop-npc")) return managed.location();
+        }
+        Object loopPlayer = locals.get("loop-player");
+        if (loopPlayer instanceof Player selectedPlayer) {
+            if (normalized.equalsIgnoreCase("name of loop-player")) return selectedPlayer.getName();
+            if (normalized.equalsIgnoreCase("location of loop-player")) return selectedPlayer.getLocation();
+        }
         if (normalized.equalsIgnoreCase("name of player") && player != null) return player.getName();
         if (normalized.equalsIgnoreCase("event item") && player != null) return player.getInventory().getItemInMainHand();
         for (Map.Entry<String, Object> entry : locals.entrySet()) {
