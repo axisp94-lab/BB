@@ -74,6 +74,16 @@ public final class ManagedNPC {
         }
     }
 
+    public void resync(Player player) {
+        if (tracker == null || closed || tracker.isClosed()) return;
+        viewers.remove(player.getUniqueId().toString());
+        tracker.remove(BukkitAdapter.adapt(player));
+        if (player.getWorld().equals(current.getWorld())) {
+            tracker.spawn(BukkitAdapter.adapt(player));
+            viewers.add(player.getUniqueId().toString());
+        }
+    }
+
     public void move(Location target) {
         if (closed || target == null || target.getWorld() == null) return;
         if (backingEntity != null) {
