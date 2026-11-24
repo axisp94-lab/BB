@@ -9,6 +9,25 @@ import java.util.HashMap;
 import java.util.Map;
 
 public final class ScriptContext {
+    private static final int MAX_INSTRUCTIONS = 10_000;
+
+    static final class ExecutionBudget {
+        private int remaining = MAX_INSTRUCTIONS;
+        private boolean warningEmitted;
+
+        boolean consume() {
+            if (remaining <= 0) return false;
+            remaining--;
+            return true;
+        }
+
+        boolean markWarningEmitted() {
+            if (warningEmitted) return false;
+            warningEmitted = true;
+            return true;
+        }
+    }
+
     public static final class LoopState {
         private boolean stopped;
         private boolean skipped;
@@ -25,15 +44,33 @@ public final class ScriptContext {
     private final ManagedNPC eventNpc;
     private final Map<String, Object> locals = new HashMap<>();
     private final Deque<LoopState> loops = new ArrayDeque<>();
+    private final ExecutionBudget executionBudget;
 
     public ScriptContext(ManagedNPC npc, Player player) {
         this(npc, player, null);
     }
 
     public ScriptContext(ManagedNPC npc, Player player, ManagedNPC eventNpc) {
+        this(npc, player, eventNpc, new ExecutionBudget());
+    }
+
+    ScriptContext(ManagedNPC npc, Player player, ManagedNPC eventNpc, ExecutionBudget executionBudget) {
         this.npc = npc;
         this.player = player;
         this.eventNpc = eventNpc;
+        this.executionBudget = executionBudget;
+    }
+
+    boolean consumeInstruction() {
+        return executionBudget.consume();
+    }
+
+    boolean markExecutionBudgetWarning() {
+        return executionBudget.markWarningEmitted();
+    }
+
+    ExecutionBudget executionBudget() {
+        return executionBudget;
     }
 
     public ManagedNPC npc() { return npc; }
