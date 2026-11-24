@@ -422,10 +422,10 @@ public final class ScriptEngine implements Listener {
 
             if (line.startsWith("if ") && line.endsWith(":")) {
                 int end = findEnd(code, index + 1, instruction.indent());
+                boolean firstMatches = test(context, line.substring(3, line.length() - 1));
                 int chainCursor = end;
                 int selectedStart = -1;
                 int selectedEnd = -1;
-                boolean hasElse = false;
 
                 while (chainCursor < code.size()
                         && code.get(chainCursor).indent() == instruction.indent()) {
@@ -438,13 +438,12 @@ public final class ScriptEngine implements Listener {
                             selectedEnd = branchEnd;
                         }
                         chainCursor = branchEnd;
-                        hasElse = true;
                         break;
                     }
                     if (!branchLower.startsWith("else if ") || !branch.endsWith(":")) break;
 
                     int branchEnd = findEnd(code, chainCursor + 1, instruction.indent());
-                    if (selectedStart < 0
+                    if (!firstMatches && selectedStart < 0
                             && test(context, branch.substring(8, branch.length() - 1))) {
                         selectedStart = chainCursor + 1;
                         selectedEnd = branchEnd;
@@ -453,7 +452,7 @@ public final class ScriptEngine implements Listener {
                 }
 
                 int afterChain = chainCursor;
-                if (test(context, line.substring(3, line.length() - 1))) {
+                if (firstMatches) {
                     if (index + 1 < end) {
                         int childIndent = code.get(index + 1).indent();
                         runBlock(context, code, index + 1, childIndent,
