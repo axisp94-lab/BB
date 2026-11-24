@@ -37,6 +37,7 @@ public final class ScriptEngine implements Listener {
     private record FunctionDefinition(List<String> parameters, List<Instruction> code) {}
     private record ScriptData(Map<String, List<Instruction>> events, Map<String, FunctionDefinition> functions) {}
     private record FunctionResult(boolean returned, Object value) {}
+    private record Comparison(String left, String operator, String right, boolean valid) {}
     private record NpcPair(ManagedNPC first, ManagedNPC second) {}
     private final ANPCPlugin plugin; private final NPCManager npcs; private final VariableStore variables;
     private final Map<String, ScriptData> scripts = new ConcurrentHashMap<>();
@@ -967,17 +968,20 @@ public final class ScriptEngine implements Listener {
                     "state:secondary:" + expected, "false"));
         }
 
-        String[] operators = {" >= ", " <= ", " != ", " == ", " > ", " < ", " contains "};
-        for (String operator : operators) {
-            int position = expressionText.indexOf(operator);
-            if (position <= 0) continue;
-            Object left = resolve(context, expressionText.substring(0, position));
-            Object right = resolve(context, expressionText.substring(position + operator.length()));
-            if (operator.equals(" contains ")) return String.valueOf(left).contains(String.valueOf(right));
+        Comparison comparisonExpression = findComparison(expressionText);
+        if (comparisonExpression != null) {
+            if (!comparisonExpression.valid()
+                    || comparisonExpression.left().isBlank()
+                    || comparisonExpression.right().isBlank()) return false;
+            Object left = resolve(context, comparisonExpression.left());
+            Object right = resolve(context, comparisonExpression.right());
+            if (comparisonExpression.operator().equalsIgnoreCase("contains")) {
+                return String.valueOf(left).contains(String.valueOf(right));
+            }
             Double leftNumber = numericValue(left);
             Double rightNumber = numericValue(right);
             if (leftNumber != null && rightNumber != null) {
-                return switch (operator.trim()) {
+                return switch (comparisonExpression.operator()) {
                     case ">" -> leftNumber > rightNumber;
                     case "<" -> leftNumber < rightNumber;
                     case ">=" -> leftNumber >= rightNumber;
@@ -987,7 +991,7 @@ public final class ScriptEngine implements Listener {
                 };
             }
             int comparison = String.valueOf(left).compareTo(String.valueOf(right));
-            return switch (operator.trim()) {
+            return switch (comparisonExpression.operator()) {
                 case ">" -> comparison > 0;
                 case "<" -> comparison < 0;
                 case ">=" -> comparison >= 0;
@@ -1017,6 +1021,62 @@ public final class ScriptEngine implements Listener {
             return lastAttack > 0L && System.currentTimeMillis() - lastAttack <= durationTicks * 50L;
         }
         return false;
+    }
+
+    private Comparison findComparison(String expression) {
+        String[] operators = {" >= ", " <= ", " != ", " == ", " > ", " < ", " contains "};
+        boolean quoted = false;
+        int parentheses = 0;
+        int brackets = 0;
+        Comparison found = null;
+
+        for (int i = 0; i < expression.length(); i++) {
+            char character = expression.charAt(i);
+            if (character == '"') {
+                int backslashes = 0;
+                for (int previous = i - 1; previous >= 0 && expression.charAt(previous) == '\\\\'; previous--) {
+                    backslashes++;
+                }
+                if (backslashes % 2 == 0) quoted = !quoted;
+            }
+            if (quoted) continue;
+
+            if (character == '(') {
+                parentheses++;
+                continue;
+            }
+            if (character == ')') {
+                if (--parentheses < 0) return new Comparison("", "", "", false);
+                continue;
+            }
+            if (character == '[') {
+                brackets++;
+                continue;
+            }
+            if (character == ']') {
+                if (--brackets < 0) return new Comparison("", "", "", false);
+                continue;
+            }
+            if (parentheses != 0 || brackets != 0) continue;
+
+            for (String operator : operators) {
+                if (!expression.regionMatches(true, i, operator, 0, operator.length())) continue;
+                if (found != null) return new Comparison("", "", "", false);
+                int end = i + operator.length();
+                found = new Comparison(
+                        expression.substring(0, i).trim(),
+                        operator.trim().toLowerCase(Locale.ROOT),
+                        expression.substring(end).trim(),
+                        true);
+                i = end - 1;
+                break;
+            }
+        }
+
+        if (quoted || parentheses != 0 || brackets != 0) {
+            return new Comparison("", "", "", false);
+        }
+        return found;
     }
 
     private String normalizeArgument(String raw) {
