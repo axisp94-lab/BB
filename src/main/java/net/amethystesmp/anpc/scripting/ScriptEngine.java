@@ -1630,7 +1630,10 @@ public final class ScriptEngine implements Listener {
         ScriptData script = scripts.get(parent.npc().id().toLowerCase(Locale.ROOT));
         if (script == null) return null;
         FunctionDefinition function = script.functions().get(name);
-        if (function == null) return null;
+        if (function == null) {
+            if (name.matches("[a-z_][a-z0-9_]*")) warnFunction(parent, name, "fonction inconnue pour ce NPC");
+            return new FunctionResult(true, null);
+        }
         if (!expression.endsWith(")")) {
             warnFunction(parent, name, "appel mal formé : parenthèse fermante manquante");
             return new FunctionResult(true, null);
