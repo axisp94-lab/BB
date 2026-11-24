@@ -1567,8 +1567,6 @@ public final class ScriptEngine implements Listener {
                 .orElse(null);
         if (id == null) return;
 
-        // The condition stays true for a configurable window after the latest hit.
-        lastAttackedAt.put(npcKey(id, target.getWorld()), System.currentTimeMillis());
         ManagedNPC managed = npcs.get(id, target.getWorld());
 
         // NPCs are script-controlled actors, not ordinary mobs: environmental
@@ -1580,6 +1578,10 @@ public final class ScriptEngine implements Listener {
             if (managed != null) firePlayerEvent(managed, "damage", null);
             return;
         }
+
+        // "Under attack" only tracks damage caused by another entity, not
+        // environmental damage such as fire, falling or suffocation.
+        lastAttackedAt.put(npcKey(id, target.getWorld()), System.currentTimeMillis());
 
         Player attacker = null;
         if (byEntity.getDamager() instanceof Player player) {
