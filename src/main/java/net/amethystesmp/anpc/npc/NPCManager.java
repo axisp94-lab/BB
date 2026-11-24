@@ -20,6 +20,7 @@ import org.bukkit.event.player.PlayerJoinEvent;
 import org.bukkit.event.player.PlayerQuitEvent;
 import org.bukkit.event.world.WorldLoadEvent;
 import org.bukkit.event.world.WorldUnloadEvent;
+import org.bukkit.event.world.ChunkLoadEvent;
 import org.bukkit.scheduler.BukkitTask;
 
 import java.io.File;
@@ -137,7 +138,14 @@ public final class NPCManager implements Listener {
         if (!configured) return;
 
         String key = instanceKey(definition.id(), world);
-        if (npcs.containsKey(key)) return;
+        ManagedNPC existing = npcs.get(key);
+        if (existing != null) {
+            if (existing.isActive()) return;
+            if (npcs.remove(key, existing)) {
+                if (plugin.scripts() != null) plugin.scripts().onNpcUnloaded(existing);
+                existing.close();
+            }
+        }
 
         try {
             ManagedNPC managed;
@@ -145,7 +153,7 @@ public final class NPCManager implements Listener {
                 String mythicId = definition.type().substring("mythicmob:".length()).trim();
                 Entity entity = MythicMobAdapter.spawn(plugin, mythicId, definition.location(world), definition.displayName());
                 if (entity == null) return;
-                managed = new ManagedNPC(definition, entity);
+                managed = new ManagedNPC(definition, entity, () -> MythicMobAdapter.despawn(plugin, entity));
             } else {
                 ModelRenderer renderer = resolveRenderer(definition);
                 if (renderer == null) {
@@ -258,6 +266,21 @@ public final class NPCManager implements Listener {
     public void onPlayerQuit(PlayerQuitEvent event) {
         Player player = event.getPlayer();
         for (ManagedNPC npc : npcs.values()) npc.hide(player);
+    }
+
+    @EventHandler
+    public void onChunkLoad(ChunkLoadEvent event) {
+        var chunk = event.getChunk();
+        Bukkit.getScheduler().runTask(plugin, () -> {
+            for (NPCDefinition definition : definitions.values()) {
+                if (!definition.appliesTo(chunk.getWorld())) continue;
+                Location configuredLocation = definition.location(chunk.getWorld());
+                if ((configuredLocation.getBlockX() >> 4) == chunk.getX()
+                        && (configuredLocation.getBlockZ() >> 4) == chunk.getZ()) {
+                    createInWorld(definition, chunk.getWorld());
+                }
+            }
+        });
     }
 
     @EventHandler
