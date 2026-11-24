@@ -206,15 +206,16 @@ public final class ManagedNPC {
         }
     }
 
-    public void move(Location target) {
-        if (closed || target == null || target.getWorld() == null) return;
-        if (current.getWorld() != null && !current.getWorld().equals(target.getWorld())) return;
+    public boolean move(Location target) {
+        if (closed || target == null || target.getWorld() == null) return false;
+        if (current.getWorld() != null && !current.getWorld().equals(target.getWorld())) return false;
         try {
             if (backingEntity != null) {
-                if (backingEntity.isValid() && backingEntity.teleport(target)) current = backingEntity.getLocation();
-                return;
+                if (!backingEntity.isValid() || !backingEntity.teleport(target)) return false;
+                current = backingEntity.getLocation();
+                return true;
             }
-            if (tracker == null || tracker.isClosed()) return;
+            if (tracker == null || tracker.isClosed()) return false;
             Location next = target.clone();
             tracker.location(BukkitAdapter.adapt(next));
             // The rendered model has moved successfully. Keep its authoritative
@@ -237,8 +238,10 @@ public final class ManagedNPC {
                     warnTrackerFailure("hitbox-move", exception);
                 }
             }
+            return true;
         } catch (RuntimeException | LinkageError exception) {
             warnTrackerFailure("move", exception);
+            return false;
         }
     }
 
