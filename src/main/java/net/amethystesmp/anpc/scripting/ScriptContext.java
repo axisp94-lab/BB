@@ -236,4 +236,5 @@ public final class ScriptContext {
                 }
                 return normalized;
         }
-    }}
+    }
+}
