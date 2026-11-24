@@ -272,6 +272,7 @@ public final class NPCManager implements Listener {
     public void onChunkLoad(ChunkLoadEvent event) {
         var chunk = event.getChunk();
         Bukkit.getScheduler().runTask(plugin, () -> {
+            if (!chunk.isLoaded()) return;
             for (NPCDefinition definition : definitions.values()) {
                 if (!definition.appliesTo(chunk.getWorld())) continue;
                 Location configuredLocation = definition.location(chunk.getWorld());
