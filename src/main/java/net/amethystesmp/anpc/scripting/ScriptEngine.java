@@ -360,6 +360,59 @@ public final class ScriptEngine implements Listener {
                         + Objects.toString(exception.getMessage(), exception.getClass().getSimpleName()),
                 exception);
     }
+    private void assignVariable(ScriptContext context, Instruction instruction) {
+        String body = instruction.text().substring(4).trim();
+        if (!body.startsWith("\"")) {
+            warnInstruction(context, instruction, "syntaxe set invalide");
+            return;
+        }
+        int closingQuote = -1;
+        for (int i = 1; i < body.length(); i++) {
+            if (body.charAt(i) != '"') continue;
+            int backslashes = 0;
+            for (int previous = i - 1; previous >= 0 && body.charAt(previous) == '\\'; previous--) {
+                backslashes++;
+            }
+            if (backslashes % 2 == 0) {
+                closingQuote = i;
+                break;
+            }
+        }
+        if (closingQuote < 0) {
+            warnInstruction(context, instruction, "nom de variable non terminé");
+            return;
+        }
+        String name = unquote(body.substring(0, closingQuote + 1)).trim().toLowerCase(Locale.ROOT);
+        String valueText = body.substring(closingQuote + 1).trim();
+        if (name.isBlank() || valueText.isBlank()) {
+            warnInstruction(context, instruction, "nom ou valeur de variable vide");
+            return;
+        }
+        if (valueText.startsWith("(") && valueText.endsWith(")")) {
+            valueText = valueText.substring(1, valueText.length() - 1).trim();
+        }
+        Object value = resolve(context, valueText);
+        context.locals().put(name, value);
+        storeVariable(context, name, value);
+    }
+
+    private void sendScriptMessage(ScriptContext context, boolean global, String message) {
+        String rendered = ChatColor.translateAlternateColorCodes('&',
+                context.npc().definition().displayName() + " » " + message);
+        if (global) {
+            Bukkit.broadcastMessage(rendered);
+        } else if (context.player() != null) {
+            context.player().sendMessage(rendered);
+        } else {
+            Location location = context.npc().location();
+            if (location.getWorld() != null) {
+                for (Player player : location.getWorld().getPlayers()) {
+                    if (player.getLocation().distanceSquared(location) < 32 * 32) player.sendMessage(rendered);
+                }
+            }
+        }
+    }
+
     private void runBlock(ScriptContext context, List<Instruction> code, int start, int indent, Runnable continuation) {
         int index = start;
         while (index < code.size()) {
@@ -487,20 +540,7 @@ public final class ScriptEngine implements Listener {
             }
 
             if (line.startsWith("set \"")) {
-                String body = line.substring(4).trim();
-                int closingQuote = body.indexOf('"', 1);
-                if (body.startsWith("\"") && closingQuote > 0) {
-                    String name = body.substring(1, closingQuote).toLowerCase(Locale.ROOT);
-                    String valueText = body.substring(closingQuote + 1).trim();
-                    if (valueText.startsWith("(") && valueText.endsWith(")")) {
-                        valueText = valueText.substring(1, valueText.length() - 1);
-                    }
-                    Object value = resolve(context, valueText);
-                    context.locals().put(name, value);
-                    storeVariable(context, name, value);
-                } else {
-                    warnInstruction(context, instruction, "syntaxe set invalide");
-                }
+                assignVariable(context, instruction);
                 index++;
                 continue;
             }
@@ -513,21 +553,7 @@ public final class ScriptEngine implements Listener {
 
             if (line.startsWith("say local ") || line.startsWith("say global ")) {
                 boolean global = line.startsWith("say global ");
-                String message = unquote(line.substring(global ? 11 : 10));
-                String rendered = ChatColor.translateAlternateColorCodes('&',
-                        context.npc().definition().displayName() + " » " + message);
-                if (global) {
-                    Bukkit.broadcastMessage(rendered);
-                } else if (context.player() != null) {
-                    context.player().sendMessage(rendered);
-                } else {
-                    Location location = context.npc().location();
-                    if (location.getWorld() != null) {
-                        for (Player player : location.getWorld().getPlayers()) {
-                            if (player.getLocation().distanceSquared(location) < 32 * 32) player.sendMessage(rendered);
-                        }
-                    }
-                }
+                sendScriptMessage(context, global, unquote(line.substring(global ? 11 : 10)));
                 index++;
                 continue;
             }
@@ -1475,26 +1501,14 @@ public final class ScriptEngine implements Listener {
             }
 
             if (line.startsWith("set \"")) {
-                String body = line.substring(4).trim();
-                int closingQuote = body.indexOf('"', 1);
-                if (body.startsWith("\"") && closingQuote > 0) {
-                    String name = body.substring(1, closingQuote).toLowerCase(Locale.ROOT);
-                    String value = body.substring(closingQuote + 1).trim();
-                    if (value.startsWith("(") && value.endsWith(")")) value = value.substring(1, value.length() - 1);
-                    Object resolved = resolve(context, value);
-                    context.locals().put(name, resolved);
-                    storeVariable(context, name, resolved);
-                }
+                assignVariable(context, instruction);
                 index++;
                 continue;
             }
 
             if (line.startsWith("say local ") || line.startsWith("say global ")) {
                 boolean global = line.startsWith("say global ");
-                String message = ChatColor.translateAlternateColorCodes('&',
-                        context.npc().definition().displayName() + " » " + unquote(line.substring(global ? 11 : 10)));
-                if (global) Bukkit.broadcastMessage(message);
-                else if (context.player() != null) context.player().sendMessage(message);
+                sendScriptMessage(context, global, unquote(line.substring(global ? 11 : 10)));
                 index++;
                 continue;
             }
