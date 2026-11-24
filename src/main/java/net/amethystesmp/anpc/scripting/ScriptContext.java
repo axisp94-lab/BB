@@ -6,7 +6,10 @@ import org.bukkit.entity.Player;
 import java.util.ArrayDeque;
 import java.util.Deque;
 import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 
 public final class ScriptContext {
     private static final int MAX_INSTRUCTIONS = 10_000;
@@ -51,6 +54,7 @@ public final class ScriptContext {
     private final Player player;
     private final ManagedNPC eventNpc;
     private final Map<String, Object> locals = new HashMap<>();
+    private final Set<String> persistentVariables = new HashSet<>();
     private final Deque<LoopState> loops = new ArrayDeque<>();
     private final ExecutionBudget executionBudget;
 
@@ -89,6 +93,18 @@ public final class ScriptContext {
     public Player player() { return player; }
     public ManagedNPC eventNpc() { return eventNpc; }
     public Map<String, Object> locals() { return locals; }
+
+    void markPersistentVariable(String name) {
+        if (name != null) persistentVariables.add(name.toLowerCase(Locale.ROOT));
+    }
+
+    Set<String> persistentVariables() {
+        return Set.copyOf(persistentVariables);
+    }
+
+    void inheritPersistentVariables(ScriptContext other) {
+        persistentVariables.addAll(other.persistentVariables);
+    }
 
     public LoopState pushLoop() {
         if (loops.size() >= 16) return null;
