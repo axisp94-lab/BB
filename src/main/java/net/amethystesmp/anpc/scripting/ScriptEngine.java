@@ -2016,7 +2016,8 @@ public final class ScriptEngine implements Listener {
             return;
         }
         if (managed != null) {
-            firePlayerEvent(managed, attacker.isSneaking() ? "left click while sneaking" : "left click", attacker);
+            // The Paper pre-attack event already fires the left-click script.
+            // Keep damage separate so one swing cannot trigger the click twice.
             firePlayerEvent(managed, "damage", attacker);
         }
     }
