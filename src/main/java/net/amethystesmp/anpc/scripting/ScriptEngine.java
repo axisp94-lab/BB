@@ -1137,6 +1137,11 @@ public final class ScriptEngine implements Listener {
                     .sorted()
                     .toList();
             if (members.isEmpty()) return;
+            if (!members.contains(context.npc().id().toLowerCase(Locale.ROOT))) {
+                plugin.getLogger().warning("Script " + context.npc().id()
+                        + " : la liste d'une variable shared doit inclure le NPC qui la déclare.");
+                return;
+            }
             scope = "shared";
             owner = String.join(",", members);
             for (String member : members) variables.set("meta", member, name, "shared|" + owner);
