@@ -26,7 +26,7 @@ npcs:
     skin: "file:gardiens.png"
 ```
 
-`type: player` sélectionne le limb `steve`. Pour les modèles classiques, `type` est le nom BetterModel. `type: mythicmob:gardien` crée une entité MythicMobs (MythicMobs doit être installé) ; son IA et sa gravité sont désactivées afin que le script contrôle son déplacement. Les NPC ne subissent pas les dégâts du jeu, mais l'événement `on damage` et la condition `npc is under attack` restent déclenchés lorsqu'une attaque ou une autre source de dégâts les touche. `world` accepte un nom, une liste de noms ou `all`. Les NPC configurés dans des mondes Multiverse apparaissent et disparaissent avec le chargement/déchargement du monde.
+`type: player` sélectionne le limb `steve`. Pour les modèles classiques, `type` est le nom BetterModel. `type: mythicmob:gardien` crée une entité MythicMobs (MythicMobs doit être installé) ; son IA, sa gravité et sa disparition à distance sont désactivées afin que le script contrôle son déplacement. Le mode de despawn MythicMobs est réglé sur `NEVER` pendant que le NPC est géré ; l'entité reste non persistante pour éviter les doublons après redémarrage et est recréée lorsque son chunk est rechargé. Sa fermeture passe par l'API MythicMobs pour nettoyer aussi son instance active. Les NPC ne subissent pas les dégâts du jeu, mais l'événement `on damage` et la condition `npc is under attack` restent déclenchés lorsqu'une attaque ou une autre source de dégâts les touche. `world` accepte un nom, une liste de noms ou `all`. Les NPC configurés dans des mondes Multiverse apparaissent et disparaissent avec le chargement/déchargement du monde.
 
 ### Skins des NPC joueur
 Le champ `skin` accepte :
