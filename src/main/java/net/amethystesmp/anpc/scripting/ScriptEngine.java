@@ -873,7 +873,8 @@ public final class ScriptEngine implements Listener {
         }
         if (lower.equals("npc is under attack")) {
             long lastAttack = lastAttackedAt.getOrDefault(npcKey(context.npc()), 0L);
-            long durationTicks = Math.max(1L, plugin.getConfig().getLong("script-under-attack-duration-ticks", 100L));
+            long durationTicks = Math.max(1L, Math.min(2_000_000_000L,
+                    plugin.getConfig().getLong("script-under-attack-duration-ticks", 100L)));
             return lastAttack > 0L && System.currentTimeMillis() - lastAttack <= durationTicks * 50L;
         }
         return false;
