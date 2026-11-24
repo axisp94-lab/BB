@@ -52,6 +52,8 @@ public final class ScriptEngine implements Listener {
     private static final Set<String> LOOP_VARIABLE_NAMES = Set.of("loop-number", "loop-player", "loop-npc", "loop-value");
     private static final java.util.regex.Pattern MESSAGE_VARIABLE_PATTERN =
             java.util.regex.Pattern.compile("(?<![\\p{L}\\p{N}_])([A-Za-z_][A-Za-z0-9_-]*)(?![\\p{L}\\p{N}_])");
+    private static final java.util.regex.Pattern MESSAGE_PLACEHOLDER_PATTERN =
+            java.util.regex.Pattern.compile("%([^%]+)%");
     private final ANPCPlugin plugin; private final NPCManager npcs; private final VariableStore variables;
     private final Map<String, ScriptData> scripts = new ConcurrentHashMap<>();
     private final ThreadLocal<Integer> functionDepth = ThreadLocal.withInitial(() -> 0);
@@ -508,6 +510,18 @@ public final class ScriptEngine implements Listener {
             Object direct = resolve(context, template);
             return direct == null ? "" : formatMessageValue(direct);
         }
+
+        java.util.regex.Matcher placeholders = MESSAGE_PLACEHOLDER_PATTERN.matcher(template);
+        StringBuffer placeholderResult = new StringBuffer();
+        while (placeholders.find()) {
+            String expression = placeholders.group(1).trim();
+            Object value = resolve(context, expression);
+            String replacement = value != null ? formatMessageValue(value)
+                    : context.recognizesValue(expression) ? "" : placeholders.group();
+            placeholders.appendReplacement(placeholderResult, java.util.regex.Matcher.quoteReplacement(replacement));
+        }
+        placeholders.appendTail(placeholderResult);
+        template = placeholderResult.toString();
 
         java.util.regex.Matcher matcher = MESSAGE_VARIABLE_PATTERN.matcher(template);
         StringBuffer rendered = new StringBuffer();
