@@ -231,7 +231,7 @@ public final class ScriptEngine implements Listener {
     }
     private void scheduleProximity() {
         BukkitTask task = Bukkit.getScheduler().runTaskTimer(plugin, () -> {
-            double radius = Math.max(0, plugin.getConfig().getDouble("script-approach-radius", 3.0));
+            double radius = configDouble("script-approach-radius", 3.0, 0.0, 128.0);
             double radiusSquared = radius * radius;
 
             for (ManagedNPC npc : npcs.all()) {
@@ -263,7 +263,7 @@ public final class ScriptEngine implements Listener {
 
     private void scheduleNpcProximity() {
         BukkitTask task = Bukkit.getScheduler().runTaskTimer(plugin, () -> {
-            double radius = Math.max(0, plugin.getConfig().getDouble("script-npc-approach-radius", 3.0));
+            double radius = configDouble("script-npc-approach-radius", 3.0, 0.0, 128.0);
             double radiusSquared = radius * radius;
             List<ManagedNPC> loaded = new ArrayList<>(npcs.all());
             Map<String, NpcPair> currentPairs = new HashMap<>();
@@ -1565,7 +1565,7 @@ public final class ScriptEngine implements Listener {
     }
     private String unquote(String s){s=s.trim();return s.length()>=2&&s.startsWith("\"")&&s.endsWith("\"")?s.substring(1,s.length()-1):s;}
     private double selectorRangeSquared(Location origin) {
-        double range = Math.max(1.0, plugin.getConfig().getDouble("selector-range", 64.0));
+        double range = configDouble("selector-range", 64.0, 1.0, 512.0);
         return range * range;
     }
 
@@ -1665,7 +1665,7 @@ public final class ScriptEngine implements Listener {
             }
         }
 
-        double range = Math.max(1, plugin.getConfig().getDouble("selector-range", 64));
+        double range = configDouble("selector-range", 64.0, 1.0, 512.0);
         List<Entity> matches = origin.getWorld().getNearbyEntities(origin, range, range, range).stream()
                 .filter(Entity::isValid)
                 .filter(entity -> isWithinSelectorRange(origin, entity))
@@ -1855,9 +1855,9 @@ public final class ScriptEngine implements Listener {
             checkpoints = net.amethystesmp.anpc.npc.Pathfinder.findPath(
                     start,
                     target,
-                    plugin.getConfig().getInt("movement.pathfinding.max-nodes", 5000),
-                    plugin.getConfig().getDouble("movement.pathfinding.max-distance", 128.0),
-                    plugin.getConfig().getDouble("movement.checkpoint-spacing", 2.0));
+                    configInt("movement.pathfinding.max-nodes", 5000, 1, 100000),
+                    configDouble("movement.pathfinding.max-distance", 128.0, 1.0, 512.0),
+                    configDouble("movement.checkpoint-spacing", 2.0, 0.5, 16.0));
         } else {
             checkpoints = List.of(target.clone());
         }
@@ -1888,9 +1888,9 @@ public final class ScriptEngine implements Listener {
                 start,
                 target,
                 mode,
-                plugin.getConfig().getInt("movement." + section + ".max-nodes", 5000),
-                plugin.getConfig().getDouble("movement." + section + ".max-distance", 96.0),
-                plugin.getConfig().getDouble("movement.checkpoint-spacing", 2.0));
+                configInt("movement." + section + ".max-nodes", 5000, 1, 100000),
+                configDouble("movement." + section + ".max-distance", 96.0, 1.0, 512.0),
+                configDouble("movement.checkpoint-spacing", 2.0, 0.5, 16.0));
         if (checkpoints.isEmpty()) {
             plugin.getLogger().warning("Aucun chemin " + section + " praticable trouvé pour le NPC "
                     + npc.id() + ". Vérifie la présence d'un mur continu ou d'eau selon le mode.");
@@ -1910,9 +1910,9 @@ public final class ScriptEngine implements Listener {
         List<Location> checkpoints = net.amethystesmp.anpc.npc.FlyingPathfinder.findPath(
                 start,
                 target,
-                plugin.getConfig().getInt("movement.flying.max-nodes", 5000),
-                plugin.getConfig().getDouble("movement.flying.max-distance", 128.0),
-                plugin.getConfig().getDouble("movement.checkpoint-spacing", 2.0));
+                configInt("movement.flying.max-nodes", 5000, 1, 100000),
+                configDouble("movement.flying.max-distance", 128.0, 1.0, 512.0),
+                configDouble("movement.checkpoint-spacing", 2.0, 0.5, 16.0));
         if (checkpoints.isEmpty()) {
             plugin.getLogger().warning("Aucun chemin aérien praticable trouvé pour le NPC " + npc.id() + ".");
             return;
@@ -1931,8 +1931,8 @@ public final class ScriptEngine implements Listener {
         }
 
         Location start = npc.location();
-        long updateTicks = Math.max(1L, plugin.getConfig().getLong("movement.update-ticks", 1L));
-        double speed = Math.max(0.1, plugin.getConfig().getDouble("movement.default-speed", 4.0));
+        long updateTicks = Math.max(1L, Math.min(1200L, plugin.getConfig().getLong("movement.update-ticks", 1L)));
+        double speed = configDouble("movement.default-speed", 4.0, 0.1, 64.0);
         double distancePerUpdate = speed * updateTicks / 20.0;
         int[] checkpointIndex = {0};
         Location[] current = {start.clone()};
@@ -1978,6 +1978,17 @@ public final class ScriptEngine implements Listener {
         tasks.add(holder[0]);
         movementTasks.put(movementKey, holder[0]);
         npc.animate("walk");
+    }
+
+    private double configDouble(String path, double fallback, double minimum, double maximum) {
+        double value = plugin.getConfig().getDouble(path, fallback);
+        if (!Double.isFinite(value)) value = fallback;
+        return Math.max(minimum, Math.min(maximum, value));
+    }
+
+    private int configInt(String path, int fallback, int minimum, int maximum) {
+        int value = plugin.getConfig().getInt(path, fallback);
+        return Math.max(minimum, Math.min(maximum, value));
     }
 
     private long parseDurationTicks(String input) {
@@ -2074,7 +2085,7 @@ public final class ScriptEngine implements Listener {
     @EventHandler
     public void onJoin(PlayerJoinEvent event) {
         Player player = event.getPlayer();
-        double range = Math.max(0.0, plugin.getConfig().getDouble("tracking-range", 64.0));
+        double range = configDouble("tracking-range", 64.0, 0.0, 512.0);
         double rangeSquared = range * range;
         for (ManagedNPC npc : npcs.all()) {
             Location location = npc.location();
