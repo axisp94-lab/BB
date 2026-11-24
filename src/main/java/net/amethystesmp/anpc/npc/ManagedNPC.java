@@ -90,10 +90,24 @@ public final class ManagedNPC {
         this.logger = logger == null ? Logger.getLogger("AmethyysNPCs") : logger;
         this.backingEntity = backingEntity;
         this.backingCleanup = backingCleanup == null ? () -> { } : backingCleanup;
-        this.current = backingEntity.getLocation();
         this.tracker = null;
         this.hitbox = null;
-        backingEntity.addScoreboardTag("anpc:" + definition.id().toLowerCase(java.util.Locale.ROOT));
+        try {
+            this.current = backingEntity.getLocation();
+            backingEntity.addScoreboardTag("anpc:" + definition.id().toLowerCase(java.util.Locale.ROOT));
+        } catch (RuntimeException | Error exception) {
+            try {
+                this.backingCleanup.run();
+            } catch (RuntimeException | LinkageError cleanupFailure) {
+                exception.addSuppressed(cleanupFailure);
+            }
+            try {
+                if (backingEntity.isValid()) backingEntity.remove();
+            } catch (RuntimeException | LinkageError cleanupFailure) {
+                exception.addSuppressed(cleanupFailure);
+            }
+            throw exception;
+        }
     }
 
     public String id() { return definition.id(); }
@@ -238,23 +252,26 @@ public final class ManagedNPC {
                 // même si BetterModel échoue pendant la fermeture du tracker.
             }
         }
-        if (hitbox != null && hitbox.isValid()) {
+        if (hitbox != null) {
             try {
-                hitbox.remove();
-            } catch (RuntimeException exception) {
-                // La fermeture des autres ressources reste prioritaire.
+                if (hitbox.isValid()) hitbox.remove();
+            } catch (RuntimeException | LinkageError exception) {
+                logger.warning("Suppression de la hitbox impossible pour le NPC '" + id()
+                        + "' : " + exception.getMessage());
             }
         }
         if (backingEntity != null) {
             try {
                 backingCleanup.run();
-            } catch (RuntimeException exception) {
-                // L'entité Bukkit est également retirée juste après.
+            } catch (RuntimeException | LinkageError exception) {
+                logger.warning("Nettoyage MythicMobs impossible pour le NPC '" + id()
+                        + "' : " + exception.getMessage());
             }
             try {
                 if (backingEntity.isValid()) backingEntity.remove();
-            } catch (RuntimeException exception) {
-                // Le serveur termine la fermeture du plugin même si l'entité est déjà invalide.
+            } catch (RuntimeException | LinkageError exception) {
+                logger.warning("Suppression de l'entité support impossible pour le NPC '" + id()
+                        + "' : " + exception.getMessage());
             }
         }
         viewers.clear();
