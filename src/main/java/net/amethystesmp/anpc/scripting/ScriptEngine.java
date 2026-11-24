@@ -1583,7 +1583,7 @@ public final class ScriptEngine implements Listener {
                     plugin.getLogger().warning("Script " + context.npc().id()
                             + " : budget maximal de 10 000 instructions atteint ; exécution interrompue.");
                 }
-                return;
+                return new FunctionResult(false, null);
             }
             if (instruction.indent() < indent) return new FunctionResult(false, null);
             if (instruction.indent() > indent) {
