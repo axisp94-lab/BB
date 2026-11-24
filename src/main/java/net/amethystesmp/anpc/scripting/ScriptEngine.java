@@ -1307,13 +1307,46 @@ public final class ScriptEngine implements Listener {
             }
 
             if (line.startsWith("if ") && line.endsWith(":")) {
-                int end = findEnd(code, index + 1, instruction.indent());
-                if (test(context, line.substring(3, line.length() - 1)) && index + 1 < end) {
+                int firstEnd = findEnd(code, index + 1, instruction.indent());
+                boolean firstMatches = test(context, line.substring(3, line.length() - 1));
+                int chainCursor = firstEnd;
+                int selectedStart = -1;
+                int selectedEnd = -1;
+
+                while (chainCursor < code.size()
+                        && code.get(chainCursor).indent() == instruction.indent()) {
+                    String branch = code.get(chainCursor).text();
+                    String branchLower = branch.toLowerCase(Locale.ROOT);
+                    if (branchLower.equals("else:")) {
+                        int branchEnd = findEnd(code, chainCursor + 1, instruction.indent());
+                        if (!firstMatches && selectedStart < 0) {
+                            selectedStart = chainCursor + 1;
+                            selectedEnd = branchEnd;
+                        }
+                        chainCursor = branchEnd;
+                        break;
+                    }
+                    if (!branchLower.startsWith("else if ") || !branch.endsWith(":")) break;
+
+                    int branchEnd = findEnd(code, chainCursor + 1, instruction.indent());
+                    if (!firstMatches && selectedStart < 0
+                            && test(context, branch.substring(8, branch.length() - 1))) {
+                        selectedStart = chainCursor + 1;
+                        selectedEnd = branchEnd;
+                    }
+                    chainCursor = branchEnd;
+                }
+
+                if (firstMatches && index + 1 < firstEnd) {
                     int childIndent = code.get(index + 1).indent();
                     FunctionResult result = runFunctionBlock(context, code, index + 1, childIndent);
                     if (result.returned()) return result;
+                } else if (!firstMatches && selectedStart >= 0 && selectedStart < selectedEnd) {
+                    int childIndent = code.get(selectedStart).indent();
+                    FunctionResult result = runFunctionBlock(context, code, selectedStart, childIndent);
+                    if (result.returned()) return result;
                 }
-                index = end;
+                index = chainCursor;
                 continue;
             }
 
