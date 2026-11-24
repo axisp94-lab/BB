@@ -434,7 +434,7 @@ public final class NPCManager implements Listener {
                 String mythicId = type.substring("mythicmob:".length()).trim();
                 Entity entity = MythicMobAdapter.spawn(plugin, mythicId, location, definition.displayName());
                 if (entity == null) return false;
-                managed = new ManagedNPC(definition, entity);
+                managed = new ManagedNPC(definition, entity, () -> MythicMobAdapter.despawn(plugin, entity));
             } else {
                 ModelRenderer renderer = resolveRenderer(type);
                 if (renderer == null) return false;
