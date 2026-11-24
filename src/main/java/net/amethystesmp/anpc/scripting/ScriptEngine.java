@@ -2412,7 +2412,7 @@ public final class ScriptEngine implements Listener {
         }
     }
 
-    @EventHandler
+    @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
     public void onNpcLeftClick(PrePlayerAttackEntityEvent event) {
         String id = event.getAttacked().getScoreboardTags().stream()
                 .filter(tag -> tag.startsWith("anpc:"))
