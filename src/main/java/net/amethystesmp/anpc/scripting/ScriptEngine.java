@@ -1079,6 +1079,10 @@ public final class ScriptEngine implements Listener {
             String scope = parts[0];
             String owner = parts.length > 1 ? parts[1] : context.npc().id();
             if (scope.equalsIgnoreCase("global") && owner.equals("@")) owner = "";
+            if (scope.equalsIgnoreCase("player")) {
+                if (context.player() == null) return null;
+                owner = context.player().getUniqueId().toString();
+            }
             String stored = variables.get(scope, owner, value, null);
             if (stored != null) return parseStored(stored);
         }
@@ -1252,6 +1256,12 @@ public final class ScriptEngine implements Listener {
             owner = "";
             variables.set("meta", context.npc().id().toLowerCase(Locale.ROOT), name, "global|@");
             variables.set("meta", "", name, "global|@");
+        } else if (scopeDeclaration.equalsIgnoreCase("player")
+                || scopeDeclaration.equalsIgnoreCase("per-player")
+                || scopeDeclaration.equalsIgnoreCase("per_player")) {
+            scope = "player";
+            owner = context.player() == null ? "" : context.player().getUniqueId().toString();
+            variables.set("meta", context.npc().id().toLowerCase(Locale.ROOT), name, "player|@");
         } else if (scopeDeclaration.toLowerCase(Locale.ROOT).startsWith("shared")) {
             int open = scopeDeclaration.indexOf('[');
             int close = scopeDeclaration.indexOf(']', open + 1);
@@ -1279,8 +1289,12 @@ public final class ScriptEngine implements Listener {
             variables.set("meta", context.npc().id().toLowerCase(Locale.ROOT), name, "local|" + owner);
         }
 
-        variables.setIfAbsent(scope, owner, name, defaultValue);
-        String storedValue = variables.get(scope, owner, name, String.valueOf(defaultValue));
+        if (!scope.equals("player") || context.player() != null) {
+            variables.setIfAbsent(scope, owner, name, defaultValue);
+        }
+        String storedValue = scope.equals("player") && context.player() == null
+                ? String.valueOf(defaultValue)
+                : variables.get(scope, owner, name, String.valueOf(defaultValue));
         context.locals().put(name, parseStored(storedValue));
     }
 
@@ -1323,6 +1337,14 @@ public final class ScriptEngine implements Listener {
         String scope = parts[0];
         String owner = parts.length > 1 ? parts[1] : context.npc().id();
         if (scope.equalsIgnoreCase("global") && owner.equals("@")) owner = "";
+        if (scope.equalsIgnoreCase("player")) {
+            if (context.player() == null) {
+                plugin.getLogger().warning("Script " + context.npc().id()
+                        + " : impossible de modifier la variable joueur '" + name + "' sans joueur associé à l'événement.");
+                return;
+            }
+            owner = context.player().getUniqueId().toString();
+        }
         variables.set(scope, owner, name, value);
     }
     private Double numericValue(Object value) {
