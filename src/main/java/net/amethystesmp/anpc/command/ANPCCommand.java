@@ -129,7 +129,10 @@ public final class ANPCCommand implements TabExecutor {
                 try {
                     plugin.reloadConfig();
                     plugin.npcs().validateReload();
-                    plugin.scripts().loadAll();
+                    if (!plugin.scripts().loadAll()) {
+                        msg(sender, "Rechargement annulé : au moins un script .aa est invalide ou illisible. Les NPC actuels sont conservés.");
+                        return true;
+                    }
                     plugin.npcs().reload();
                     msg(sender, "Configuration, NPC et scripts rechargés. Les variables SQLite sont conservées.");
                 } catch (RuntimeException exception) {
