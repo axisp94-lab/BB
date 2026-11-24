@@ -2732,6 +2732,7 @@ public final class ScriptEngine implements Listener {
         warnedInstructions.clear();
         if (clearRuntimeState) {
             activeNpcPairs.clear();
+            nearbyPlayers.clear();
             lastAttackedAt.clear();
         }
     }
