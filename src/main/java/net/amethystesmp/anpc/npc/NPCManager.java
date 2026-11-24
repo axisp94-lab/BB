@@ -22,6 +22,9 @@ import org.bukkit.scheduler.BukkitTask;
 
 import java.io.File;
 import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -60,6 +63,8 @@ public final class NPCManager implements Listener {
             }
         }
 
+        int loaded = size();
+        plugin.getLogger().info("Définitions NPC lues : " + definitions.size() + " ; instances chargées : " + loaded + ".");
         visibilityTask = Bukkit.getScheduler().runTaskTimer(plugin, this::refreshVisibility, 10L, 10L);
     }
 
@@ -445,12 +450,31 @@ public final class NPCManager implements Listener {
         save();
     }
 
-    private void save() {
-        if (yaml == null || file == null) return;
+    private boolean save() {
+        if (yaml == null || file == null) {
+            plugin.getLogger().severe("Sauvegarde NPC impossible : npc.yml n'est pas initialisé.");
+            return false;
+        }
+        Path target = file.toPath();
+        Path temporary = target.resolveSibling(target.getFileName().toString() + ".tmp");
         try {
-            yaml.save(file);
+            Files.createDirectories(target.getParent());
+            yaml.save(temporary.toFile());
+            try {
+                Files.move(temporary, target, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
+            } catch (IOException atomicMoveFailure) {
+                Files.move(temporary, target, StandardCopyOption.REPLACE_EXISTING);
+            }
+            return true;
         } catch (IOException e) {
             plugin.getLogger().severe("Écriture de npc.yml impossible : " + e.getMessage());
+            try {
+                Files.deleteIfExists(temporary);
+            } catch (IOException cleanupFailure) {
+                plugin.getLogger().warning("Impossible de supprimer le fichier temporaire npc.yml : "
+                        + cleanupFailure.getMessage());
+            }
+            return false;
         }
     }
 
@@ -472,6 +496,9 @@ public final class NPCManager implements Listener {
     }
 
     public void shutdown() {
+        // Les définitions sont déjà sauvegardées à chaque modification ; cette
+        // dernière écriture sécurise également l'arrêt normal du serveur.
+        save();
         stopLoadedNpcs();
     }
 }
