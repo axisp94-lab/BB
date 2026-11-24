@@ -1,6 +1,7 @@
 package net.amethystesmp.anpc.scripting;
 
 import net.amethystesmp.anpc.npc.ManagedNPC;
+import org.bukkit.entity.Entity;
 import org.bukkit.entity.Player;
 
 import java.util.ArrayDeque;
@@ -53,6 +54,7 @@ public final class ScriptContext {
     private final ManagedNPC npc;
     private final Player player;
     private final ManagedNPC eventNpc;
+    private final Entity eventEntity;
     private final Map<String, Object> locals = new HashMap<>();
     private final Set<String> persistentVariables = new HashSet<>();
     private final Set<String> dirtyPersistentVariables = new HashSet<>();
@@ -62,17 +64,27 @@ public final class ScriptContext {
     private final ExecutionBudget executionBudget;
 
     public ScriptContext(ManagedNPC npc, Player player) {
-        this(npc, player, null);
+        this(npc, player, null, player, new ExecutionBudget());
     }
 
     public ScriptContext(ManagedNPC npc, Player player, ManagedNPC eventNpc) {
-        this(npc, player, eventNpc, new ExecutionBudget());
+        this(npc, player, eventNpc, player, new ExecutionBudget());
+    }
+
+    public ScriptContext(ManagedNPC npc, Player player, ManagedNPC eventNpc, Entity eventEntity) {
+        this(npc, player, eventNpc, eventEntity, new ExecutionBudget());
     }
 
     ScriptContext(ManagedNPC npc, Player player, ManagedNPC eventNpc, ExecutionBudget executionBudget) {
+        this(npc, player, eventNpc, player, executionBudget);
+    }
+
+    ScriptContext(ManagedNPC npc, Player player, ManagedNPC eventNpc, Entity eventEntity,
+                  ExecutionBudget executionBudget) {
         this.npc = npc;
         this.player = player;
         this.eventNpc = eventNpc;
+        this.eventEntity = eventEntity;
         this.executionBudget = executionBudget;
     }
 
@@ -95,6 +107,7 @@ public final class ScriptContext {
     public ManagedNPC npc() { return npc; }
     public Player player() { return player; }
     public ManagedNPC eventNpc() { return eventNpc; }
+    public Entity eventEntity() { return eventEntity; }
     public Map<String, Object> locals() { return locals; }
 
     void markPersistentVariable(String name) {
@@ -152,8 +165,20 @@ public final class ScriptContext {
 
     public Object value(String key) {
         String normalized = key.trim();
-        if (normalized.equalsIgnoreCase("event entity") || normalized.equalsIgnoreCase("player")) return player;
+        if (normalized.equalsIgnoreCase("event entity")) return eventEntity;
+        if (normalized.equalsIgnoreCase("player")) return player;
         if (normalized.equalsIgnoreCase("event npc") || normalized.equalsIgnoreCase("other npc")) return eventNpc;
+        if (normalized.equalsIgnoreCase("name of event entity") && eventEntity != null) {
+            if (eventEntity instanceof Player selectedPlayer) return selectedPlayer.getName();
+            String customName = eventEntity.getCustomName();
+            return customName == null || customName.isBlank()
+                    ? eventEntity.getType().name().toLowerCase(Locale.ROOT) : customName;
+        }
+        if (normalized.equalsIgnoreCase("location of event entity") && eventEntity != null) return eventEntity.getLocation();
+        if (normalized.equalsIgnoreCase("type of event entity") && eventEntity != null) {
+            return eventEntity.getType().name().toLowerCase(Locale.ROOT);
+        }
+        if (normalized.equalsIgnoreCase("location of player") && player != null) return player.getLocation();
         if (normalized.equalsIgnoreCase("name of event npc") && eventNpc != null) return eventNpc.id();
         if (normalized.equalsIgnoreCase("location of event npc") && eventNpc != null) return eventNpc.location();
         if (normalized.equalsIgnoreCase("name of npc")) return npc.id();
