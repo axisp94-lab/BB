@@ -396,6 +396,7 @@ public final class NPCManager implements Listener {
 
     public boolean create(String id, String type, Location location) {
         if (id == null || !id.matches("[A-Za-z0-9_-]+") || type == null || type.isBlank()
+                || type.trim().equalsIgnoreCase("mythicmob:") || type.trim().equalsIgnoreCase("limb:")
                 || location == null || location.getWorld() == null
                 || definitions.containsKey(id.toLowerCase(Locale.ROOT)) || get(id) != null) {
             return false;
