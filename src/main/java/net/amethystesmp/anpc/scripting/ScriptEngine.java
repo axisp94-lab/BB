@@ -1144,20 +1144,24 @@ public final class ScriptEngine implements Listener {
     }
 
     private boolean isRecognizedCondition(ScriptContext context, String expression) {
-        if (expression.length() > MAX_CONDITION_LENGTH || !hasBalancedExpressionSyntax(expression)) return false;
+        return isRecognizedCondition(context, expression, 0);
+    }
+
+    private boolean isRecognizedCondition(ScriptContext context, String expression, int depth) {
+        if (depth >= 32 || expression.length() > MAX_CONDITION_LENGTH || !hasBalancedExpressionSyntax(expression)) return false;
         String candidate = stripOuterParentheses(expression.trim());
         if (candidate.isBlank()) return false;
 
         List<String> orParts = splitLogical(candidate, " or ");
         if (orParts.size() > 1) {
-            return orParts.stream().allMatch(part -> isRecognizedCondition(context, part));
+            return orParts.stream().allMatch(part -> isRecognizedCondition(context, part, depth + 1));
         }
         List<String> andParts = splitLogical(candidate, " and ");
         if (andParts.size() > 1) {
             return andParts.stream().allMatch(part -> isRecognizedCondition(context, part));
         }
         if (candidate.regionMatches(true, 0, "not ", 0, 4)) {
-            return isRecognizedCondition(context, candidate.substring(4));
+            return isRecognizedCondition(context, candidate.substring(4), depth + 1);
         }
 
         Comparison comparison = findComparison(candidate);
@@ -1184,11 +1188,15 @@ public final class ScriptEngine implements Listener {
     }
 
     private boolean test(ScriptContext context, String expression) {
-        if (expression.length() > MAX_CONDITION_LENGTH || !hasBalancedExpressionSyntax(expression)) return false;
+        return test(context, expression, 0);
+    }
+
+    private boolean test(ScriptContext context, String expression, int depth) {
+        if (depth >= 32 || expression.length() > MAX_CONDITION_LENGTH || !hasBalancedExpressionSyntax(expression)) return false;
         String expressionText = stripOuterParentheses(expression.trim());
         List<String> orParts = splitLogical(expressionText, " or ");
         if (orParts.size() > 1) {
-            return orParts.stream().anyMatch(part -> test(context, part));
+            return orParts.stream().anyMatch(part -> test(context, part, depth + 1));
         }
         List<String> andParts = splitLogical(expressionText, " and ");
         if (andParts.size() > 1) {
@@ -1196,8 +1204,8 @@ public final class ScriptEngine implements Listener {
         }
         if (expressionText.regionMatches(true, 0, "not ", 0, 4)) {
             String operand = expressionText.substring(4).trim();
-            if (!isRecognizedCondition(context, operand)) return false;
-            return !test(context, operand);
+            if (!isRecognizedCondition(context, operand, 0)) return false;
+            return !test(context, operand, depth + 1);
         }
         String lower = expressionText.toLowerCase(Locale.ROOT);
         String npcId = context.npc().id().toLowerCase(Locale.ROOT);
