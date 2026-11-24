@@ -49,6 +49,7 @@ public final class ScriptEngine implements Listener {
     private static final int MAX_SELECTOR_RESULTS = 256;
     private static final int MAX_CONDITION_LENGTH = 1024;
     private static final int MAX_ARITHMETIC_EXPRESSION_LENGTH = 512;
+    private static final String STORED_STRING_PREFIX = "\u001FANPC:S:";
     private static final Set<String> LOOP_VARIABLE_NAMES = Set.of("loop-number", "loop-player", "loop-npc", "loop-value");
     private static final java.util.regex.Pattern MESSAGE_VARIABLE_PATTERN =
             java.util.regex.Pattern.compile("(?<![\\p{L}\\p{N}_])([\\p{L}_][\\p{L}\\p{N}_-]*)(?![\\p{L}\\p{N}_])");
@@ -1868,7 +1869,12 @@ public final class ScriptEngine implements Listener {
         return new FunctionResult(false, null);
     }
 
+    private String serializeStored(Object value) {
+        return value instanceof String text ? STORED_STRING_PREFIX + text : String.valueOf(value);
+    }
+
     private Object parseStored(String value) {
+        if (value.startsWith(STORED_STRING_PREFIX)) return value.substring(STORED_STRING_PREFIX.length());
         if (value.equalsIgnoreCase("true") || value.equalsIgnoreCase("false")) {
             return Boolean.parseBoolean(value);
         }
@@ -1959,12 +1965,13 @@ public final class ScriptEngine implements Listener {
             return;
         }
 
+        String serializedDefault = serializeStored(defaultValue);
         if (!scope.equals("player") || context.player() != null) {
-            variables.setIfAbsent(scope, owner, name, defaultValue);
+            variables.setIfAbsent(scope, owner, name, serializedDefault);
         }
         String storedValue = scope.equals("player") && context.player() == null
-                ? String.valueOf(defaultValue)
-                : variables.get(scope, owner, name, String.valueOf(defaultValue));
+                ? serializedDefault
+                : variables.get(scope, owner, name, serializedDefault);
         context.locals().put(name, parseStored(storedValue));
         if (!scope.equals("player") || context.player() != null) context.markPersistentVariable(name);
     }
@@ -2026,7 +2033,7 @@ public final class ScriptEngine implements Listener {
             }
             owner = context.player().getUniqueId().toString();
         }
-        variables.set(scope, owner, name, value);
+        variables.set(scope, owner, name, serializeStored(value));
         context.markPersistentVariable(name);
     }
     private Double numericValue(Object value) {
