@@ -414,7 +414,7 @@ public final class ScriptEngine implements Listener {
         } catch (ScriptBudgetExceededException ignored) {
             // The budget warning has already been emitted at the point of exhaustion.
             context.finish();
-        } catch (RuntimeException exception) {
+        } catch (RuntimeException | LinkageError exception) {
             logScriptException(context, exception);
             context.finish();
         }
@@ -450,7 +450,7 @@ public final class ScriptEngine implements Listener {
         return stored == null ? null : parseStored(stored);
     }
 
-    private void logScriptException(ScriptContext context, RuntimeException exception) {
+    private void logScriptException(ScriptContext context, Throwable exception) {
         String detail = Objects.toString(exception.getMessage(), exception.getClass().getSimpleName());
         String warningKey = npcKey(context.npc()) + ":runtime:" + exception.getClass().getName() + ":" + detail;
         if (!warnedInstructions.add(warningKey)) return;
@@ -884,7 +884,7 @@ public final class ScriptEngine implements Listener {
                     } catch (ScriptBudgetExceededException ignored) {
                         // The budget warning has already been emitted at the point of exhaustion.
                         context.finish();
-                    } catch (RuntimeException exception) {
+                    } catch (RuntimeException | LinkageError exception) {
                         logScriptException(context, exception);
                         context.finish();
                     }
