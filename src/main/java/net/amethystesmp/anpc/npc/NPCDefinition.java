@@ -5,8 +5,10 @@ import org.bukkit.World;
 import org.bukkit.configuration.ConfigurationSection;
 
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Set;
 
 public record NPCDefinition(String id, String displayName, String type, List<String> worlds,
                             double x, double y, double z, float yaw, float pitch, String skin) {
@@ -20,11 +22,16 @@ public record NPCDefinition(String id, String displayName, String type, List<Str
         if (type.isBlank()) {
             throw new IllegalArgumentException("Type de modèle manquant pour le NPC '" + id + "'.");
         }
-        worlds = worlds == null ? List.of("world") : worlds.stream()
-                .filter(world -> world != null && !world.isBlank())
-                .map(String::trim)
-                .distinct()
-                .toList();
+        if (worlds == null) {
+            worlds = List.of("world");
+        } else {
+            Set<String> seenWorlds = new HashSet<>();
+            worlds = worlds.stream()
+                    .filter(world -> world != null && !world.isBlank())
+                    .map(String::trim)
+                    .filter(world -> seenWorlds.add(world.toLowerCase(Locale.ROOT)))
+                    .toList();
+        }
         if (worlds.isEmpty()) {
             throw new IllegalArgumentException("Aucun monde valide configuré pour le NPC '" + id + "'.");
         }
