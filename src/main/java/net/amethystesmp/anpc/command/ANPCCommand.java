@@ -129,8 +129,8 @@ public final class ANPCCommand implements TabExecutor {
                 try {
                     plugin.reloadConfig();
                     plugin.npcs().validateReload();
-                    plugin.npcs().reload();
                     plugin.scripts().loadAll();
+                    plugin.npcs().reload();
                     msg(sender, "Configuration, NPC et scripts rechargés. Les variables SQLite sont conservées.");
                 } catch (RuntimeException exception) {
                     plugin.getLogger().severe("Erreur pendant /anpc reload : " + exception.getMessage());
