@@ -1592,7 +1592,9 @@ public final class ScriptEngine implements Listener {
 
     private Object resolve(ScriptContext context, String raw, boolean evaluateArithmetic) {
         String value = raw.trim();
-        if (value.startsWith("\"") && value.endsWith("\"")) return unquote(value);
+        if (isQuotedString(value)) return unquote(value);
+        String unwrapped = stripOuterParentheses(value);
+        if (!unwrapped.equals(value)) return resolve(context, unwrapped, evaluateArithmetic);
         if (value.equalsIgnoreCase("true") || value.equalsIgnoreCase("false")) return Boolean.parseBoolean(value);
         try {
             double number = Double.parseDouble(value);
