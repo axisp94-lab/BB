@@ -206,9 +206,26 @@ public final class ManagedNPC {
             if (tracker == null || tracker.isClosed()) return;
             Location next = target.clone();
             tracker.location(BukkitAdapter.adapt(next));
-            if (hitbox != null && hitbox.isValid()) hitbox.teleport(next);
+            // The rendered model has moved successfully. Keep its authoritative
+            // location even if the separate interaction hitbox needs recovery.
             current = next;
             warnedTrackerFailures.remove("move");
+            if (hitbox != null) {
+                try {
+                    if (!hitbox.isValid()) {
+                        warnTrackerFailure("hitbox-missing",
+                                new IllegalStateException("La hitbox du NPC n'est plus valide."));
+                    } else if (!hitbox.teleport(next)) {
+                        warnTrackerFailure("hitbox-move",
+                                new IllegalStateException("Bukkit a refusé le déplacement de la hitbox."));
+                    } else {
+                        warnedTrackerFailures.remove("hitbox-missing");
+                        warnedTrackerFailures.remove("hitbox-move");
+                    }
+                } catch (RuntimeException | LinkageError exception) {
+                    warnTrackerFailure("hitbox-move", exception);
+                }
+            }
         } catch (RuntimeException | LinkageError exception) {
             warnTrackerFailure("move", exception);
         }
