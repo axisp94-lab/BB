@@ -1536,20 +1536,27 @@ public final class ScriptEngine implements Listener {
 
         for (int i = 0; i < declaration.length(); i++) {
             char character = declaration.charAt(i);
-            if (character == '"' && (i == 0 || declaration.charAt(i - 1) != '\\')) quoted = !quoted;
+            if (character == '"') {
+                int backslashes = 0;
+                for (int previous = i - 1; previous >= 0 && declaration.charAt(previous) == '\\\\'; previous--) {
+                    backslashes++;
+                }
+                if (backslashes % 2 == 0) quoted = !quoted;
+            }
             if (quoted) continue;
 
             if (character == '(') {
                 if (depth == 0) start = i + 1;
                 depth++;
-            } else if (character == ')' && depth > 0) {
-                depth--;
+            } else if (character == ')') {
+                if (--depth < 0) return List.of();
                 if (depth == 0 && start >= 0) {
                     groups.add(declaration.substring(start, i).trim());
                     start = -1;
                 }
             }
         }
+        if (quoted || depth != 0) return List.of();
         return groups;
     }
     private void storeVariable(ScriptContext context, String name, Object value) {
