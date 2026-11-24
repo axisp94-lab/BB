@@ -797,8 +797,10 @@ public final class ScriptEngine implements Listener {
         String content = text.trim();
         if (content.startsWith("[") && content.endsWith("]")) content = content.substring(1, content.length() - 1);
         if (content.isBlank()) return new ArrayList<>();
+        List<String> items = parseFunctionArguments(content);
+        if (items == null) return null;
         List<Object> result = new ArrayList<>();
-        for (String item : content.split(",")) result.add(parseStored(unquote(item.trim())));
+        for (String item : items) result.add(parseStored(unquote(item.trim())));
         return result;
     }
 
@@ -1512,47 +1514,69 @@ public final class ScriptEngine implements Listener {
     }
     private void createVariable(ScriptContext context, String declaration) {
         List<String> arguments = extractGroups(declaration);
-        if (arguments.size() < 2) {
+        if (arguments.size() == 1) {
+            List<String> tupleArguments = parseFunctionArguments(arguments.get(0));
+            if (tupleArguments == null) {
+                plugin.getLogger().warning("Script " + context.npc().id()
+                        + " : arguments invalides pour create variable : " + declaration);
+                return;
+            }
+            arguments = tupleArguments;
+        }
+        if (arguments.size() < 2 || arguments.size() > 4) {
             plugin.getLogger().warning("Script " + context.npc().id() + " : déclaration create variable invalide : " + declaration);
             return;
         }
 
         String name = unquote(arguments.get(0)).trim().toLowerCase(Locale.ROOT);
-        if (name.isBlank()) return;
+        if (name.isBlank()) {
+            plugin.getLogger().warning("Script " + context.npc().id() + " : nom de variable vide.");
+            return;
+        }
         Object defaultValue = resolve(context, arguments.get(1));
         String scopeDeclaration = arguments.size() > 2 ? arguments.get(2).trim() : "local";
         if (arguments.size() > 3) scopeDeclaration += " " + arguments.get(3).trim();
+        if (scopeDeclaration.isBlank()) scopeDeclaration = "local";
 
         String scope = "local";
         String owner = context.npc().id();
+        String normalizedNpcId = context.npc().id().toLowerCase(Locale.ROOT);
 
-        if (scopeDeclaration.toLowerCase(Locale.ROOT).startsWith("global")) {
+        if (scopeDeclaration.equalsIgnoreCase("global")) {
             scope = "global";
             owner = "";
-            variables.set("meta", context.npc().id().toLowerCase(Locale.ROOT), name, "global|@");
+            variables.set("meta", normalizedNpcId, name, "global|@");
             variables.set("meta", "", name, "global|@");
         } else if (scopeDeclaration.equalsIgnoreCase("player")
                 || scopeDeclaration.equalsIgnoreCase("per-player")
                 || scopeDeclaration.equalsIgnoreCase("per_player")) {
             scope = "player";
             owner = context.player() == null ? "" : context.player().getUniqueId().toString();
-            variables.set("meta", context.npc().id().toLowerCase(Locale.ROOT), name, "player|@");
-        } else if (scopeDeclaration.toLowerCase(Locale.ROOT).startsWith("shared")) {
+            variables.set("meta", normalizedNpcId, name, "player|@");
+        } else if (scopeDeclaration.regionMatches(true, 0, "shared", 0, 6)) {
             int open = scopeDeclaration.indexOf('[');
-            int close = scopeDeclaration.indexOf(']', open + 1);
-            if (open < 0 || close < 0) {
-                plugin.getLogger().warning("Script " + context.npc().id() + " : une variable shared doit préciser les NPC entre crochets.");
+            int close = open < 0 ? -1 : scopeDeclaration.indexOf(']', open + 1);
+            if (open < 0 || close < 0
+                    || !scopeDeclaration.substring(0, open).trim().equalsIgnoreCase("shared")
+                    || !scopeDeclaration.substring(close + 1).isBlank()
+                    || scopeDeclaration.indexOf('[', open + 1) >= 0
+                    || scopeDeclaration.indexOf(']', close + 1) >= 0) {
+                plugin.getLogger().warning("Script " + context.npc().id()
+                        + " : syntaxe shared invalide ; utilise shared [npc1,npc2].");
                 return;
             }
-            List<String> members = Arrays.stream(scopeDeclaration.substring(open + 1, close).split(","))
+            List<String> members = Arrays.stream(scopeDeclaration.substring(open + 1, close).split(",", -1))
                     .map(String::trim)
-                    .filter(member -> !member.isBlank())
                     .map(member -> member.toLowerCase(Locale.ROOT))
                     .distinct()
                     .sorted()
                     .toList();
-            if (members.isEmpty()) return;
-            if (!members.contains(context.npc().id().toLowerCase(Locale.ROOT))) {
+            if (members.isEmpty() || members.stream().anyMatch(member -> !member.matches("[a-z0-9_-]+"))) {
+                plugin.getLogger().warning("Script " + context.npc().id()
+                        + " : la liste shared contient un identifiant NPC invalide.");
+                return;
+            }
+            if (!members.contains(normalizedNpcId)) {
                 plugin.getLogger().warning("Script " + context.npc().id()
                         + " : la liste d'une variable shared doit inclure le NPC qui la déclare.");
                 return;
@@ -1560,8 +1584,12 @@ public final class ScriptEngine implements Listener {
             scope = "shared";
             owner = String.join(",", members);
             for (String member : members) variables.set("meta", member, name, "shared|" + owner);
+        } else if (scopeDeclaration.equalsIgnoreCase("local")) {
+            variables.set("meta", normalizedNpcId, name, "local|" + owner);
         } else {
-            variables.set("meta", context.npc().id().toLowerCase(Locale.ROOT), name, "local|" + owner);
+            plugin.getLogger().warning("Script " + context.npc().id()
+                    + " : portée de variable inconnue : " + scopeDeclaration + ".");
+            return;
         }
 
         if (!scope.equals("player") || context.player() != null) {
