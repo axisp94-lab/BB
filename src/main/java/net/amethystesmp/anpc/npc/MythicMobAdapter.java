@@ -105,7 +105,10 @@ public final class MythicMobAdapter {
             }
 
             keepAlive(plugin, activeMob);
-            if (entity instanceof LivingEntity living) living.setAI(false);
+            if (entity instanceof LivingEntity living) {
+                living.setAI(false);
+                living.setRemoveWhenFarAway(false);
+            }
             entity.setGravity(false);
             entity.setPersistent(false);
             entity.setCustomName(ChatColor.translateAlternateColorCodes('&', displayName));
