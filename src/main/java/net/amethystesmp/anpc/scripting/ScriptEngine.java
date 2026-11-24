@@ -1887,6 +1887,7 @@ public final class ScriptEngine implements Listener {
         if (task != null) {
             task.cancel();
             tasks.remove(task);
+            npc.animate("idle");
         }
     }
 
@@ -2027,6 +2028,7 @@ public final class ScriptEngine implements Listener {
             plugin.getLogger().warning("Déplacement impossible pour " + npc.id() + " : la cible est dans un autre monde.");
             return;
         }
+        stopMovement(npc);
 
         List<Location> checkpoints;
         if (plugin.getConfig().getBoolean("movement.pathfinding.enabled", true)) {
@@ -2056,6 +2058,7 @@ public final class ScriptEngine implements Listener {
                     + " : la cible est dans un autre monde.");
             return;
         }
+        stopMovement(npc);
 
         String section = switch (mode) {
             case CLIMB -> "climbing";
@@ -2084,6 +2087,7 @@ public final class ScriptEngine implements Listener {
             plugin.getLogger().warning("Vol impossible pour " + npc.id() + " : la cible est dans un autre monde.");
             return;
         }
+        stopMovement(npc);
 
         List<Location> checkpoints = net.amethystesmp.anpc.npc.FlyingPathfinder.findPath(
                 start,
