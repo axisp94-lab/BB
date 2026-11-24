@@ -193,7 +193,7 @@ public final class NPCManager implements Listener {
             if (previous != null) {
                 closeManagedNPC(previous);
             }
-            if (plugin.scripts() != null) plugin.scripts().onNpcLoaded(managed);
+            notifyNpcLoaded(managed);
         } catch (RuntimeException | LinkageError exception) {
             if (managed != null && npcs.remove(key, managed)) {
                 if (plugin.scripts() != null) {
@@ -277,6 +277,18 @@ public final class NPCManager implements Listener {
 
     private String instanceKey(String id, World world) {
         return id.toLowerCase(Locale.ROOT) + "@" + world.getName().toLowerCase(Locale.ROOT);
+    }
+
+    private void notifyNpcLoaded(ManagedNPC npc) {
+        if (npc == null || plugin.scripts() == null) return;
+        try {
+            plugin.scripts().onNpcLoaded(npc);
+        } catch (RuntimeException | LinkageError exception) {
+            // A broken script or scheduler must not make a successfully created
+            // visual NPC disappear or roll back its persisted definition.
+            plugin.getLogger().warning("Démarrage des scripts impossible pour le NPC '" + npc.id()
+                    + "' : " + exception.getMessage());
+        }
     }
 
     private void closeManagedNPC(ManagedNPC npc) {
@@ -522,8 +534,13 @@ public final class NPCManager implements Listener {
                 plugin.getLogger().severe("NPC '" + id + "' créé en mémoire mais retiré : sa sauvegarde a échoué.");
                 return false;
             }
-            if (plugin.scripts() != null) plugin.scripts().onNpcLoaded(managed);
-            refreshVisibility();
+            notifyNpcLoaded(managed);
+            try {
+                refreshVisibility();
+            } catch (RuntimeException | LinkageError exception) {
+                plugin.getLogger().warning("Actualisation de visibilité impossible après création du NPC '"
+                        + id + "' : " + exception.getMessage());
+            }
             return true;
         } catch (RuntimeException | LinkageError e) {
             if (managed != null) {
