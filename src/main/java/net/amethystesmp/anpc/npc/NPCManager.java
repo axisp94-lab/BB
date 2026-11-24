@@ -169,8 +169,8 @@ public final class NPCManager implements Listener {
             }
         }
 
+        ManagedNPC managed = null;
         try {
-            ManagedNPC managed;
             if (isMythicMob(definition.type())) {
                 String mythicId = definition.type().substring("mythicmob:".length()).trim();
                 Entity entity = MythicMobAdapter.spawn(plugin, mythicId, definition.location(world), definition.displayName());
@@ -197,6 +197,20 @@ public final class NPCManager implements Listener {
             }
             if (plugin.scripts() != null) plugin.scripts().onNpcLoaded(managed);
         } catch (RuntimeException | LinkageError exception) {
+            if (managed != null && npcs.remove(key, managed)) {
+                if (plugin.scripts() != null) {
+                    try {
+                        plugin.scripts().onNpcUnloaded(managed);
+                    } catch (RuntimeException | LinkageError cleanupFailure) {
+                        exception.addSuppressed(cleanupFailure);
+                    }
+                }
+                try {
+                    managed.close();
+                } catch (RuntimeException | LinkageError cleanupFailure) {
+                    exception.addSuppressed(cleanupFailure);
+                }
+            }
             plugin.getLogger().warning("Impossible de créer le NPC '" + definition.id() + "' dans " + world.getName()
                     + " : " + exception.getMessage());
         }
