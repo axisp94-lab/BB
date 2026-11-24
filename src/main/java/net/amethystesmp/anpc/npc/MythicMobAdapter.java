@@ -24,7 +24,7 @@ public final class MythicMobAdapter {
             @SuppressWarnings({"rawtypes", "unchecked"})
             Object never = Enum.valueOf((Class<? extends Enum>) setter.getParameterTypes()[0], "NEVER");
             setter.invoke(activeMob, never);
-        } catch (ReflectiveOperationException | IllegalArgumentException exception) {
+        } catch (ReflectiveOperationException | RuntimeException | LinkageError exception) {
             plugin.getLogger().warning("Impossible de désactiver le despawn automatique du NPC MythicMobs : "
                     + exception.getMessage());
         }
