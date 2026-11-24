@@ -14,6 +14,7 @@ import org.bukkit.entity.Player;
 import org.bukkit.entity.Entity;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
+import org.bukkit.event.player.PlayerJoinEvent;
 import org.bukkit.event.player.PlayerQuitEvent;
 import org.bukkit.event.world.WorldLoadEvent;
 import org.bukkit.event.world.WorldUnloadEvent;
@@ -123,6 +124,23 @@ public final class NPCManager implements Listener {
 
     private String instanceKey(String id, World world) {
         return id.toLowerCase(Locale.ROOT) + "@" + world.getName().toLowerCase(Locale.ROOT);
+    }
+
+    @EventHandler
+    public void onPlayerJoin(PlayerJoinEvent event) {
+        Player player = event.getPlayer();
+        Bukkit.getScheduler().runTaskLater(plugin, () -> {
+            if (!player.isOnline()) return;
+            double range = Math.max(0, plugin.getConfig().getDouble("tracking-range", 64));
+            double rangeSquared = range * range;
+            for (ManagedNPC npc : npcs.values()) {
+                Location location = npc.location();
+                if (location.getWorld() != null && player.getWorld().equals(location.getWorld())
+                        && player.getLocation().distanceSquared(location) <= rangeSquared) {
+                    npc.resync(player);
+                }
+            }
+        }, 2L);
     }
 
     @EventHandler
