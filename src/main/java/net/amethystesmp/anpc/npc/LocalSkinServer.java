@@ -27,12 +27,15 @@ import java.util.concurrent.Executors;
 
 public final class LocalSkinServer implements AutoCloseable {
     private static final long MAX_SKIN_BYTES = 1024L * 1024L;
+    private static final int MAX_CACHED_SKINS = 256;
+    private static final long MAX_CACHED_SKIN_BYTES = 64L * 1024L * 1024L;
 
     private final ANPCPlugin plugin;
     private final Path skinDirectory;
     private final ConcurrentHashMap<String, byte[]> skins = new ConcurrentHashMap<>();
     private HttpServer server;
     private ExecutorService executor;
+    private long cachedSkinBytes;
 
     public LocalSkinServer(ANPCPlugin plugin) {
         this.plugin = plugin;
@@ -121,7 +124,17 @@ public final class LocalSkinServer implements AutoCloseable {
     }
 
     private synchronized String registerSkin(String digest, byte[] bytes) throws IOException {
-        if (!skins.containsKey(digest)) skins.put(digest, bytes);
+        if (!skins.containsKey(digest)) {
+            if (skins.size() >= MAX_CACHED_SKINS
+                    || cachedSkinBytes + bytes.length > MAX_CACHED_SKIN_BYTES) {
+                plugin.getLogger().warning("Cache des skins locaux saturé : limite de "
+                        + MAX_CACHED_SKINS + " fichiers / " + (MAX_CACHED_SKIN_BYTES / (1024 * 1024))
+                        + " Mio atteinte. Skin ignoré : " + digest + ".");
+                return null;
+            }
+            skins.put(digest, bytes);
+            cachedSkinBytes += bytes.length;
+        }
         if (server == null) {
             HttpServer created = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
             ExecutorService createdExecutor = Executors.newFixedThreadPool(2, task -> {
@@ -190,5 +203,6 @@ public final class LocalSkinServer implements AutoCloseable {
             }
         }
         skins.clear();
+        cachedSkinBytes = 0L;
     }
 }
