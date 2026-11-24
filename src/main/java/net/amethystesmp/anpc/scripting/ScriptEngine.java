@@ -531,6 +531,11 @@ public final class ScriptEngine implements Listener {
             if (line.startsWith("cooldown ") && line.endsWith(":")) {
                 int end = findEnd(code, index + 1, instruction.indent());
                 long ticks = parseDurationTicks(line.substring(9, line.length() - 1));
+                if (ticks < 1L) {
+                    warnInstruction(context, instruction, "durée de cooldown invalide ; utilise des ticks, seconds ou minutes");
+                    index = end;
+                    continue;
+                }
                 String cooldownKey = npcKey(context.npc()) + ":" + instruction.line();
                 long now = System.currentTimeMillis();
                 long availableAt = cooldowns.getOrDefault(cooldownKey, 0L);
@@ -723,6 +728,11 @@ public final class ScriptEngine implements Listener {
 
             if (line.startsWith("wait ")) {
                 long ticks = parseDurationTicks(line.substring(5));
+                if (ticks < 1L) {
+                    warnInstruction(context, instruction, "durée de wait invalide ; utilise des ticks, seconds ou minutes");
+                    index++;
+                    continue;
+                }
                 int next = index + 1;
                 String npcTaskKey = npcKey(context.npc());
                 BukkitTask[] holder = new BukkitTask[1];
@@ -2329,8 +2339,10 @@ public final class ScriptEngine implements Listener {
     private long parseDurationTicks(String input) {
         String[] parts = input.trim().toLowerCase(Locale.ROOT).split("\\s+");
         try {
-            if (parts.length < 1 || parts.length > 2 || parts[0].isBlank()) return 1L;
-            long amount = Math.max(1L, Long.parseLong(parts[0]));
+            if (parts.length < 1 || parts.length > 2 || parts[0].isBlank()) return -1L;
+            long parsedAmount = Long.parseLong(parts[0]);
+            if (parsedAmount < 0L) return -1L;
+            long amount = Math.max(1L, parsedAmount);
             long multiplier = 1L;
             if (parts.length == 2) {
                 multiplier = switch (parts[1]) {
@@ -2339,13 +2351,13 @@ public final class ScriptEngine implements Listener {
                     case "minute", "minutes" -> 1200L;
                     default -> 0L;
                 };
-                if (multiplier == 0L) return 1L;
+                if (multiplier == 0L) return -1L;
             }
             long maximum = 2_000_000_000L;
             if (amount > maximum / multiplier) return maximum;
             return Math.min(maximum, amount * multiplier);
         } catch (Exception exception) {
-            return 1L;
+            return -1L;
         }
     }
     @EventHandler
