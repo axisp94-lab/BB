@@ -63,6 +63,7 @@ public final class ScriptEngine implements Listener {
     private final Map<String, ScriptContext> runningIntervalScripts = new ConcurrentHashMap<>();
     private final Map<String, BukkitTask> followTasks = new ConcurrentHashMap<>();
     private final Map<String, Long> followPathAttemptAt = new ConcurrentHashMap<>();
+    private final Map<String, Long> followPathWarningAt = new ConcurrentHashMap<>();
     private final Map<String, Set<BukkitTask>> delayedTasks = new ConcurrentHashMap<>();
     private final Map<String, Set<UUID>> nearbyPlayers = new ConcurrentHashMap<>();
     private final Map<String, NpcPair> activeNpcPairs = new HashMap<>();
@@ -2276,6 +2277,7 @@ public final class ScriptEngine implements Listener {
             tasks.remove(follow);
         }
         followPathAttemptAt.remove(key);
+        followPathWarningAt.remove(key);
         stopMovement(npc);
     }
 
@@ -2432,10 +2434,21 @@ public final class ScriptEngine implements Listener {
             checkpoints = List.of(target.clone());
         }
 
+        String key = npcKey(npc);
         if (checkpoints.isEmpty()) {
-            plugin.getLogger().warning("Aucun chemin praticable trouvé pour le NPC " + npc.id() + ".");
+            if (followTasks.containsKey(key)) {
+                long now = System.currentTimeMillis();
+                long lastWarning = followPathWarningAt.getOrDefault(key, 0L);
+                if (now - lastWarning >= 30_000L) {
+                    plugin.getLogger().warning("Aucun chemin praticable trouvé pour le suivi du NPC " + npc.id() + ".");
+                    followPathWarningAt.put(key, now);
+                }
+            } else {
+                plugin.getLogger().warning("Aucun chemin praticable trouvé pour le NPC " + npc.id() + ".");
+            }
             return;
         }
+        followPathWarningAt.remove(key);
         moveAlongCheckpoints(npc, target, checkpoints);
     }
 
@@ -2708,6 +2721,7 @@ public final class ScriptEngine implements Listener {
         runningIntervalScripts.clear();
         followTasks.clear();
         followPathAttemptAt.clear();
+        followPathWarningAt.clear();
         delayedTasks.clear();
         activeNpcPairs.clear();
         lastAttackedAt.clear();
