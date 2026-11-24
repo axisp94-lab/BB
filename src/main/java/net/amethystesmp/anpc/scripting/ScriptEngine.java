@@ -843,7 +843,7 @@ public final class ScriptEngine implements Listener {
         }
 
         List<String> groups = extractGroups(raw);
-        if (groups.size() < 2) {
+        if (groups.size() != 2) {
             warnInstruction(context, instruction, "syntaxe : setblock (position) (bloc), ou setblock real (position) (bloc)");
             return;
         }
@@ -1627,9 +1627,11 @@ public final class ScriptEngine implements Listener {
                     groups.add(declaration.substring(start, i).trim());
                     start = -1;
                 }
+            } else if (depth == 0 && !Character.isWhitespace(character)) {
+                return List.of();
             }
         }
-        if (quoted || depth != 0) return List.of();
+        if (quoted || depth != 0 || start >= 0) return List.of();
         return groups;
     }
     private void storeVariable(ScriptContext context, String name, Object value) {
@@ -1672,8 +1674,22 @@ public final class ScriptEngine implements Listener {
     }
     private String unquote(String value) {
         String trimmed = value.trim();
-        return trimmed.length() >= 2 && trimmed.startsWith("\"") && trimmed.endsWith("\"")
-                ? trimmed.substring(1, trimmed.length() - 1) : trimmed;
+        if (trimmed.length() < 2 || !trimmed.startsWith("\"") || !trimmed.endsWith("\"")) return trimmed;
+        String inner = trimmed.substring(1, trimmed.length() - 1);
+        StringBuilder result = new StringBuilder(inner.length());
+        for (int i = 0; i < inner.length(); i++) {
+            char character = inner.charAt(i);
+            if (character == '\\' && i + 1 < inner.length()) {
+                char next = inner.charAt(i + 1);
+                if (next == '"' || next == '\\') {
+                    result.append(next);
+                    i++;
+                    continue;
+                }
+            }
+            result.append(character);
+        }
+        return result.toString();
     }
 
     private double selectorRangeSquared(Location origin) {
@@ -2118,11 +2134,17 @@ public final class ScriptEngine implements Listener {
     private long parseDurationTicks(String input) {
         String[] parts = input.trim().toLowerCase(Locale.ROOT).split("\\s+");
         try {
+            if (parts.length < 1 || parts.length > 2 || parts[0].isBlank()) return 1L;
             long amount = Math.max(1L, Long.parseLong(parts[0]));
             long multiplier = 1L;
-            if (parts.length >= 2) {
-                if (parts[1].startsWith("minute")) multiplier = 1200L;
-                else if (parts[1].startsWith("second")) multiplier = 20L;
+            if (parts.length == 2) {
+                multiplier = switch (parts[1]) {
+                    case "tick", "ticks" -> 1L;
+                    case "second", "seconds" -> 20L;
+                    case "minute", "minutes" -> 1200L;
+                    default -> 0L;
+                };
+                if (multiplier == 0L) return 1L;
             }
             long maximum = 2_000_000_000L;
             if (amount > maximum / multiplier) return maximum;
@@ -2133,6 +2155,7 @@ public final class ScriptEngine implements Listener {
     }
     @EventHandler
     public void onNpcRightClick(PlayerInteractEntityEvent event) {
+        if (event.isCancelled()) return;
         String id = event.getRightClicked().getScoreboardTags().stream()
                 .filter(tag -> tag.startsWith("anpc:"))
                 .map(tag -> tag.substring(5))
@@ -2164,6 +2187,7 @@ public final class ScriptEngine implements Listener {
     }
     @EventHandler
     public void onNpcDamaged(EntityDamageEvent event) {
+        if (event.isCancelled()) return;
         Entity target = event.getEntity();
         String id = target.getScoreboardTags().stream()
                 .filter(tag -> tag.startsWith("anpc:"))
