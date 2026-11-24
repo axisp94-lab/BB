@@ -22,6 +22,11 @@ public record NPCDefinition(String id, String displayName, String type, List<Str
         if (type.isBlank()) {
             throw new IllegalArgumentException("Type de modèle manquant pour le NPC '" + id + "'.");
         }
+        String normalizedType = type.toLowerCase(Locale.ROOT);
+        if ((normalizedType.startsWith("mythicmob:") && type.substring("mythicmob:".length()).isBlank())
+                || (normalizedType.startsWith("limb:") && type.substring("limb:".length()).isBlank())) {
+            throw new IllegalArgumentException("Le type '" + type + "' doit préciser un identifiant après son préfixe.");
+        }
         if (worlds == null) {
             worlds = List.of("world");
         } else {
