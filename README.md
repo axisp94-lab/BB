@@ -71,6 +71,9 @@ on interval:
     else:
         say local "Tout est calme."
 
+    if player is sneaking and player has permission "anpc.vip":
+        say local "Accès VIP détecté."
+
     loop 3 times:
         say local "Rappel numéro loop-number"
 
