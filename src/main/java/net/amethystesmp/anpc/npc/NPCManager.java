@@ -21,6 +21,7 @@ import org.bukkit.event.player.PlayerQuitEvent;
 import org.bukkit.event.world.WorldLoadEvent;
 import org.bukkit.event.world.WorldUnloadEvent;
 import org.bukkit.event.world.ChunkLoadEvent;
+import org.bukkit.event.world.ChunkUnloadEvent;
 import org.bukkit.scheduler.BukkitTask;
 
 import java.io.File;
@@ -266,6 +267,28 @@ public final class NPCManager implements Listener {
     public void onPlayerQuit(PlayerQuitEvent event) {
         Player player = event.getPlayer();
         for (ManagedNPC npc : npcs.values()) npc.hide(player);
+    }
+
+    @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
+    public void onChunkUnload(ChunkUnloadEvent event) {
+        var chunk = event.getChunk();
+        List<String> keys = npcs.entrySet().stream()
+                .filter(entry -> {
+                    Location location = entry.getValue().location();
+                    return location.getWorld() != null
+                            && location.getWorld().equals(chunk.getWorld())
+                            && (location.getBlockX() >> 4) == chunk.getX()
+                            && (location.getBlockZ() >> 4) == chunk.getZ();
+                })
+                .map(Map.Entry::getKey)
+                .toList();
+
+        for (String key : keys) {
+            ManagedNPC npc = npcs.remove(key);
+            if (npc == null) continue;
+            if (plugin.scripts() != null) plugin.scripts().onNpcUnloaded(npc);
+            npc.close();
+        }
     }
 
     @EventHandler
