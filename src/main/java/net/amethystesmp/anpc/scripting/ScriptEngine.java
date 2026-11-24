@@ -879,7 +879,13 @@ public final class ScriptEngine implements Listener {
             boolean wrapsAll = true;
             for (int i = 0; i < value.length(); i++) {
                 char character = value.charAt(i);
-                if (character == '"' && (i == 0 || value.charAt(i - 1) != '\\')) quoted = !quoted;
+                if (character == '"') {
+                    int backslashes = 0;
+                    for (int previous = i - 1; previous >= 0 && value.charAt(previous) == '\\'; previous--) {
+                        backslashes++;
+                    }
+                    if (backslashes % 2 == 0) quoted = !quoted;
+                }
                 if (quoted) continue;
                 if (character == '(') depth++;
                 else if (character == ')' && --depth == 0 && i < value.length() - 1) {
