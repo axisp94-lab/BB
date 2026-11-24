@@ -59,6 +59,7 @@ public final class ScriptEngine implements Listener {
     private final Map<String, Long> cooldowns = new ConcurrentHashMap<>();
     private final Map<String, Long> lastAttackedAt = new ConcurrentHashMap<>();
     private final Set<String> warnedInstructions = ConcurrentHashMap.newKeySet();
+    private boolean hasLoadedScripts;
     public ScriptEngine(ANPCPlugin plugin,NPCManager npcs,VariableStore variables){this.plugin=plugin;this.npcs=npcs;this.variables=variables;}
     public void loadAll() {
         File directory = new File(plugin.getDataFolder(), "scripts");
@@ -100,7 +101,12 @@ public final class ScriptEngine implements Listener {
         nearbyPlayers.clear();
         lastAttackedAt.clear();
 
-        scheduleIntervals();
+        if (!hasLoadedScripts) {
+            hasLoadedScripts = true;
+            for (ManagedNPC npc : npcs.all()) onNpcLoaded(npc);
+        } else {
+            scheduleIntervals();
+        }
         scheduleProximity();
         scheduleNpcProximity();
     }
@@ -189,22 +195,29 @@ public final class ScriptEngine implements Listener {
         return new ScriptData(events, functions);
     }
     private void scheduleIntervals() {
-        for (ManagedNPC npc : npcs.all()) onNpcLoaded(npc);
+        for (ManagedNPC npc : npcs.all()) scheduleInterval(npc);
+    }
+
+    private void scheduleInterval(ManagedNPC npc) {
+        if (npc == null) return;
+        String key = npcKey(npc);
+        ScriptData script = scripts.get(npc.id().toLowerCase(Locale.ROOT));
+        if (script == null) return;
+        List<Instruction> interval = script.events().get("interval");
+        if (interval != null && !intervalTasks.containsKey(key)) {
+            long period = Math.max(1L, Math.min(72_000L, plugin.getConfig().getLong("script-default-interval", 20L)));
+            BukkitTask task = Bukkit.getScheduler().runTaskTimer(plugin,
+                    () -> execute(npc, null, interval, 0), period, period);
+            intervalTasks.put(key, task);
+            tasks.add(task);
+        }
     }
 
     public void onNpcLoaded(ManagedNPC npc) {
         if (npc == null) return;
-        String key = npcKey(npc);
+        scheduleInterval(npc);
         ScriptData script = scripts.get(npc.id().toLowerCase(Locale.ROOT));
         if (script != null) {
-            List<Instruction> interval = script.events().get("interval");
-            if (interval != null && !intervalTasks.containsKey(key)) {
-                long period = Math.max(1L, Math.min(72_000L, plugin.getConfig().getLong("script-default-interval", 20L)));
-                BukkitTask task = Bukkit.getScheduler().runTaskTimer(plugin,
-                        () -> execute(npc, null, interval, 0), period, period);
-                intervalTasks.put(key, task);
-                tasks.add(task);
-            }
             List<Instruction> spawn = script.events().get("spawn");
             if (spawn != null) execute(npc, null, spawn, 0);
         }
