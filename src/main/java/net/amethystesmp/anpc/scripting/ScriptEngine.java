@@ -413,7 +413,7 @@ public final class ScriptEngine implements Listener {
 
     private String renderMessage(ScriptContext context, String raw) {
         String source = raw.trim();
-        boolean quoted = source.length() >= 2 && source.startsWith("\"") && source.endsWith("\"");
+        boolean quoted = isQuotedString(source);
         String template = quoted ? unquote(source) : source;
         if (!quoted) {
             Object direct = resolve(context, template);
@@ -1828,9 +1828,22 @@ public final class ScriptEngine implements Listener {
             return null;
         }
     }
+    private boolean isQuotedString(String value) {
+        if (value.length() < 2 || value.charAt(0) != '"') return false;
+        for (int i = 1; i < value.length(); i++) {
+            if (value.charAt(i) != '"') continue;
+            int backslashes = 0;
+            for (int previous = i - 1; previous >= 0 && value.charAt(previous) == '\\'; previous--) {
+                backslashes++;
+            }
+            if (backslashes % 2 == 0) return i == value.length() - 1;
+        }
+        return false;
+    }
+
     private String unquote(String value) {
         String trimmed = value.trim();
-        if (trimmed.length() < 2 || !trimmed.startsWith("\"") || !trimmed.endsWith("\"")) return trimmed;
+        if (!isQuotedString(trimmed)) return trimmed;
         String inner = trimmed.substring(1, trimmed.length() - 1);
         StringBuilder result = new StringBuilder(inner.length());
         for (int i = 0; i < inner.length(); i++) {
