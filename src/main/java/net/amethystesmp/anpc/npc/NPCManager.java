@@ -345,10 +345,6 @@ public final class NPCManager implements Listener {
 
     public ManagedNPC get(String id) {
         if (id == null) return null;
-        String key = id.toLowerCase(Locale.ROOT);
-        ManagedNPC exact = npcs.get(key);
-        if (exact != null) return exact;
-
         return npcs.values().stream()
                 .filter(npc -> npc.id().equalsIgnoreCase(id))
                 .sorted(Comparator.comparing(npc -> {
@@ -362,9 +358,6 @@ public final class NPCManager implements Listener {
     public ManagedNPC get(String id, World world) {
         if (id == null || world == null) return null;
         String normalizedId = id.toLowerCase(Locale.ROOT);
-        ManagedNPC exact = npcs.get(normalizedId);
-        if (exact != null && exact.location().getWorld().equals(world)) return exact;
-
         ManagedNPC worldInstance = npcs.get(normalizedId + "@" + world.getName().toLowerCase(Locale.ROOT));
         if (worldInstance != null) return worldInstance;
 
