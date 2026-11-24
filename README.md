@@ -47,6 +47,10 @@ on right click:
     set "message" message_accueil(event entity)
     say local message
 
+on offhand item click:
+    set "objet_secondaire" event offhand item
+    say local "Tu utilises un objet dans ta main secondaire."
+
 on entity approach:
     loop all players:
         send to loop-player "Un NPC est proche de vous."
@@ -85,7 +89,7 @@ on interval:
 ```
 
 Éléments pris en charge dans cette version :
-- événements de clic, de dégâts (joueurs, projectiles, mobs et environnement), d'approche/de départ des joueurs et des NPC, d'intervalle et de spawn ; les événements de spawn et d'intervalle suivent aussi les chargements/déchargements de mondes ;
+- événements de clic droit/gauche, de clic avec un objet en main principale (`item click`) ou en main secondaire (`offhand item click`), de dégâts (joueurs, projectiles, mobs et environnement), d'approche/de départ des joueurs et des NPC, d'intervalle et de spawn ; les événements de spawn et d'intervalle suivent aussi les chargements/déchargements de mondes ;
 - blocs `if` / `else if` / `else`, conditions combinables avec `and`, `or`, `not` et parenthèses, variables locales/partagées/globales persistantes et variables `player` persistantes par UUID (les valeurs existantes ne sont pas réinitialisées lors du spawn ou d'un reload), et fonctions avec paramètres et `return` ;
 - boucles `loop all players`, `loop all npcs`, `loop all (liste)` et `loop N times`, avec `stop loop` et `skip loop` ; `loop all npcs` parcourt chaque instance chargée, y compris les copies dans plusieurs mondes, avec `name of loop-npc` / `location of loop-npc` ; `name of loop-player` / `location of loop-player` sont aussi disponibles ;
 - sélecteurs `@p`, `@a`, `@n`, `@e[type=...]`, `player:<pseudo>` et `npc:<id>` pour les cibles compatibles ;
