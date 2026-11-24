@@ -68,7 +68,7 @@ public final class ScriptEngine implements Listener {
     private final Map<String, NpcPair> activeNpcPairs = new HashMap<>();
     private final Map<String, String> mainStates = new ConcurrentHashMap<>();
     private final Map<String, Set<String>> secondaryStates = new ConcurrentHashMap<>();
-    private final Map<String, Long> cooldowns = new ConcurrentHashMap<>();
+    private final Map<String, Integer> cooldowns = new ConcurrentHashMap<>();
     private final Map<String, Integer> lastAttackedAt = new ConcurrentHashMap<>();
     private final Set<String> warnedInstructions = ConcurrentHashMap.newKeySet();
     private boolean hasLoadedScripts;
@@ -650,10 +650,18 @@ public final class ScriptEngine implements Listener {
                     continue;
                 }
                 String cooldownKey = npcKey(context.npc()) + ":" + instruction.line();
-                long now = System.currentTimeMillis();
-                long availableAt = cooldowns.getOrDefault(cooldownKey, 0L);
-                if (now >= availableAt && index + 1 < end) {
-                    cooldowns.put(cooldownKey, now + ticks * 50L);
+                Integer cooldownStartedAt = cooldowns.get(cooldownKey);
+                int now = Bukkit.getCurrentTick();
+                if (cooldownStartedAt != null) {
+                    int elapsedTicks = now - cooldownStartedAt;
+                    if (elapsedTicks >= 0 && (long) elapsedTicks < ticks) {
+                        index = end;
+                        continue;
+                    }
+                    cooldowns.remove(cooldownKey, cooldownStartedAt);
+                }
+                if (index + 1 < end) {
+                    cooldowns.put(cooldownKey, now);
                     int childIndent = code.get(index + 1).indent();
                     int next = end;
                     runBlock(context, code, index + 1, childIndent,
