@@ -35,6 +35,10 @@ public final class NPCManager implements Listener {
     private BukkitTask visibilityTask;
     private File file;
     private YamlConfiguration yaml;
+    private BukkitTask modelRetryTask;
+    private int modelRetryAttempts;
+    private final Set<String> warnedMissingModels = ConcurrentHashMap.newKeySet();
+    private static final int MAX_MODEL_RETRY_ATTEMPTS = 60;
 
     public NPCManager(ANPCPlugin plugin) {
         this.plugin = plugin;
@@ -98,6 +102,9 @@ public final class NPCManager implements Listener {
                 .anyMatch(name -> name.equalsIgnoreCase("all") || name.equalsIgnoreCase(world.getName()));
         if (!configured) return;
 
+        String key = instanceKey(definition.id(), world);
+        if (npcs.containsKey(key)) return;
+
         try {
             ManagedNPC managed;
             if (isMythicMob(definition.type())) {
@@ -108,13 +115,17 @@ public final class NPCManager implements Listener {
             } else {
                 ModelRenderer renderer = resolveRenderer(definition);
                 if (renderer == null) {
-                    plugin.getLogger().severe("Modèle BetterModel introuvable pour " + definition.id() + " : " + definition.type());
+                    if (warnedMissingModels.add(key)) {
+                        plugin.getLogger().warning("Modèle BetterModel pas encore disponible pour " + definition.id()
+                                + " : " + definition.type() + ". Nouvel essai automatique pendant le démarrage.");
+                    }
+                    scheduleModelRetry();
                     return;
                 }
                 managed = new ManagedNPC(definition, renderer, definition.location(world), skinProfile(definition));
+                warnedMissingModels.remove(key);
             }
 
-            String key = instanceKey(definition.id(), world);
             ManagedNPC previous = npcs.put(key, managed);
             if (previous != null) {
                 if (plugin.scripts() != null) plugin.scripts().onNpcUnloaded(previous);
@@ -125,6 +136,61 @@ public final class NPCManager implements Listener {
             plugin.getLogger().warning("Impossible de créer le NPC '" + definition.id() + "' dans " + world.getName()
                     + " : " + exception.getMessage());
         }
+    }
+
+    private void scheduleModelRetry() {
+        if (modelRetryTask != null) return;
+        modelRetryAttempts = 0;
+        modelRetryTask = Bukkit.getScheduler().runTaskTimer(plugin, this::retryPendingModels, 20L, 20L);
+    }
+
+    private void retryPendingModels() {
+        for (NPCDefinition definition : definitions.values()) createFrom(definition);
+
+        boolean pending = false;
+        for (NPCDefinition definition : definitions.values()) {
+            if (isMythicMob(definition.type())) continue;
+            for (World world : Bukkit.getWorlds()) {
+                boolean configured = definition.worlds().stream()
+                        .anyMatch(name -> name.equalsIgnoreCase("all") || name.equalsIgnoreCase(world.getName()));
+                if (configured && !npcs.containsKey(instanceKey(definition.id(), world))) {
+                    pending = true;
+                    break;
+                }
+            }
+            if (pending) break;
+        }
+
+        if (!pending) {
+            cancelModelRetry();
+            return;
+        }
+
+        modelRetryAttempts++;
+        if (modelRetryAttempts >= MAX_MODEL_RETRY_ATTEMPTS) {
+            for (NPCDefinition definition : definitions.values()) {
+                if (isMythicMob(definition.type())) continue;
+                for (World world : Bukkit.getWorlds()) {
+                    boolean configured = definition.worlds().stream()
+                            .anyMatch(name -> name.equalsIgnoreCase("all") || name.equalsIgnoreCase(world.getName()));
+                    if (!configured || npcs.containsKey(instanceKey(definition.id(), world))) continue;
+                    String available = definition.type().equalsIgnoreCase("player")
+                            || definition.type().toLowerCase(Locale.ROOT).startsWith("limb:")
+                            ? BetterModel.limbKeys().toString() : BetterModel.modelKeys().toString();
+                    plugin.getLogger().severe("Modèle BetterModel toujours indisponible pour " + definition.id()
+                            + " après 60 secondes. Modèles enregistrés : " + available);
+                }
+            }
+            cancelModelRetry();
+        }
+    }
+
+    private void cancelModelRetry() {
+        if (modelRetryTask != null) {
+            modelRetryTask.cancel();
+            modelRetryTask = null;
+        }
+        modelRetryAttempts = 0;
     }
 
     private String instanceKey(String id, World world) {
@@ -483,6 +549,8 @@ public final class NPCManager implements Listener {
     }
 
     private void stopLoadedNpcs() {
+        cancelModelRetry();
+        warnedMissingModels.clear();
         if (visibilityTask != null) {
             visibilityTask.cancel();
             visibilityTask = null;
