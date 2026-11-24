@@ -496,6 +496,7 @@ public final class ScriptEngine implements Listener {
             valueText = valueText.substring(1, valueText.length() - 1).trim();
         }
         Object value = resolve(context, valueText);
+        if (value == null) value = "";
         context.locals().put(name, value);
         storeVariable(context, name, value);
     }
@@ -1887,6 +1888,7 @@ public final class ScriptEngine implements Listener {
             return;
         }
         Object defaultValue = resolve(context, arguments.get(1));
+        if (defaultValue == null) defaultValue = "";
         String scopeDeclaration = arguments.size() > 2 ? arguments.get(2).trim() : "local";
         if (arguments.size() > 3) scopeDeclaration += " " + arguments.get(3).trim();
         if (scopeDeclaration.isBlank()) scopeDeclaration = "local";
@@ -1985,6 +1987,7 @@ public final class ScriptEngine implements Listener {
         return groups;
     }
     private void storeVariable(ScriptContext context, String name, Object value) {
+        if (value == null) value = "";
         String normalizedNpcId = context.npc().id().toLowerCase(Locale.ROOT);
         String metadata = variables.get("meta", normalizedNpcId, name, null);
         if (metadata == null && !normalizedNpcId.equals(context.npc().id())) {
