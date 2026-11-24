@@ -1128,7 +1128,7 @@ public final class ScriptEngine implements Listener {
             start = position;
             while (position < source.length()) {
                 char character = source.charAt(position);
-                if (Character.isLetterOrDigit(character) || character == '_' || character == '-') position++;
+                if (Character.isLetterOrDigit(character) || character == '_') position++;
                 else break;
             }
             if (position == start) throw new IllegalArgumentException("Expected a number or variable");
