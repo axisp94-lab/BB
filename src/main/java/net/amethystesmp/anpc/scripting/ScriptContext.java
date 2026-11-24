@@ -17,7 +17,9 @@ public final class ScriptContext {
 
     static final class ExecutionBudget {
         private int remaining = MAX_INSTRUCTIONS;
+        private int loopIterations;
         private boolean warningEmitted;
+        private boolean loopWarningEmitted;
         private boolean exhausted;
 
         boolean consume() {
@@ -29,6 +31,12 @@ public final class ScriptContext {
             return true;
         }
 
+        boolean consumeLoopIteration() {
+            if (loopIterations >= 1024) return false;
+            loopIterations++;
+            return true;
+        }
+
         boolean exhausted() {
             return exhausted;
         }
@@ -36,6 +44,12 @@ public final class ScriptContext {
         boolean markWarningEmitted() {
             if (warningEmitted) return false;
             warningEmitted = true;
+            return true;
+        }
+
+        boolean markLoopWarningEmitted() {
+            if (loopWarningEmitted) return false;
+            loopWarningEmitted = true;
             return true;
         }
     }
@@ -90,6 +104,14 @@ public final class ScriptContext {
 
     boolean consumeInstruction() {
         return executionBudget.consume();
+    }
+
+    boolean consumeLoopIteration() {
+        return executionBudget.consumeLoopIteration();
+    }
+
+    boolean markLoopBudgetWarning() {
+        return executionBudget.markLoopWarningEmitted();
     }
 
     boolean markExecutionBudgetWarning() {
