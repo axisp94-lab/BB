@@ -176,7 +176,7 @@ public final class ScriptContext {
         }
         if (normalized.equalsIgnoreCase("location of event entity") && eventEntity != null) return eventEntity.getLocation();
         if (normalized.equalsIgnoreCase("type of event entity") && eventEntity != null) {
-            return eventEntity.getType().name().toLowerCase(Locale.ROOT);
+            return eventEntity.getType().name();
         }
         if (normalized.equalsIgnoreCase("location of player") && player != null) return player.getLocation();
         if (normalized.equalsIgnoreCase("name of event npc") && eventNpc != null) return eventNpc.id();
