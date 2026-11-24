@@ -59,8 +59,14 @@ public final class NPCManager implements Listener {
                     continue;
                 }
                 try {
+                    String normalizedId = id.toLowerCase(Locale.ROOT);
+                    if (definitions.containsKey(normalizedId)) {
+                        plugin.getLogger().warning("Définition NPC '" + id
+                                + "' ignorée : un identifiant équivalent existe déjà (la casse est ignorée).");
+                        continue;
+                    }
                     NPCDefinition definition = NPCDefinition.read(id, section);
-                    definitions.put(id.toLowerCase(Locale.ROOT), definition);
+                    definitions.put(normalizedId, definition);
                     createFrom(definition);
                 } catch (Exception e) {
                     plugin.getLogger().warning("NPC '" + id + "' non chargé : " + e.getMessage());
