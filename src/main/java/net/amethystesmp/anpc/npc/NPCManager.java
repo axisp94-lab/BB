@@ -404,8 +404,8 @@ public final class NPCManager implements Listener {
                 .map(Map.Entry::getKey)
                 .toList();
         String normalizedId = id.toLowerCase(Locale.ROOT);
-        String yamlId = findYamlId(id);
-        boolean knownDefinition = definitions.containsKey(normalizedId) || yamlId != null;
+        List<String> yamlIds = findYamlIds(id);
+        boolean knownDefinition = definitions.containsKey(normalizedId) || !yamlIds.isEmpty();
         if (matches.isEmpty() && !knownDefinition) return false;
 
         for (String key : matches) {
@@ -417,8 +417,8 @@ public final class NPCManager implements Listener {
         }
 
         definitions.remove(normalizedId);
-        if (yamlId != null && yaml != null) {
-            yaml.set("npcs." + yamlId, null);
+        if (!yamlIds.isEmpty() && yaml != null) {
+            yamlIds.forEach(yamlId -> yaml.set("npcs." + yamlId, null));
             save();
         }
         return true;
@@ -444,9 +444,9 @@ public final class NPCManager implements Listener {
                     currentDefinition.type(), currentDefinition.worlds(), currentDefinition.x(), currentDefinition.y(),
                     currentDefinition.z(), currentDefinition.yaw(), currentDefinition.pitch(), currentDefinition.skin()));
         }
-        String yamlId = findYamlId(id);
-        if (yamlId != null && yaml != null) {
-            yaml.set("npcs." + yamlId + ".display-name", displayName);
+        List<String> yamlIds = findYamlIds(id);
+        if (!yamlIds.isEmpty() && yaml != null) {
+            yamlIds.forEach(yamlId -> yaml.set("npcs." + yamlId + ".display-name", displayName));
             save();
         }
         return true;
@@ -494,11 +494,11 @@ public final class NPCManager implements Listener {
         saveDefinition(updated);
     }
 
-    private String findYamlId(String id) {
-        if (yaml == null) return null;
+    private List<String> findYamlIds(String id) {
+        if (yaml == null) return List.of();
         ConfigurationSection root = yaml.getConfigurationSection("npcs");
-        if (root == null) return null;
-        return root.getKeys(false).stream().filter(key -> key.equalsIgnoreCase(id)).findFirst().orElse(null);
+        if (root == null) return List.of();
+        return root.getKeys(false).stream().filter(key -> key.equalsIgnoreCase(id)).toList();
     }
 
     private void saveDefinition(NPCDefinition definition) {
