@@ -73,7 +73,7 @@ public final class MythicMobAdapter {
             Method adaptLocation = Arrays.stream(adapterClass.getMethods())
                     .filter(method -> method.getName().equals("adapt")
                             && method.getParameterCount() == 1
-                            && method.getParameterTypes()[0].isAssignableFrom(Location.class))
+                            && method.getParameterTypes()[0] == Location.class)
                     .findFirst()
                     .orElseThrow(() -> new NoSuchMethodException("BukkitAdapter.adapt(Location)"));
             Object abstractLocation = adaptLocation.invoke(null, location);
