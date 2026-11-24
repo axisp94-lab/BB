@@ -1105,7 +1105,6 @@ public final class ScriptEngine implements Listener {
             if (!quoted && (character == '+' || character == '*' || character == '/' || character == '%')) return true;
             if (!quoted && character == '-' && i > 0) return true;
         }
-        return false;
     }
         return false;
     private final class ArithmeticParser {
