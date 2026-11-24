@@ -1571,6 +1571,11 @@ public final class ScriptEngine implements Listener {
         lastAttackedAt.put(npcKey(id, target.getWorld()), System.currentTimeMillis());
         ManagedNPC managed = npcs.get(id, target.getWorld());
 
+        // NPCs are script-controlled actors, not ordinary mobs: environmental
+        // damage must not kill or alter their backing entities. The damage
+        // script still receives the event below.
+        event.setCancelled(true);
+
         if (!(event instanceof EntityDamageByEntityEvent byEntity)) {
             if (managed != null) firePlayerEvent(managed, "damage", null);
             return;
@@ -1588,8 +1593,6 @@ public final class ScriptEngine implements Listener {
             if (managed != null) firePlayerEvent(managed, "damage", null);
             return;
         }
-        // NPC hitboxes and backing entities should not take ordinary player damage.
-        event.setCancelled(true);
         if (managed != null) {
             firePlayerEvent(managed, attacker.isSneaking() ? "left click while sneaking" : "left click", attacker);
             firePlayerEvent(managed, "damage", attacker);
