@@ -149,14 +149,33 @@ public final class ManagedNPC {
     public void close() {
         if (closed) return;
         closed = true;
-        if (tracker != null && !tracker.isClosed()) tracker.close();
-        if (hitbox != null && hitbox.isValid()) hitbox.remove();
+
+        if (tracker != null && !tracker.isClosed()) {
+            try {
+                tracker.close();
+            } catch (RuntimeException exception) {
+                // Continue : la hitbox et l'entité de support doivent être nettoyées
+                // même si BetterModel échoue pendant la fermeture du tracker.
+            }
+        }
+        if (hitbox != null && hitbox.isValid()) {
+            try {
+                hitbox.remove();
+            } catch (RuntimeException exception) {
+                // La fermeture des autres ressources reste prioritaire.
+            }
+        }
         if (backingEntity != null) {
             try {
                 backingCleanup.run();
-            } catch (RuntimeException ignored) {
+            } catch (RuntimeException exception) {
+                // L'entité Bukkit est également retirée juste après.
             }
-            if (backingEntity.isValid()) backingEntity.remove();
+            try {
+                if (backingEntity.isValid()) backingEntity.remove();
+            } catch (RuntimeException exception) {
+                // Le serveur termine la fermeture du plugin même si l'entité est déjà invalide.
+            }
         }
         viewers.clear();
     }
