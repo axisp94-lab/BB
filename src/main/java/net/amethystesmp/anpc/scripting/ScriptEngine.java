@@ -2121,39 +2121,56 @@ public final class ScriptEngine implements Listener {
         BukkitTask[] holder = new BukkitTask[1];
 
         holder[0] = Bukkit.getScheduler().runTaskTimer(plugin, () -> {
-            double remaining = distancePerUpdate;
-            while (remaining > 0.000001 && checkpointIndex[0] < checkpoints.size()) {
-                Location checkpoint = checkpoints.get(checkpointIndex[0]);
-                double distance = current[0].distance(checkpoint);
-                if (distance <= 0.000001) {
-                    current[0] = checkpoint.clone();
-                    checkpointIndex[0]++;
-                } else if (distance <= remaining) {
-                    current[0] = checkpoint.clone();
-                    remaining -= distance;
-                    checkpointIndex[0]++;
-                } else {
-                    org.bukkit.util.Vector direction = checkpoint.toVector().subtract(current[0].toVector()).normalize();
-                    current[0].add(direction.multiply(remaining));
-                    remaining = 0;
+            try {
+                double remaining = distancePerUpdate;
+                while (remaining > 0.000001 && checkpointIndex[0] < checkpoints.size()) {
+                    Location checkpoint = checkpoints.get(checkpointIndex[0]);
+                    double distance = current[0].distance(checkpoint);
+                    if (distance <= 0.000001) {
+                        current[0] = checkpoint.clone();
+                        checkpointIndex[0]++;
+                    } else if (distance <= remaining) {
+                        current[0] = checkpoint.clone();
+                        remaining -= distance;
+                        checkpointIndex[0]++;
+                    } else {
+                        org.bukkit.util.Vector direction = checkpoint.toVector().subtract(current[0].toVector()).normalize();
+                        current[0].add(direction.multiply(remaining));
+                        remaining = 0;
+                    }
                 }
-            }
 
-            if (checkpointIndex[0] < checkpoints.size()) {
-                org.bukkit.util.Vector direction = checkpoints.get(checkpointIndex[0]).toVector()
-                        .subtract(current[0].toVector());
-                if (direction.lengthSquared() > 0.000001) current[0].setDirection(direction);
-            } else {
-                current[0].setYaw(target.getYaw());
-                current[0].setPitch(target.getPitch());
-            }
+                if (checkpointIndex[0] < checkpoints.size()) {
+                    org.bukkit.util.Vector direction = checkpoints.get(checkpointIndex[0]).toVector()
+                            .subtract(current[0].toVector());
+                    if (direction.lengthSquared() > 0.000001) current[0].setDirection(direction);
+                } else {
+                    current[0].setYaw(target.getYaw());
+                    current[0].setPitch(target.getPitch());
+                }
 
-            npc.move(current[0].clone());
-            if (checkpointIndex[0] >= checkpoints.size()) {
-                holder[0].cancel();
-                tasks.remove(holder[0]);
-                movementTasks.remove(movementKey, holder[0]);
-                npc.animate("idle");
+                npc.move(current[0].clone());
+                if (checkpointIndex[0] >= checkpoints.size()) {
+                    holder[0].cancel();
+                    tasks.remove(holder[0]);
+                    movementTasks.remove(movementKey, holder[0]);
+                    npc.animate("idle");
+                }
+            } catch (RuntimeException exception) {
+                BukkitTask failedTask = holder[0];
+                if (failedTask != null) {
+                    failedTask.cancel();
+                    tasks.remove(failedTask);
+                    movementTasks.remove(movementKey, failedTask);
+                }
+                try {
+                    npc.animate("idle");
+                } catch (RuntimeException ignored) {
+                }
+                plugin.getLogger().log(java.util.logging.Level.WARNING,
+                        "Déplacement interrompu pour le NPC '" + npc.id() + "' : "
+                                + Objects.toString(exception.getMessage(), exception.getClass().getSimpleName()),
+                        exception);
             }
         }, 1L, updateTicks);
 
