@@ -86,7 +86,7 @@ on interval:
 
 Éléments pris en charge dans cette version :
 - événements de clic, de dégâts (joueurs, projectiles, mobs et environnement), d'approche/de départ des joueurs et des NPC, d'intervalle et de spawn ; les événements de spawn et d'intervalle suivent aussi les chargements/déchargements de mondes ;
-- blocs `if` / `else if` / `else`, conditions combinables avec `and`, `or`, `not` et parenthèses, variables locales/partagées/globales persistantes (les valeurs existantes ne sont pas réinitialisées lors du spawn ou d'un reload), et fonctions avec paramètres et `return` ;
+- blocs `if` / `else if` / `else`, conditions combinables avec `and`, `or`, `not` et parenthèses, variables locales/partagées/globales persistantes et variables `player` persistantes par UUID (les valeurs existantes ne sont pas réinitialisées lors du spawn ou d'un reload), et fonctions avec paramètres et `return` ;
 - boucles `loop all players`, `loop all npcs`, `loop all (liste)` et `loop N times`, avec `stop loop` et `skip loop` ; `loop all npcs` parcourt chaque instance chargée, y compris les copies dans plusieurs mondes, avec `name of loop-npc` / `location of loop-npc` ; `name of loop-player` / `location of loop-player` sont aussi disponibles ;
 - sélecteurs `@p`, `@a`, `@n`, `@e[type=...]`, `player:<pseudo>` et `npc:<id>` pour les cibles compatibles ;
 - actions de message, son vanilla ou identifiant custom `namespace:sound` (ItemsAdder), animation BetterModel, déplacement, téléportation, suivi, maintien de distance, déplacement aérien direct, états, simulation de blocs et commande console.
@@ -103,6 +103,19 @@ Les états principaux et secondaires sont sauvegardés dans SQLite et conservés
 - `follow @p at 2` maintient environ deux blocs ; `follow @p min 2 max 5` maintient une plage ; `keep distance 4 from @p` conserve une distance minimale ; `stop follow` arrête le suivi.
 
 Le pathfinding terrestre, aérien et spécial est réglable dans `config.yml` : activation terrestre, nombre maximal de nœuds, distance maximale, vitesse et espacement des checkpoints. Les modes d'escalade et de nage exigent respectivement une paroi solide contiguë et deux blocs d'eau libres en hauteur. Le mode amphibie combine ces surfaces et les sols praticables. Le calcul ne recherche que dans les chunks déjà chargés.
+
+### Variables par joueur
+
+Une variable déclarée avec la portée `player` conserve une valeur différente pour chaque joueur, même après une reconnexion ou un redémarrage :
+
+```python
+on right click:
+    create variable ("visites", 0, player)
+    set "visites" (visites + 1)
+    say local "Tu m'as parlé visites fois."
+```
+
+La valeur est stockée dans SQLite sous l'UUID du joueur. Les variables de portée `player` doivent être lues ou modifiées depuis un événement associé à un joueur.
 
 ## Commandes disponibles
 - `/anpc list`
