@@ -1387,6 +1387,23 @@ public final class ScriptEngine implements Listener {
                 else break;
             }
             if (position == start) throw new IllegalArgumentException("Expected a number or variable");
+
+            int scan = position;
+            int bestHyphenatedEnd = -1;
+            while (scan < source.length() && source.charAt(scan) == '-') {
+                scan++;
+                int segmentStart = scan;
+                while (scan < source.length()) {
+                    char character = source.charAt(scan);
+                    if (Character.isLetterOrDigit(character) || character == '_') scan++;
+                    else break;
+                }
+                if (scan == segmentStart) break;
+                Object candidate = resolve(context, source.substring(start, scan), false);
+                if (numericValue(candidate) != null) bestHyphenatedEnd = scan;
+            }
+            if (bestHyphenatedEnd >= 0) position = bestHyphenatedEnd;
+
             String variable = source.substring(start, position);
             Object resolved = resolve(context, variable, false);
             Double number = numericValue(resolved);
