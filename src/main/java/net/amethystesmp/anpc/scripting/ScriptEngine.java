@@ -1099,6 +1099,12 @@ public final class ScriptEngine implements Listener {
                 + " : " + reason + " (" + instruction.text() + ").");
     }
 
+    private void warnFunction(ScriptContext context, String function, String reason) {
+        String warningKey = npcKey(context.npc()) + ":function:" + function + ":" + reason;
+        if (!warnedInstructions.add(warningKey)) return;
+        plugin.getLogger().warning("Script " + context.npc().id() + ", fonction " + function + " : " + reason + ".");
+    }
+
     private int findEnd(List<Instruction> code, int from, int parentIndent) {
         int index = from;
         while (index < code.size() && code.get(index).indent() > parentIndent) index++;
