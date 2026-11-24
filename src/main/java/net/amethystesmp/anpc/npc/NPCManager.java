@@ -737,9 +737,13 @@ public final class NPCManager implements Listener {
     }
 
     public void shutdown() {
-        // Les définitions sont déjà sauvegardées à chaque modification ; cette
-        // dernière écriture sécurise également l'arrêt normal du serveur.
-        save();
-        stopLoadedNpcs();
+        try {
+            // Les définitions sont déjà sauvegardées à chaque modification ; cette
+            // dernière écriture sécurise également l'arrêt normal du serveur.
+            save();
+        } finally {
+            // Une erreur d'écriture ne doit jamais empêcher le retrait des NPC.
+            stopLoadedNpcs();
+        }
     }
 }
