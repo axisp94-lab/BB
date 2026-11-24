@@ -532,7 +532,7 @@ public final class ScriptEngine implements Listener {
             if (line.startsWith("tp ")) {
                 Location target = parseLocation(context, line.substring(3).trim());
                 if (target != null) {
-                    stopMovement(context.npc());
+                    stopFollow(context.npc());
                     context.npc().move(target);
                 } else {
                     warnInstruction(context, instruction, "cible de téléportation invalide");
