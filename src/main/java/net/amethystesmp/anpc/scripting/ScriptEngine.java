@@ -11,7 +11,7 @@ import org.bukkit.Sound;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
-import org.bukkit.event.player.PlayerInteractAtEntityEvent;
+import org.bukkit.event.player.PlayerInteractEntityEvent;
 import org.bukkit.event.entity.EntityDamageByEntityEvent;
 import org.bukkit.event.entity.EntityDamageEvent;
 import org.bukkit.entity.Projectile;
@@ -1632,7 +1632,7 @@ public final class ScriptEngine implements Listener {
             return 1L;
         }
     }
-    @EventHandler public void onNpcRightClick(PlayerInteractAtEntityEvent e){
+    @EventHandler public void onNpcRightClick(PlayerInteractEntityEvent e){
         String id=e.getRightClicked().getScoreboardTags().stream().filter(t->t.startsWith("anpc:")).map(t->t.substring(5)).findFirst().orElse(null);
         if(id!=null){e.setCancelled(true);fire(id,e.getPlayer().isSneaking()?"right click while sneaking":"right click",e.getPlayer());if(!e.getPlayer().getInventory().getItemInMainHand().getType().isAir())fire(id,"item click",e.getPlayer());}
     }
