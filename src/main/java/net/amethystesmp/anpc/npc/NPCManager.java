@@ -404,8 +404,8 @@ public final class NPCManager implements Listener {
         NPCDefinition definition = new NPCDefinition(id, id, type, List.of(location.getWorld().getName()),
                 location.getX(), location.getY(), location.getZ(), location.getYaw(), location.getPitch(), "");
 
+        ManagedNPC managed = null;
         try {
-            ManagedNPC managed;
             if (isMythicMob(type)) {
                 String mythicId = type.substring("mythicmob:".length()).trim();
                 Entity entity = MythicMobAdapter.spawn(plugin, mythicId, location, definition.displayName());
@@ -431,6 +431,12 @@ public final class NPCManager implements Listener {
             refreshVisibility();
             return true;
         } catch (RuntimeException e) {
+            if (managed != null) {
+                npcs.remove(instanceKey(id, location.getWorld()), managed);
+                if (plugin.scripts() != null) plugin.scripts().onNpcUnloaded(managed);
+                managed.close();
+            }
+            definitions.remove(id.toLowerCase(Locale.ROOT));
             plugin.getLogger().warning("Création du NPC '" + id + "' impossible : " + e.getMessage());
             return false;
         }
