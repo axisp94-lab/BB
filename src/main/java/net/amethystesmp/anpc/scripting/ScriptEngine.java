@@ -422,33 +422,52 @@ public final class ScriptEngine implements Listener {
 
             if (line.startsWith("if ") && line.endsWith(":")) {
                 int end = findEnd(code, index + 1, instruction.indent());
-                int elseStart = end;
-                int afterElse = end;
-                if (elseStart < code.size()
-                        && code.get(elseStart).indent() == instruction.indent()
-                        && code.get(elseStart).text().equalsIgnoreCase("else:")) {
-                    afterElse = findEnd(code, elseStart + 1, instruction.indent());
+                int chainCursor = end;
+                int selectedStart = -1;
+                int selectedEnd = -1;
+                boolean hasElse = false;
+
+                while (chainCursor < code.size()
+                        && code.get(chainCursor).indent() == instruction.indent()) {
+                    String branch = code.get(chainCursor).text();
+                    String branchLower = branch.toLowerCase(Locale.ROOT);
+                    if (branchLower.equals("else:")) {
+                        int branchEnd = findEnd(code, chainCursor + 1, instruction.indent());
+                        if (selectedStart < 0) {
+                            selectedStart = chainCursor + 1;
+                            selectedEnd = branchEnd;
+                        }
+                        chainCursor = branchEnd;
+                        hasElse = true;
+                        break;
+                    }
+                    if (!branchLower.startsWith("else if ") || !branch.endsWith(":")) break;
+
+                    int branchEnd = findEnd(code, chainCursor + 1, instruction.indent());
+                    if (selectedStart < 0
+                            && test(context, branch.substring(8, branch.length() - 1))) {
+                        selectedStart = chainCursor + 1;
+                        selectedEnd = branchEnd;
+                    }
+                    chainCursor = branchEnd;
                 }
 
+                int afterChain = chainCursor;
                 if (test(context, line.substring(3, line.length() - 1))) {
                     if (index + 1 < end) {
                         int childIndent = code.get(index + 1).indent();
-                        int next = afterElse;
                         runBlock(context, code, index + 1, childIndent,
-                                () -> runBlock(context, code, next, indent, continuation));
+                                () -> runBlock(context, code, afterChain, indent, continuation));
                         return;
                     }
-                } else if (afterElse > elseStart) {
-                    int elseBodyStart = elseStart + 1;
-                    if (elseBodyStart < afterElse) {
-                        int childIndent = code.get(elseBodyStart).indent();
-                        int next = afterElse;
-                        runBlock(context, code, elseBodyStart, childIndent,
-                                () -> runBlock(context, code, next, indent, continuation));
-                        return;
-                    }
+                } else if (selectedStart >= 0 && selectedStart < selectedEnd) {
+                    int childIndent = code.get(selectedStart).indent();
+                    runBlock(context, code, selectedStart, childIndent,
+                            () -> runBlock(context, code, afterChain, indent, continuation));
+                    return;
                 }
-                index = afterElse;
+
+                index = afterChain;
                 continue;
             }
 
