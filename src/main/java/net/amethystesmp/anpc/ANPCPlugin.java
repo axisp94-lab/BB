@@ -67,10 +67,26 @@ public final class ANPCPlugin extends JavaPlugin {
 
     @Override
     public void onDisable() {
-        if (scriptEngine != null) scriptEngine.shutdown();
-        if (npcManager != null) npcManager.shutdown();
-        if (variableStore != null) variableStore.close();
-        if (localSkinServer != null) localSkinServer.close();
+        shutdownStep("scripts", () -> {
+            if (scriptEngine != null) scriptEngine.shutdown();
+        });
+        shutdownStep("NPC", () -> {
+            if (npcManager != null) npcManager.shutdown();
+        });
+        shutdownStep("SQLite", () -> {
+            if (variableStore != null) variableStore.close();
+        });
+        shutdownStep("serveur local de skins", () -> {
+            if (localSkinServer != null) localSkinServer.close();
+        });
+    }
+
+    private void shutdownStep(String resource, Runnable action) {
+        try {
+            action.run();
+        } catch (RuntimeException | LinkageError exception) {
+            getLogger().log(Level.SEVERE, "Fermeture incomplète de la ressource " + resource + ".", exception);
+        }
     }
 
     public NPCManager npcs() {
