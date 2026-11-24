@@ -32,7 +32,7 @@ public final class ScriptEngine implements Listener {
     private static final Set<String> SUPPORTED_EVENTS = Set.of(
             "spawn", "interval", "entity approach", "entity leave",
             "npc approach", "npc leave", "right click", "right click while sneaking",
-            "left click", "left click while sneaking", "item click", "damage");
+            "left click", "left click while sneaking", "item click", "offhand item click", "damage");
     private record LoopPlan(String variable, List<Object> values) {}
     private record FunctionDefinition(List<String> parameters, List<Instruction> code) {}
     private record ScriptData(Map<String, List<Instruction>> events, Map<String, FunctionDefinition> functions) {}
@@ -1798,10 +1798,14 @@ public final class ScriptEngine implements Listener {
         if (id == null) return;
 
         event.setCancelled(true);
-        fire(id, event.getPlayer().isSneaking() ? "right click while sneaking" : "right click",
-                event.getPlayer());
-        if (!event.getPlayer().getInventory().getItemInMainHand().getType().isAir()) {
-            fire(id, "item click", event.getPlayer());
+        if (event.getHand() == org.bukkit.inventory.EquipmentSlot.HAND) {
+            fire(id, event.getPlayer().isSneaking() ? "right click while sneaking" : "right click",
+                    event.getPlayer());
+            if (!event.getPlayer().getInventory().getItemInMainHand().getType().isAir()) {
+                fire(id, "item click", event.getPlayer());
+            }
+        } else if (!event.getPlayer().getInventory().getItemInOffHand().getType().isAir()) {
+            fire(id, "offhand item click", event.getPlayer());
         }
     }
 
