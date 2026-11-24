@@ -227,6 +227,12 @@ public final class NPCManager implements Listener {
         modelRetryAttempts = 0;
     }
 
+    private double configDouble(String path, double fallback, double minimum, double maximum) {
+        double value = plugin.getConfig().getDouble(path, fallback);
+        if (!Double.isFinite(value)) value = fallback;
+        return Math.max(minimum, Math.min(maximum, value));
+    }
+
     private String instanceKey(String id, World world) {
         return id.toLowerCase(Locale.ROOT) + "@" + world.getName().toLowerCase(Locale.ROOT);
     }
@@ -236,7 +242,7 @@ public final class NPCManager implements Listener {
         Player player = event.getPlayer();
         Bukkit.getScheduler().runTaskLater(plugin, () -> {
             if (!player.isOnline()) return;
-            double range = Math.max(0, plugin.getConfig().getDouble("tracking-range", 64));
+            double range = configDouble("tracking-range", 64.0, 0.0, 512.0);
             double rangeSquared = range * range;
             for (ManagedNPC npc : npcs.values()) {
                 Location location = npc.location();
@@ -325,7 +331,7 @@ public final class NPCManager implements Listener {
     }
 
     private void refreshVisibility() {
-        double range = Math.max(0, plugin.getConfig().getDouble("tracking-range", 64));
+        double range = configDouble("tracking-range", 64.0, 0.0, 512.0);
         double rangeSquared = range * range;
 
         for (ManagedNPC npc : npcs.values()) {
