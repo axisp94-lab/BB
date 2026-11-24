@@ -109,18 +109,36 @@ public final class ScriptEngine implements Listener {
                 String signature = text.substring(4, text.length() - 1).trim();
                 int open = signature.indexOf('(');
                 int close = signature.lastIndexOf(')');
-                if (open <= 0 || close < open) {
+                if (open <= 0 || close != signature.length() - 1 || close < open) {
                     plugin.getLogger().warning(source + ":" + (i + 1) + " : définition de fonction invalide.");
                     currentBody = null;
                     bodyIndent = -1;
                     continue;
                 }
                 String name = signature.substring(0, open).trim().toLowerCase(Locale.ROOT);
-                List<String> parameters = Arrays.stream(signature.substring(open + 1, close).split(","))
-                        .map(String::trim)
-                        .filter(parameter -> !parameter.isBlank())
-                        .map(parameter -> parameter.toLowerCase(Locale.ROOT))
-                        .toList();
+                String rawParameters = signature.substring(open + 1, close).trim();
+                List<String> parameters = rawParameters.isEmpty()
+                        ? List.of()
+                        : Arrays.stream(rawParameters.split(",", -1))
+                                .map(parameter -> parameter.trim().toLowerCase(Locale.ROOT))
+                                .toList();
+                Set<String> uniqueParameters = new HashSet<>(parameters);
+                if (!name.matches("[a-z_][a-z0-9_]*")
+                        || parameters.stream().anyMatch(parameter -> !parameter.matches("[a-z_][a-z0-9_]*"))
+                        || uniqueParameters.size() != parameters.size()) {
+                    plugin.getLogger().warning(source + ":" + (i + 1)
+                            + " : nom de fonction ou paramètres invalides (noms simples et uniques requis).");
+                    currentBody = null;
+                    bodyIndent = -1;
+                    continue;
+                }
+                if (functions.containsKey(name)) {
+                    plugin.getLogger().warning(source + ":" + (i + 1)
+                            + " : fonction '" + name + "' déjà définie ; cette déclaration est ignorée.");
+                    currentBody = null;
+                    bodyIndent = -1;
+                    continue;
+                }
                 currentBody = new ArrayList<>();
                 functions.put(name, new FunctionDefinition(parameters, currentBody));
                 bodyIndent = -1;
@@ -956,7 +974,7 @@ public final class ScriptEngine implements Listener {
         functionDepth.set(depth + 1);
         try {
             List<String> arguments = parseFunctionArguments(expression.substring(open + 1, expression.length() - 1));
-            if (arguments.size() != function.parameters().size()) {
+            if (arguments == null || arguments.size() != function.parameters().size()) {
                 plugin.getLogger().warning("Script " + parent.npc().id() + " : nombre d'arguments invalide pour " + name + ".");
                 return new FunctionResult(true, null);
             }
@@ -982,18 +1000,31 @@ public final class ScriptEngine implements Listener {
         int start = 0;
         for (int i = 0; i < raw.length(); i++) {
             char character = raw.charAt(i);
-            if (character == '"' && (i == 0 || raw.charAt(i - 1) != '\\')) quoted = !quoted;
+            if (character == '"') {
+                int backslashes = 0;
+                for (int previous = i - 1; previous >= 0 && raw.charAt(previous) == '\\\\'; previous--) {
+                    backslashes++;
+                }
+                if (backslashes % 2 == 0) quoted = !quoted;
+            }
             if (quoted) continue;
             if (character == '(') parentheses++;
-            else if (character == ')') parentheses--;
-            else if (character == '[') brackets++;
-            else if (character == ']') brackets--;
-            else if (character == ',' && parentheses == 0 && brackets == 0) {
-                arguments.add(raw.substring(start, i).trim());
+            else if (character == ')') {
+                if (--parentheses < 0) return null;
+            } else if (character == '[') brackets++;
+            else if (character == ']') {
+                if (--brackets < 0) return null;
+            } else if (character == ',' && parentheses == 0 && brackets == 0) {
+                String argument = raw.substring(start, i).trim();
+                if (argument.isEmpty()) return null;
+                arguments.add(argument);
                 start = i + 1;
             }
         }
-        arguments.add(raw.substring(start).trim());
+        if (quoted || parentheses != 0 || brackets != 0) return null;
+        String finalArgument = raw.substring(start).trim();
+        if (finalArgument.isEmpty()) return null;
+        arguments.add(finalArgument);
         return arguments;
     }
 
