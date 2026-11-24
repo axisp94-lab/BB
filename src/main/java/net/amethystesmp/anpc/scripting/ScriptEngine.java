@@ -257,8 +257,9 @@ public final class ScriptEngine implements Listener {
         lastAttackedAt.remove(key);
         String cooldownPrefix = key + ":";
         cooldowns.keySet().removeIf(cooldownKey -> cooldownKey.startsWith(cooldownPrefix));
-        activeNpcPairs.entrySet().removeIf(entry ->
-                entry.getValue().first() == npc || entry.getValue().second() == npc);
+        // Keep active pairs until the next proximity pass. It can then emit
+        // npc leave for the still-loaded counterpart without firing for two
+        // NPCs that are both being unloaded in the same world/chunk operation.
     }
     private void scheduleProximity() {
         BukkitTask task = Bukkit.getScheduler().runTaskTimer(plugin, () -> {
