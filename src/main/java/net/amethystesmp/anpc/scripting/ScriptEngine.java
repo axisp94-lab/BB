@@ -451,9 +451,11 @@ public final class ScriptEngine implements Listener {
     }
 
     private void logScriptException(ScriptContext context, RuntimeException exception) {
+        String detail = Objects.toString(exception.getMessage(), exception.getClass().getSimpleName());
+        String warningKey = npcKey(context.npc()) + ":runtime:" + exception.getClass().getName() + ":" + detail;
+        if (!warnedInstructions.add(warningKey)) return;
         plugin.getLogger().log(java.util.logging.Level.WARNING,
-                "Erreur d'exécution du script du NPC '" + context.npc().id() + "' : "
-                        + Objects.toString(exception.getMessage(), exception.getClass().getSimpleName()),
+                "Erreur d'exécution du script du NPC '" + context.npc().id() + "' : " + detail,
                 exception);
     }
     private void assignVariable(ScriptContext context, Instruction instruction) {
