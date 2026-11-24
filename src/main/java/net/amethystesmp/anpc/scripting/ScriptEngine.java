@@ -642,9 +642,14 @@ public final class ScriptEngine implements Listener {
             return new LoopPlan("loop-player", new ArrayList<>(Bukkit.getOnlinePlayers()));
         }
         if (lower.equals("loop all npcs:")) {
-            Map<String, ManagedNPC> unique = new LinkedHashMap<>();
-            for (ManagedNPC npc : npcs.all()) unique.putIfAbsent(npc.id().toLowerCase(Locale.ROOT), npc);
-            return new LoopPlan("loop-npc", new ArrayList<>(unique.values()));
+            List<ManagedNPC> loaded = new ArrayList<>(npcs.all());
+            loaded.sort(Comparator
+                    .comparing((ManagedNPC npc) -> npc.id().toLowerCase(Locale.ROOT))
+                    .thenComparing(npc -> {
+                        World world = npc.location().getWorld();
+                        return world == null ? "" : world.getName().toLowerCase(Locale.ROOT);
+                    }));
+            return new LoopPlan("loop-npc", new ArrayList<>(loaded));
         }
         if (lower.startsWith("loop all (") && lower.endsWith("):")) {
             String expression = line.substring(10, line.length() - 2).trim();
