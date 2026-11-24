@@ -46,6 +46,7 @@ public final class ScriptEngine implements Listener {
     private record Comparison(String left, String operator, String right, boolean valid) {}
     private record NpcPair(ManagedNPC first, ManagedNPC second) {}
     private static final int MAX_LOOP_ITERATIONS = 256;
+    private static final int MAX_TOTAL_LOOP_ITERATIONS = 1024;
     private static final int MAX_SELECTOR_RESULTS = 256;
     private static final int MAX_CONDITION_LENGTH = 1024;
     private static final int MAX_ARITHMETIC_EXPRESSION_LENGTH = 512;
@@ -1064,6 +1065,14 @@ public final class ScriptEngine implements Listener {
             restoreLoopLocals(context, plan, existed, previous);
             continuation.run();
             return;
+        }
+        if (!context.consumeLoopIteration()) {
+            if (context.markLoopBudgetWarning()) {
+                plugin.getLogger().warning("Script " + context.npc().id()
+                        + " : limite totale de " + MAX_TOTAL_LOOP_ITERATIONS
+                        + " itérations de boucle atteinte ; exécution interrompue.");
+            }
+            throw new ScriptBudgetExceededException();
         }
         if (state.skipped()) state.clearSkip();
 
