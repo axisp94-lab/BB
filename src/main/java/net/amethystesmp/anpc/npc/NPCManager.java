@@ -447,6 +447,12 @@ public final class NPCManager implements Listener {
         boolean knownDefinition = definitions.containsKey(normalizedId) || !yamlIds.isEmpty();
         if (matches.isEmpty() && !knownDefinition) return false;
 
+        if (!yamlIds.isEmpty() && yaml != null) {
+            YamlConfiguration updatedYaml = copyYaml();
+            yamlIds.forEach(yamlId -> updatedYaml.set("npcs." + yamlId, null));
+            if (!commitYaml(updatedYaml)) return false;
+        }
+
         for (String key : matches) {
             ManagedNPC npc = npcs.remove(key);
             if (npc != null) {
@@ -454,12 +460,7 @@ public final class NPCManager implements Listener {
                 npc.close();
             }
         }
-
         definitions.remove(normalizedId);
-        if (!yamlIds.isEmpty() && yaml != null) {
-            yamlIds.forEach(yamlId -> yaml.set("npcs." + yamlId, null));
-            save();
-        }
         return true;
     }
 
@@ -472,22 +473,11 @@ public final class NPCManager implements Listener {
         NPCDefinition currentDefinition = definitions.get(normalizedId);
         if (matches.isEmpty() && currentDefinition == null) return false;
 
-        for (ManagedNPC npc : matches) {
-            NPCDefinition current = npc.definition();
-            npc.updateDefinition(new NPCDefinition(current.id(), displayName, current.type(), current.worlds(),
-                    current.x(), current.y(), current.z(), current.yaw(), current.pitch(), current.skin()));
-        }
-
-        if (currentDefinition != null) {
-            definitions.put(normalizedId, new NPCDefinition(currentDefinition.id(), displayName,
-                    currentDefinition.type(), currentDefinition.worlds(), currentDefinition.x(), currentDefinition.y(),
-                    currentDefinition.z(), currentDefinition.yaw(), currentDefinition.pitch(), currentDefinition.skin()));
-        }
-        List<String> yamlIds = findYamlIds(id);
-        if (!yamlIds.isEmpty() && yaml != null) {
-            yamlIds.forEach(yamlId -> yaml.set("npcs." + yamlId + ".display-name", displayName));
-            save();
-        }
+        NPCDefinition base = currentDefinition != null ? currentDefinition : matches.get(0).definition();
+        NPCDefinition updated = new NPCDefinition(base.id(), displayName, base.type(), base.worlds(),
+                base.x(), base.y(), base.z(), base.yaw(), base.pitch(), base.skin());
+        if (!saveDefinition(updated)) return false;
+        matches.forEach(npc -> npc.updateDefinition(updated));
         return true;
     }
 
@@ -505,31 +495,39 @@ public final class NPCManager implements Listener {
             return saveDefinition(centered);
         }
 
+        List<Location> previousLocations = matches.stream().map(ManagedNPC::location).toList();
         for (ManagedNPC npc : matches) {
             Location centered = npc.location();
             centered.setX(centered.getBlockX() + 0.5);
             centered.setZ(centered.getBlockZ() + 0.5);
             npc.move(centered);
         }
-        persistPosition(matches.get(0), matches.get(0).location());
-        return true;
+        if (persistPosition(matches.get(0), matches.get(0).location())) return true;
+        for (int index = 0; index < matches.size(); index++) {
+            matches.get(index).move(previousLocations.get(index));
+        }
+        return false;
     }
 
     public void teleport(String id, Location location) {
         ManagedNPC npc = get(id, location == null ? null : location.getWorld());
         if (npc == null || location == null || location.getWorld() == null) return;
+        Location previousLocation = npc.location();
         npc.move(location);
-        persistPosition(npc, location);
+        if (!persistPosition(npc, location)) npc.move(previousLocation);
         refreshVisibility();
     }
 
-    private void persistPosition(ManagedNPC npc, Location location) {
+    private boolean persistPosition(ManagedNPC npc, Location location) {
         NPCDefinition current = npc.definition();
         NPCDefinition updated = new NPCDefinition(current.id(), current.displayName(), current.type(),
                 current.worlds(), location.getX(), location.getY(), location.getZ(),
                 location.getYaw(), location.getPitch(), current.skin());
-        npc.updateDefinition(updated);
-        saveDefinition(updated);
+        if (!saveDefinition(updated)) return false;
+        npcs.values().stream()
+                .filter(instance -> instance.id().equalsIgnoreCase(updated.id()))
+                .forEach(instance -> instance.updateDefinition(updated));
+        return true;
     }
 
     private List<String> findYamlIds(String id) {
@@ -541,19 +539,39 @@ public final class NPCManager implements Listener {
 
     private boolean saveDefinition(NPCDefinition definition) {
         if (yaml == null) return false;
-        definitions.put(definition.id().toLowerCase(Locale.ROOT), definition);
+        YamlConfiguration updatedYaml = copyYaml();
         String path = "npcs." + definition.id() + ".";
-        yaml.set(path + "display-name", definition.displayName());
-        yaml.set(path + "type", definition.type());
-        yaml.set(path + "world", definition.worlds());
-        yaml.set(path + "x", definition.x());
-        yaml.set(path + "y", definition.y());
-        yaml.set(path + "z", definition.z());
-        yaml.set(path + "yaw", definition.yaw());
-        yaml.set(path + "pitch", definition.pitch());
-        if (definition.skin().isBlank()) yaml.set(path + "skin", null);
-        else yaml.set(path + "skin", definition.skin());
-        return save();
+        updatedYaml.set(path + "display-name", definition.displayName());
+        updatedYaml.set(path + "type", definition.type());
+        updatedYaml.set(path + "world", definition.worlds());
+        updatedYaml.set(path + "x", definition.x());
+        updatedYaml.set(path + "y", definition.y());
+        updatedYaml.set(path + "z", definition.z());
+        updatedYaml.set(path + "yaw", definition.yaw());
+        updatedYaml.set(path + "pitch", definition.pitch());
+        if (definition.skin().isBlank()) updatedYaml.set(path + "skin", null);
+        else updatedYaml.set(path + "skin", definition.skin());
+        if (!commitYaml(updatedYaml)) return false;
+        definitions.put(definition.id().toLowerCase(Locale.ROOT), definition);
+        return true;
+    }
+
+    private YamlConfiguration copyYaml() {
+        YamlConfiguration copy = new YamlConfiguration();
+        try {
+            copy.loadFromString(yaml.saveToString());
+        } catch (InvalidConfigurationException exception) {
+            throw new IllegalStateException("Impossible de copier npc.yml avant modification.", exception);
+        }
+        return copy;
+    }
+
+    private boolean commitYaml(YamlConfiguration updatedYaml) {
+        YamlConfiguration previousYaml = yaml;
+        yaml = updatedYaml;
+        if (save()) return true;
+        yaml = previousYaml;
+        return false;
     }
 
     private boolean save() {
