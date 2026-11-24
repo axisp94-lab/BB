@@ -88,7 +88,7 @@ Les états principaux et secondaires sont conservés en mémoire et réinitialis
 
 ### Déplacements
 - `move to <cible>` utilise A* sur les blocs praticables et des checkpoints.
-- `tp <cible>` téléporte immédiatement le NPC.
+- `tp <cible>` téléporte immédiatement le NPC dans son monde actuel. Les instances d'un même NPC configurées dans plusieurs mondes restent indépendantes ; un script ne peut pas déplacer une instance vers un autre monde.
 - `fly to <cible>` calcule un trajet tridimensionnel en évitant les blocs non passables.
 - `climb to <cible>` suit une paroi solide continue en montant ou descendant.
 - `swim to <cible>` calcule un trajet dans un volume d'eau.
