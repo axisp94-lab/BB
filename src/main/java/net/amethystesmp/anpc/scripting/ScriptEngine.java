@@ -1357,7 +1357,11 @@ public final class ScriptEngine implements Listener {
                     plugin.getConfig().getLong("script-under-attack-duration-ticks", 100L)));
             if (lastAttack == null) return false;
             int elapsedTicks = Bukkit.getCurrentTick() - lastAttack;
-            return elapsedTicks >= 0 && (long) elapsedTicks <= durationTicks;
+            if (elapsedTicks < 0 || (long) elapsedTicks > durationTicks) {
+                lastAttackedAt.remove(npcKey(context.npc()), lastAttack);
+                return false;
+            }
+            return true;
         }
         return false;
     }
