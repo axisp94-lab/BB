@@ -921,6 +921,7 @@ public final class ScriptEngine implements Listener {
             String[] parts = metadata.split("\\|", 2);
             String scope = parts[0];
             String owner = parts.length > 1 ? parts[1] : context.npc().id();
+            if (scope.equalsIgnoreCase("global") && owner.equals("@")) owner = "";
             String stored = variables.get(scope, owner, value, null);
             if (stored != null) return parseStored(stored);
         }
@@ -1140,6 +1141,7 @@ public final class ScriptEngine implements Listener {
         String[] parts = metadata.split("\\|", 2);
         String scope = parts[0];
         String owner = parts.length > 1 ? parts[1] : context.npc().id();
+        if (scope.equalsIgnoreCase("global") && owner.equals("@")) owner = "";
         variables.set(scope, owner, name, value);
     }
     private Double numericValue(Object value) {
