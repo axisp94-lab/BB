@@ -44,6 +44,7 @@ public final class ScriptEngine implements Listener {
     private final Map<String, BukkitTask> movementTasks = new ConcurrentHashMap<>();
     private final Map<String, BukkitTask> intervalTasks = new ConcurrentHashMap<>();
     private final Map<String, BukkitTask> followTasks = new ConcurrentHashMap<>();
+    private final Map<String, Set<BukkitTask>> delayedTasks = new ConcurrentHashMap<>();
     private final Map<String, Set<UUID>> nearbyPlayers = new ConcurrentHashMap<>();
     private final Map<String, NpcPair> activeNpcPairs = new HashMap<>();
     private final Map<String, String> mainStates = new ConcurrentHashMap<>();
@@ -188,6 +189,13 @@ public final class ScriptEngine implements Listener {
         }
         stopFollow(npc);
         stopMovement(npc);
+        Set<BukkitTask> delayed = delayedTasks.remove(key);
+        if (delayed != null) {
+            delayed.forEach(task -> {
+                task.cancel();
+                tasks.remove(task);
+            });
+        }
         nearbyPlayers.remove(key);
         lastAttackedAt.remove(key);
         String cooldownPrefix = key + ":";
@@ -558,12 +566,22 @@ public final class ScriptEngine implements Listener {
             if (line.startsWith("wait ")) {
                 long ticks = parseDurationTicks(line.substring(5));
                 int next = index + 1;
+                String npcTaskKey = npcKey(context.npc());
                 BukkitTask[] holder = new BukkitTask[1];
                 holder[0] = Bukkit.getScheduler().runTaskLater(plugin, () -> {
                     tasks.remove(holder[0]);
+                    Set<BukkitTask> pending = delayedTasks.get(npcTaskKey);
+                    if (pending != null) {
+                        pending.remove(holder[0]);
+                        if (pending.isEmpty()) delayedTasks.remove(npcTaskKey, pending);
+                    }
+                    Location npcLocation = context.npc().location();
+                    if (npcLocation.getWorld() == null
+                            || npcs.get(context.npc().id(), npcLocation.getWorld()) != context.npc()) return;
                     runBlock(context, code, next, indent, continuation);
                 }, ticks);
                 tasks.add(holder[0]);
+                delayedTasks.computeIfAbsent(npcTaskKey, ignored -> ConcurrentHashMap.newKeySet()).add(holder[0]);
                 return;
             }
 
@@ -1644,6 +1662,7 @@ public final class ScriptEngine implements Listener {
         movementTasks.clear();
         intervalTasks.clear();
         followTasks.clear();
+        delayedTasks.clear();
         activeNpcPairs.clear();
         lastAttackedAt.clear();
         cooldowns.clear();
