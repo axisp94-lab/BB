@@ -22,7 +22,7 @@ public final class ManagedNPC {
     private final Set<String> warnedViewerFailures = new HashSet<>();
     private final Set<String> warnedTrackerFailures = new HashSet<>();
     private Location current;
-    private final Interaction hitbox;
+    private Interaction hitbox;
     private final Entity backingEntity;
     private final Runnable backingCleanup;
     private final Logger logger;
@@ -55,14 +55,7 @@ public final class ManagedNPC {
             if (createdTracker == null) {
                 throw new IllegalStateException("BetterModel n'a pas créé de tracker pour le NPC " + definition.id());
             }
-            createdHitbox = location.getWorld().spawn(location, Interaction.class, entity -> {
-                entity.setInteractionWidth(0.8f);
-                entity.setInteractionHeight(1.8f);
-                entity.setResponsive(true);
-                entity.setPersistent(false);
-                entity.setInvulnerable(true);
-                entity.addScoreboardTag("anpc:" + definition.id().toLowerCase(java.util.Locale.ROOT));
-            });
+            createdHitbox = spawnHitbox(location);
         } catch (RuntimeException | Error exception) {
             if (createdTracker != null) {
                 try {
@@ -108,6 +101,17 @@ public final class ManagedNPC {
             }
             throw exception;
         }
+    }
+
+    private Interaction spawnHitbox(Location location) {
+        return location.getWorld().spawn(location, Interaction.class, entity -> {
+            entity.setInteractionWidth(0.8f);
+            entity.setInteractionHeight(1.8f);
+            entity.setResponsive(true);
+            entity.setPersistent(false);
+            entity.setInvulnerable(true);
+            entity.addScoreboardTag("anpc:" + definition.id().toLowerCase(java.util.Locale.ROOT));
+        });
     }
 
     public String id() { return definition.id(); }
@@ -222,26 +226,41 @@ public final class ManagedNPC {
             // location even if the separate interaction hitbox needs recovery.
             current = next;
             warnedTrackerFailures.remove("move");
-            if (hitbox != null) {
-                try {
-                    if (!hitbox.isValid()) {
-                        warnTrackerFailure("hitbox-missing",
-                                new IllegalStateException("La hitbox du NPC n'est plus valide."));
-                    } else if (!hitbox.teleport(next)) {
-                        warnTrackerFailure("hitbox-move",
-                                new IllegalStateException("Bukkit a refusé le déplacement de la hitbox."));
-                    } else {
-                        warnedTrackerFailures.remove("hitbox-missing");
-                        warnedTrackerFailures.remove("hitbox-move");
-                    }
-                } catch (RuntimeException | LinkageError exception) {
-                    warnTrackerFailure("hitbox-move", exception);
-                }
-            }
+            syncHitbox(next);
             return true;
         } catch (RuntimeException | LinkageError exception) {
             warnTrackerFailure("move", exception);
             return false;
+        }
+    }
+
+    private void syncHitbox(Location location) {
+        Interaction previous = hitbox;
+        try {
+            if (previous != null && previous.isValid() && previous.teleport(location)) {
+                warnedTrackerFailures.remove("hitbox-missing");
+                warnedTrackerFailures.remove("hitbox-move");
+                return;
+            }
+        } catch (RuntimeException | LinkageError exception) {
+            warnTrackerFailure("hitbox-move", exception);
+        }
+
+        hitbox = null;
+        if (previous != null) {
+            try {
+                if (previous.isValid()) previous.remove();
+            } catch (RuntimeException | LinkageError exception) {
+                warnTrackerFailure("hitbox-remove", exception);
+            }
+        }
+        try {
+            hitbox = spawnHitbox(location);
+            warnedTrackerFailures.remove("hitbox-missing");
+            warnedTrackerFailures.remove("hitbox-move");
+            warnedTrackerFailures.remove("hitbox-remove");
+        } catch (RuntimeException | LinkageError exception) {
+            warnTrackerFailure("hitbox-missing", exception);
         }
     }
 
