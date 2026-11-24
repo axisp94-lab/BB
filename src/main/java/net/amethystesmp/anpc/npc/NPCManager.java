@@ -443,7 +443,6 @@ public final class NPCManager implements Listener {
 
             npcs.put(instanceKey(id, location.getWorld()), managed);
             definitions.put(id.toLowerCase(Locale.ROOT), definition);
-            if (plugin.scripts() != null) plugin.scripts().onNpcLoaded(managed);
             if (!saveDefinition(definition)) {
                 npcs.remove(instanceKey(id, location.getWorld()), managed);
                 if (plugin.scripts() != null) plugin.scripts().onNpcUnloaded(managed);
@@ -452,6 +451,7 @@ public final class NPCManager implements Listener {
                 plugin.getLogger().severe("NPC '" + id + "' créé en mémoire mais retiré : sa sauvegarde a échoué.");
                 return false;
             }
+            if (plugin.scripts() != null) plugin.scripts().onNpcLoaded(managed);
             refreshVisibility();
             return true;
         } catch (RuntimeException e) {
