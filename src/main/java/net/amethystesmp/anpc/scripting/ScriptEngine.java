@@ -1342,7 +1342,9 @@ public final class ScriptEngine implements Listener {
                     String name = body.substring(1, closingQuote).toLowerCase(Locale.ROOT);
                     String value = body.substring(closingQuote + 1).trim();
                     if (value.startsWith("(") && value.endsWith(")")) value = value.substring(1, value.length() - 1);
-                    context.locals().put(name, resolve(context, value));
+                    Object resolved = resolve(context, value);
+                    context.locals().put(name, resolved);
+                    storeVariable(context, name, resolved);
                 }
                 index++;
                 continue;
