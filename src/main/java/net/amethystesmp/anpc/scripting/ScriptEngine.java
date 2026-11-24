@@ -194,7 +194,7 @@ public final class ScriptEngine implements Listener {
         if (script != null) {
             List<Instruction> interval = script.events().get("interval");
             if (interval != null && !intervalTasks.containsKey(key)) {
-                long period = Math.max(1L, plugin.getConfig().getLong("script-default-interval", 20L));
+                long period = Math.max(1L, Math.min(72_000L, plugin.getConfig().getLong("script-default-interval", 20L)));
                 BukkitTask task = Bukkit.getScheduler().runTaskTimer(plugin,
                         () -> execute(npc, null, interval, 0), period, period);
                 intervalTasks.put(key, task);
