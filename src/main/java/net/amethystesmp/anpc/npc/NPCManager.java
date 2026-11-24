@@ -67,8 +67,9 @@ public final class NPCManager implements Listener {
             }
         }
 
-        int loaded = size();
-        plugin.getLogger().info("Définitions NPC lues : " + definitions.size() + " ; instances chargées : " + loaded + ".");
+        int loadedInstances = npcs.size();
+        plugin.getLogger().info("Définitions NPC lues : " + definitions.size()
+                + " ; instances chargées : " + loadedInstances + ".");
         visibilityTask = Bukkit.getScheduler().runTaskTimer(plugin, this::refreshVisibility, 10L, 10L);
     }
 
