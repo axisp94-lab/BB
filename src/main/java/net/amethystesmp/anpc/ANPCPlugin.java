@@ -59,7 +59,7 @@ public final class ANPCPlugin extends JavaPlugin {
 
             getServer().getPluginManager().registerEvents(scriptEngine, this);
             getLogger().info("AmethyysNPCs active : " + npcManager.size() + " NPC chargé(s).");
-        } catch (Exception exception) {
+        } catch (Exception | LinkageError exception) {
             getLogger().log(Level.SEVERE, "Impossible d'initialiser AmethyysNPCs.", exception);
             getServer().getPluginManager().disablePlugin(this);
         }
