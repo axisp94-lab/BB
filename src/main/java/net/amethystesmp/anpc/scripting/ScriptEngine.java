@@ -488,6 +488,10 @@ public final class ScriptEngine implements Listener {
             warnInstruction(context, instruction, "nom réservé à une variable de boucle : " + name);
             return;
         }
+        if (!hasBalancedExpressionSyntax(valueText)) {
+            warnInstruction(context, instruction, "expression de valeur mal formée");
+            return;
+        }
         if (valueText.startsWith("(") && valueText.endsWith(")")) {
             valueText = valueText.substring(1, valueText.length() - 1).trim();
         }
