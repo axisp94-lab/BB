@@ -41,16 +41,28 @@ public final class ANPCCommand implements TabExecutor {
         switch (args[0].toLowerCase(Locale.ROOT)) {
             case "list" -> {
                 List<NPCDefinition> all = plugin.npcs().definitions().stream().toList();
-                Set<String> loadedIds = plugin.npcs().all().stream()
-                        .map(npc -> npc.id().toLowerCase(Locale.ROOT))
-                        .collect(java.util.stream.Collectors.toSet());
+                Map<String, Long> loadedCounts = plugin.npcs().all().stream()
+                        .collect(java.util.stream.Collectors.groupingBy(
+                                npc -> npc.id().toLowerCase(Locale.ROOT),
+                                java.util.stream.Collectors.counting()));
 
                 if (all.isEmpty()) {
                     msg(sender, "Aucune définition de NPC.");
                 } else {
                     all.forEach(npc -> {
                         String worlds = npc.worlds().isEmpty() ? "aucun monde configuré" : String.join(", ", npc.worlds());
-                        String status = loadedIds.contains(npc.id().toLowerCase(Locale.ROOT)) ? "chargé" : "non chargé";
+                        long loaded = loadedCounts.getOrDefault(npc.id().toLowerCase(Locale.ROOT), 0L);
+                        boolean allWorlds = npc.worlds().stream().anyMatch(world -> world.equalsIgnoreCase("all"));
+                        String status;
+                        if (allWorlds) {
+                            status = loaded == 0 ? "non chargé" : "chargé dans " + loaded + " monde(s)";
+                        } else if (loaded == 0) {
+                            status = "non chargé (0/" + npc.worlds().size() + ")";
+                        } else if (loaded < npc.worlds().size()) {
+                            status = "partiel (" + loaded + "/" + npc.worlds().size() + " mondes)";
+                        } else {
+                            status = "chargé (" + loaded + "/" + npc.worlds().size() + " mondes)";
+                        }
                         msg(sender, npc.id() + " — " + npc.type() + " — " + worlds + " — " + status);
                     });
                 }
