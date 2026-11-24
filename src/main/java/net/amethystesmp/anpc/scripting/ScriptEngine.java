@@ -190,6 +190,8 @@ public final class ScriptEngine implements Listener {
         stopMovement(npc);
         nearbyPlayers.remove(key);
         lastAttackedAt.remove(key);
+        String cooldownPrefix = key + ":";
+        cooldowns.keySet().removeIf(cooldownKey -> cooldownKey.startsWith(cooldownPrefix));
         activeNpcPairs.entrySet().removeIf(entry ->
                 entry.getValue().first() == npc || entry.getValue().second() == npc);
     }
@@ -1638,6 +1640,7 @@ public final class ScriptEngine implements Listener {
         followTasks.clear();
         activeNpcPairs.clear();
         lastAttackedAt.clear();
+        cooldowns.clear();
     }
 
     public void shutdown() {
