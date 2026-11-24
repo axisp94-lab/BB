@@ -2563,23 +2563,23 @@ public final class ScriptEngine implements Listener {
         String[] parts = input.trim().toLowerCase(Locale.ROOT).split("\\s+");
         try {
             if (parts.length < 1 || parts.length > 2 || parts[0].isBlank()) return -1L;
-            long parsedAmount = Long.parseLong(parts[0]);
-            if (parsedAmount < 0L) return -1L;
-            long amount = Math.max(1L, parsedAmount);
-            long multiplier = 1L;
+            double amount = Double.parseDouble(parts[0]);
+            if (!Double.isFinite(amount) || amount < 0.0) return -1L;
+            double multiplier = 1.0;
             if (parts.length == 2) {
                 multiplier = switch (parts[1]) {
-                    case "tick", "ticks" -> 1L;
-                    case "second", "seconds" -> 20L;
-                    case "minute", "minutes" -> 1200L;
-                    default -> 0L;
+                    case "tick", "ticks" -> 1.0;
+                    case "second", "seconds" -> 20.0;
+                    case "minute", "minutes" -> 1200.0;
+                    default -> 0.0;
                 };
-                if (multiplier == 0L) return -1L;
+                if (multiplier == 0.0) return -1L;
             }
             long maximum = 2_000_000_000L;
-            if (amount > maximum / multiplier) return maximum;
-            return Math.min(maximum, amount * multiplier);
-        } catch (Exception exception) {
+            double totalTicks = amount * multiplier;
+            if (!Double.isFinite(totalTicks) || totalTicks >= maximum) return maximum;
+            return Math.max(1L, (long) Math.ceil(totalTicks));
+        } catch (NumberFormatException exception) {
             return -1L;
         }
     }
