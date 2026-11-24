@@ -55,6 +55,7 @@ public final class ScriptContext {
     private final ManagedNPC eventNpc;
     private final Map<String, Object> locals = new HashMap<>();
     private final Set<String> persistentVariables = new HashSet<>();
+    private final Set<String> dirtyPersistentVariables = new HashSet<>();
     private final Deque<LoopState> loops = new ArrayDeque<>();
     private final ExecutionBudget executionBudget;
 
@@ -95,11 +96,18 @@ public final class ScriptContext {
     public Map<String, Object> locals() { return locals; }
 
     void markPersistentVariable(String name) {
-        if (name != null) persistentVariables.add(name.toLowerCase(Locale.ROOT));
+        if (name == null) return;
+        String normalized = name.toLowerCase(Locale.ROOT);
+        persistentVariables.add(normalized);
+        dirtyPersistentVariables.add(normalized);
     }
 
     Set<String> persistentVariables() {
         return Set.copyOf(persistentVariables);
+    }
+
+    Set<String> dirtyPersistentVariables() {
+        return Set.copyOf(dirtyPersistentVariables);
     }
 
     void inheritPersistentVariables(ScriptContext other) {
