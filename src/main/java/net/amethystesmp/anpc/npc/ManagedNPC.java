@@ -13,8 +13,6 @@ import org.bukkit.entity.Entity;
 
 import java.util.HashSet;
 import java.util.Set;
-import java.util.Objects;
-import java.util.function.Consumer;
 
 public final class ManagedNPC {
     private NPCDefinition definition;
