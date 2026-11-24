@@ -13,6 +13,7 @@ import org.bukkit.entity.Entity;
 
 import java.util.HashSet;
 import java.util.Set;
+import java.util.logging.Logger;
 
 public final class ManagedNPC {
     private NPCDefinition definition;
@@ -22,16 +23,23 @@ public final class ManagedNPC {
     private final Interaction hitbox;
     private final Entity backingEntity;
     private final Runnable backingCleanup;
+    private final Logger logger;
     private String animation = "idle";
     private boolean closed;
 
     public ManagedNPC(NPCDefinition definition, ModelRenderer renderer, Location location) {
-        this(definition, renderer, location, null);
+        this(definition, renderer, location, null, Logger.getLogger("AmethyysNPCs"));
     }
 
     public ManagedNPC(NPCDefinition definition, ModelRenderer renderer, Location location,
                       ModelProfile.Uncompleted profile) {
+        this(definition, renderer, location, profile, Logger.getLogger("AmethyysNPCs"));
+    }
+
+    public ManagedNPC(NPCDefinition definition, ModelRenderer renderer, Location location,
+                      ModelProfile.Uncompleted profile, Logger logger) {
         this.definition = definition;
+        this.logger = logger == null ? Logger.getLogger("AmethyysNPCs") : logger;
         this.current = location.clone();
         this.backingEntity = null;
         this.backingCleanup = () -> { };
@@ -68,11 +76,16 @@ public final class ManagedNPC {
     }
 
     public ManagedNPC(NPCDefinition definition, Entity backingEntity) {
-        this(definition, backingEntity, () -> { });
+        this(definition, backingEntity, () -> { }, Logger.getLogger("AmethyysNPCs"));
     }
 
     public ManagedNPC(NPCDefinition definition, Entity backingEntity, Runnable backingCleanup) {
+        this(definition, backingEntity, backingCleanup, Logger.getLogger("AmethyysNPCs"));
+    }
+
+    public ManagedNPC(NPCDefinition definition, Entity backingEntity, Runnable backingCleanup, Logger logger) {
         this.definition = definition;
+        this.logger = logger == null ? Logger.getLogger("AmethyysNPCs") : logger;
         this.backingEntity = backingEntity;
         this.backingCleanup = backingCleanup == null ? () -> { } : backingCleanup;
         this.current = backingEntity.getLocation();
@@ -103,23 +116,52 @@ public final class ManagedNPC {
     }
 
     public void show(Player player) {
-        if (tracker == null || closed || tracker.isClosed() || !player.getWorld().equals(current.getWorld())) return;
-        if (viewers.add(player.getUniqueId().toString())) tracker.spawn(BukkitAdapter.adapt(player));
+        if (player == null || tracker == null || closed) return;
+        String viewerId = player.getUniqueId().toString();
+        try {
+            if (tracker.isClosed() || !player.getWorld().equals(current.getWorld()) || viewers.contains(viewerId)) return;
+            // Register only after BetterModel confirms that the spawn call returned.
+            // A failed spawn must remain eligible for the next visibility refresh.
+            tracker.spawn(BukkitAdapter.adapt(player));
+            viewers.add(viewerId);
+        } catch (RuntimeException | LinkageError exception) {
+            viewers.remove(viewerId);
+            logger.warning("Affichage BetterModel impossible pour le NPC '" + id()
+                    + "' au joueur " + player.getName() + " : " + exception.getMessage());
+        }
     }
 
     public void hide(Player player) {
-        if (tracker != null && viewers.remove(player.getUniqueId().toString()) && !tracker.isClosed()) {
-            tracker.remove(BukkitAdapter.adapt(player));
+        if (player == null || tracker == null) return;
+        String viewerId = player.getUniqueId().toString();
+        if (!viewers.remove(viewerId)) return;
+        try {
+            if (!tracker.isClosed()) tracker.remove(BukkitAdapter.adapt(player));
+        } catch (RuntimeException | LinkageError exception) {
+            logger.warning("Masquage BetterModel impossible pour le NPC '" + id()
+                    + "' au joueur " + player.getName() + " : " + exception.getMessage());
         }
     }
 
     public void resync(Player player) {
-        if (tracker == null || closed || tracker.isClosed()) return;
-        viewers.remove(player.getUniqueId().toString());
-        tracker.remove(BukkitAdapter.adapt(player));
-        if (player.getWorld().equals(current.getWorld())) {
-            tracker.spawn(BukkitAdapter.adapt(player));
-            viewers.add(player.getUniqueId().toString());
+        if (player == null || tracker == null || closed) return;
+        String viewerId = player.getUniqueId().toString();
+        viewers.remove(viewerId);
+        try {
+            if (!tracker.isClosed()) tracker.remove(BukkitAdapter.adapt(player));
+        } catch (RuntimeException | LinkageError exception) {
+            logger.warning("Nettoyage avant resynchronisation impossible pour le NPC '" + id()
+                    + "' au joueur " + player.getName() + " : " + exception.getMessage());
+        }
+        try {
+            if (!tracker.isClosed() && player.getWorld().equals(current.getWorld())) {
+                tracker.spawn(BukkitAdapter.adapt(player));
+                viewers.add(viewerId);
+            }
+        } catch (RuntimeException | LinkageError exception) {
+            viewers.remove(viewerId);
+            logger.warning("Resynchronisation BetterModel impossible pour le NPC '" + id()
+                    + "' au joueur " + player.getName() + " : " + exception.getMessage());
         }
     }
 
@@ -153,7 +195,8 @@ public final class ManagedNPC {
         if (tracker != null && !tracker.isClosed()) {
             try {
                 tracker.close();
-            } catch (RuntimeException exception) {
+            } catch (RuntimeException | LinkageError exception) {
+                logger.warning("Fermeture du tracker BetterModel impossible pour le NPC '" + id() + "' : " + exception.getMessage());
                 // Continue : la hitbox et l'entité de support doivent être nettoyées
                 // même si BetterModel échoue pendant la fermeture du tracker.
             }
