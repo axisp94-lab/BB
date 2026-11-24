@@ -482,6 +482,10 @@ public final class ScriptEngine implements Listener {
             warnInstruction(context, instruction, "nom ou valeur de variable vide");
             return;
         }
+        if (LOOP_VARIABLE_NAMES.contains(name)) {
+            warnInstruction(context, instruction, "nom réservé à une variable de boucle : " + name);
+            return;
+        }
         if (valueText.startsWith("(") && valueText.endsWith(")")) {
             valueText = valueText.substring(1, valueText.length() - 1).trim();
         }
@@ -698,7 +702,7 @@ public final class ScriptEngine implements Listener {
             }
 
             if (line.startsWith("create variable ")) {
-                createVariable(context, line.substring(15).trim());
+                createVariable(context, instruction, line.substring(15).trim());
                 index++;
                 continue;
             }
@@ -1803,25 +1807,28 @@ public final class ScriptEngine implements Listener {
             return value;
         }
     }
-    private void createVariable(ScriptContext context, String declaration) {
+    private void createVariable(ScriptContext context, Instruction instruction, String declaration) {
         List<String> arguments = extractGroups(declaration);
         if (arguments.size() == 1) {
             List<String> tupleArguments = parseFunctionArguments(arguments.get(0));
             if (tupleArguments == null) {
-                plugin.getLogger().warning("Script " + context.npc().id()
-                        + " : arguments invalides pour create variable : " + declaration);
+                warnInstruction(context, instruction, "arguments invalides pour create variable : " + declaration);
                 return;
             }
             arguments = tupleArguments;
         }
         if (arguments.size() < 2 || arguments.size() > 4) {
-            plugin.getLogger().warning("Script " + context.npc().id() + " : déclaration create variable invalide : " + declaration);
+            warnInstruction(context, instruction, "déclaration create variable invalide : " + declaration);
             return;
         }
 
         String name = unquote(arguments.get(0)).trim().toLowerCase(Locale.ROOT);
         if (name.isBlank()) {
-            plugin.getLogger().warning("Script " + context.npc().id() + " : nom de variable vide.");
+            warnInstruction(context, instruction, "nom de variable vide");
+            return;
+        }
+        if (LOOP_VARIABLE_NAMES.contains(name)) {
+            warnInstruction(context, instruction, "nom réservé à une variable de boucle : " + name);
             return;
         }
         Object defaultValue = resolve(context, arguments.get(1));
@@ -1852,8 +1859,7 @@ public final class ScriptEngine implements Listener {
                     || !scopeDeclaration.substring(close + 1).isBlank()
                     || scopeDeclaration.indexOf('[', open + 1) >= 0
                     || scopeDeclaration.indexOf(']', close + 1) >= 0) {
-                plugin.getLogger().warning("Script " + context.npc().id()
-                        + " : syntaxe shared invalide ; utilise shared [npc1,npc2].");
+                warnInstruction(context, instruction, "syntaxe shared invalide ; utilise shared [npc1,npc2]");
                 return;
             }
             List<String> members = Arrays.stream(scopeDeclaration.substring(open + 1, close).split(",", -1))
@@ -1863,13 +1869,11 @@ public final class ScriptEngine implements Listener {
                     .sorted()
                     .toList();
             if (members.isEmpty() || members.stream().anyMatch(member -> !member.matches("[a-z0-9_-]+"))) {
-                plugin.getLogger().warning("Script " + context.npc().id()
-                        + " : la liste shared contient un identifiant NPC invalide.");
+                warnInstruction(context, instruction, "la liste shared contient un identifiant NPC invalide");
                 return;
             }
             if (!members.contains(normalizedNpcId)) {
-                plugin.getLogger().warning("Script " + context.npc().id()
-                        + " : la liste d'une variable shared doit inclure le NPC qui la déclare.");
+                warnInstruction(context, instruction, "la liste shared doit inclure le NPC qui déclare la variable");
                 return;
             }
             scope = "shared";
@@ -1878,8 +1882,7 @@ public final class ScriptEngine implements Listener {
         } else if (scopeDeclaration.equalsIgnoreCase("local")) {
             variables.set("meta", normalizedNpcId, name, "local|" + owner);
         } else {
-            plugin.getLogger().warning("Script " + context.npc().id()
-                    + " : portée de variable inconnue : " + scopeDeclaration + ".");
+            warnInstruction(context, instruction, "portée de variable inconnue : " + scopeDeclaration);
             return;
         }
 
