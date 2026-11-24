@@ -125,6 +125,13 @@ public final class ANPCCommand implements TabExecutor {
                 if (plugin.npcs().remove(args[1])) msg(sender, "NPC supprimé : " + args[1]);
                 else msg(sender, "NPC introuvable : " + args[1]);
             }
+            case "reload-scripts" -> {
+                if (plugin.scripts().loadAll()) {
+                    msg(sender, "Scripts .aa rechargés sans recréer les NPC. Les événements de proximité déjà actifs sont conservés.");
+                } else {
+                    msg(sender, "Rechargement des scripts annulé : au moins un fichier .aa est invalide ou illisible. Les scripts actifs sont conservés.");
+                }
+            }
             case "reload" -> {
                 try {
                     plugin.npcs().validateReload();
@@ -149,7 +156,7 @@ public final class ANPCCommand implements TabExecutor {
     public List<String> onTabComplete(CommandSender sender, Command command, String alias, String[] args) {
         if (!sender.hasPermission("anpc.admin")) return Collections.emptyList();
         if (args.length == 1) {
-            return filter(List.of("help", "list", "create", "tp", "center", "rename", "kill", "remove", "delete", "reload"), args[0]);
+            return filter(List.of("help", "list", "create", "tp", "center", "rename", "kill", "remove", "delete", "reload", "reload-scripts"), args[0]);
         }
         if (args.length == 2 && Set.of("tp", "center", "rename", "kill", "remove", "delete")
                 .contains(args[0].toLowerCase(Locale.ROOT))) {
