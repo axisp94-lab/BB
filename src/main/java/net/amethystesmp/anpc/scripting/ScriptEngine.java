@@ -1638,7 +1638,7 @@ public final class ScriptEngine implements Listener {
 
         int depth = functionDepth.get();
         if (depth >= 32) {
-            plugin.getLogger().warning("Script " + parent.npc().id() + " : profondeur maximale d'appel de fonctions atteinte pour " + name + ".");
+            warnFunction(parent, name, "profondeur maximale d'appel atteinte");
             return new FunctionResult(true, null);
         }
 
@@ -1646,7 +1646,7 @@ public final class ScriptEngine implements Listener {
         try {
             List<String> arguments = parseFunctionArguments(expression.substring(open + 1, expression.length() - 1));
             if (arguments == null || arguments.size() != function.parameters().size()) {
-                plugin.getLogger().warning("Script " + parent.npc().id() + " : nombre d'arguments invalide pour " + name + ".");
+                warnFunction(parent, name, "nombre ou syntaxe d'arguments invalide");
                 return new FunctionResult(true, null);
             }
 
