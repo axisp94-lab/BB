@@ -94,6 +94,7 @@ public final class ManagedNPC {
 
     public void move(Location target) {
         if (closed || target == null || target.getWorld() == null) return;
+        if (current.getWorld() != null && !current.getWorld().equals(target.getWorld())) return;
         if (backingEntity != null) {
             if (backingEntity.isValid() && backingEntity.teleport(target)) current = backingEntity.getLocation();
             return;
