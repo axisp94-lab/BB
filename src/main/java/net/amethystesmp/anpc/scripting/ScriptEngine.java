@@ -1618,7 +1618,18 @@ public final class ScriptEngine implements Listener {
             }
         }
     }
-    @EventHandler public void onQuit(PlayerQuitEvent e){for(ManagedNPC npc:npcs.all())npc.hide(e.getPlayer());}
+    @EventHandler
+    public void onQuit(PlayerQuitEvent event) {
+        Player player = event.getPlayer();
+        UUID playerId = player.getUniqueId();
+        for (ManagedNPC npc : npcs.all()) {
+            npc.hide(player);
+            Set<UUID> nearby = nearbyPlayers.get(npcKey(npc));
+            if (nearby != null && nearby.remove(playerId)) {
+                firePlayerEvent(npc, "entity leave", player);
+            }
+        }
+    }
     private void cancelTasks() {
         tasks.forEach(BukkitTask::cancel);
         tasks.clear();
