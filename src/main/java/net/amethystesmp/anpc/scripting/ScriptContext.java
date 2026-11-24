@@ -42,9 +42,14 @@ public final class ScriptContext {
     public Map<String, Object> locals() { return locals; }
 
     public LoopState pushLoop() {
+        if (loops.size() >= 16) return null;
         LoopState state = new LoopState();
         loops.push(state);
         return state;
+    }
+
+    public int loopDepth() {
+        return loops.size();
     }
 
     public LoopState currentLoop() {
