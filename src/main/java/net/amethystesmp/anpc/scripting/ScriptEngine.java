@@ -108,11 +108,9 @@ public final class ScriptEngine implements Listener {
         }
 
         // Replace the live script set only after every file has been read.
-        cancelTasks();
+        cancelTasks(false);
         scripts.clear();
         scripts.putAll(loadedScripts);
-        nearbyPlayers.clear();
-        lastAttackedAt.clear();
 
         if (!hasLoadedScripts) {
             hasLoadedScripts = true;
@@ -2713,6 +2711,10 @@ public final class ScriptEngine implements Listener {
         }
     }
     private void cancelTasks() {
+        cancelTasks(true);
+    }
+
+    private void cancelTasks(boolean clearRuntimeState) {
         for (ManagedNPC npc : npcs.all()) stopFollow(npc);
         tasks.forEach(BukkitTask::cancel);
         tasks.clear();
@@ -2723,10 +2725,12 @@ public final class ScriptEngine implements Listener {
         followPathAttemptAt.clear();
         followPathWarningAt.clear();
         delayedTasks.clear();
-        activeNpcPairs.clear();
-        lastAttackedAt.clear();
         cooldowns.clear();
         warnedInstructions.clear();
+        if (clearRuntimeState) {
+            activeNpcPairs.clear();
+            lastAttackedAt.clear();
+        }
     }
 
     public void shutdown() {
