@@ -9,6 +9,7 @@ import org.bukkit.Bukkit;
 import org.bukkit.Location;
 import org.bukkit.World;
 import org.bukkit.configuration.ConfigurationSection;
+import org.bukkit.configuration.InvalidConfigurationException;
 import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.entity.Player;
 import org.bukkit.entity.Entity;
@@ -46,9 +47,22 @@ public final class NPCManager implements Listener {
     }
 
     public void load() {
-        stopLoadedNpcs();
         file = new File(plugin.getDataFolder(), "npc.yml");
-        yaml = YamlConfiguration.loadConfiguration(file);
+        YamlConfiguration loadedYaml = new YamlConfiguration();
+        if (file.isFile()) {
+            try {
+                loadedYaml.load(file);
+            } catch (IOException | InvalidConfigurationException exception) {
+                plugin.getLogger().severe("Rechargement annulé : npc.yml est illisible ou invalide. "
+                        + "Les NPC actuellement chargés sont conservés.");
+                throw new IllegalStateException("Impossible de lire npc.yml.", exception);
+            }
+        }
+
+        // Parse the complete YAML before touching live NPCs. A malformed file
+        // must never erase the currently working NPC set during /anpc reload.
+        stopLoadedNpcs();
+        yaml = loadedYaml;
 
         ConfigurationSection root = yaml.getConfigurationSection("npcs");
         if (root != null) {
