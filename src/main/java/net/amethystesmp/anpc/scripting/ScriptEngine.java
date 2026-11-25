@@ -4,7 +4,6 @@ import net.amethystesmp.anpc.ANPCPlugin;
 import net.amethystesmp.anpc.npc.ManagedNPC;
 import net.amethystesmp.anpc.npc.NPCManager;
 import net.amethystesmp.anpc.storage.VariableStore;
-import io.papermc.paper.event.player.PrePlayerAttackEntityEvent;
 import org.bukkit.Bukkit;
 import org.bukkit.ChatColor;
 import org.bukkit.Location;
@@ -2667,34 +2666,26 @@ public final class ScriptEngine implements Listener {
     @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
     public void onNpcRightClick(PlayerInteractEntityEvent event) {
         if (event.isCancelled()) return;
+        // Bukkit may suppress the OFF_HAND interaction after the main-hand
+        // interaction is cancelled. Handle both hands from the primary event
+        // so an offhand script is not lost and cannot be fired twice.
+        if (event.getHand() != org.bukkit.inventory.EquipmentSlot.HAND) return;
+
         String id = event.getRightClicked().getScoreboardTags().stream()
                 .filter(tag -> tag.startsWith("anpc:"))
                 .map(tag -> tag.substring(5))
                 .findFirst().orElse(null);
         if (id == null) return;
 
-        event.setCancelled(true);
-        if (event.getHand() == org.bukkit.inventory.EquipmentSlot.HAND) {
-            fire(id, event.getPlayer().isSneaking() ? "right click while sneaking" : "right click",
-                    event.getPlayer());
-            if (!event.getPlayer().getInventory().getItemInMainHand().getType().isAir()) {
-                fire(id, "item click", event.getPlayer());
-            }
-        } else if (!event.getPlayer().getInventory().getItemInOffHand().getType().isAir()) {
-            fire(id, "offhand item click", event.getPlayer());
+        Player player = event.getPlayer();
+        fire(id, player.isSneaking() ? "right click while sneaking" : "right click", player);
+        if (!player.getInventory().getItemInMainHand().getType().isAir()) {
+            fire(id, "item click", player);
         }
-    }
-
-    @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
-    public void onNpcLeftClick(PrePlayerAttackEntityEvent event) {
-        String id = event.getAttacked().getScoreboardTags().stream()
-                .filter(tag -> tag.startsWith("anpc:"))
-                .map(tag -> tag.substring(5))
-                .findFirst().orElse(null);
-        if (id == null) return;
-
-        fire(id, event.getPlayer().isSneaking() ? "left click while sneaking" : "left click",
-                event.getPlayer());
+        if (!player.getInventory().getItemInOffHand().getType().isAir()) {
+            fire(id, "offhand item click", player);
+        }
+        event.setCancelled(true);
     }
     @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
     public void onNpcDamaged(EntityDamageEvent event) {
@@ -2729,8 +2720,14 @@ public final class ScriptEngine implements Listener {
             if (shooter instanceof Entity shooterEntity) attackerEntity = shooterEntity;
         }
         if (managed != null) {
-            // The Paper pre-attack event already fires the left-click script.
-            // Keep damage separate so one swing cannot trigger the click twice.
+            // Use the confirmed damage event as the reliable fallback for
+            // direct player attacks. The pre-attack callback is not delivered
+            // consistently for every NPC hitbox implementation.
+            if (attackerEntity instanceof Player attacker) {
+                firePlayerEvent(managed,
+                        attacker.isSneaking() ? "left click while sneaking" : "left click",
+                        attacker);
+            }
             fireEntityEvent(managed, "damage", attackerEntity);
         }
     }
