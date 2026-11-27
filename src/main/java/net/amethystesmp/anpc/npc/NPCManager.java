@@ -175,6 +175,10 @@ public final class NPCManager implements Listener {
                 Entity entity = MythicMobAdapter.spawn(plugin, mythicId, definition.location(world), definition.displayName());
                 if (entity == null) return;
                 managed = new ManagedNPC(definition, entity, () -> MythicMobAdapter.despawn(plugin, entity), plugin.getLogger());
+            } else if (VanillaMobAdapter.isVanillaMob(definition.type())) {
+                Entity entity = VanillaMobAdapter.spawn(definition.location(world), definition.type(), definition.displayName());
+                if (entity == null) return;
+                managed = new ManagedNPC(definition, entity, () -> { }, plugin.getLogger());
             } else {
                 ModelRenderer renderer = resolveRenderer(definition);
                 if (renderer == null) {
@@ -225,7 +229,7 @@ public final class NPCManager implements Listener {
 
         boolean pending = false;
         for (NPCDefinition definition : definitions.values()) {
-            if (isMythicMob(definition.type())) continue;
+            if (isMythicMob(definition.type()) || VanillaMobAdapter.isVanillaMob(definition.type())) continue;
             for (World world : Bukkit.getWorlds()) {
                 boolean configured = definition.worlds().stream()
                         .anyMatch(name -> name.equalsIgnoreCase("all") || name.equalsIgnoreCase(world.getName()));
@@ -245,7 +249,7 @@ public final class NPCManager implements Listener {
         modelRetryAttempts++;
         if (modelRetryAttempts >= MAX_MODEL_RETRY_ATTEMPTS) {
             for (NPCDefinition definition : definitions.values()) {
-                if (isMythicMob(definition.type())) continue;
+                if (isMythicMob(definition.type()) || VanillaMobAdapter.isVanillaMob(definition.type())) continue;
                 for (World world : Bukkit.getWorlds()) {
                     boolean configured = definition.worlds().stream()
                             .anyMatch(name -> name.equalsIgnoreCase("all") || name.equalsIgnoreCase(world.getName()));
@@ -519,6 +523,10 @@ public final class NPCManager implements Listener {
                 Entity entity = MythicMobAdapter.spawn(plugin, mythicId, location, definition.displayName());
                 if (entity == null) return false;
                 managed = new ManagedNPC(definition, entity, () -> MythicMobAdapter.despawn(plugin, entity), plugin.getLogger());
+            } else if (VanillaMobAdapter.isVanillaMob(type)) {
+                Entity entity = VanillaMobAdapter.spawn(location, type, definition.displayName());
+                if (entity == null) return false;
+                managed = new ManagedNPC(definition, entity, () -> { }, plugin.getLogger());
             } else {
                 ModelRenderer renderer = resolveRenderer(type);
                 if (renderer == null) return false;
