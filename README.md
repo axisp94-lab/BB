@@ -132,7 +132,7 @@ La valeur est stockée dans SQLite sous l'UUID du joueur. Les variables de port�
 
 ## Commandes disponibles
 - `/anpc list`
-- `/anpc create <id> <modele|limb:nom|mob-vanilla|mythicmob:id>`
+- `/anpc create <id> <modele|limb:nom|mob-vanilla|mythicmob:id>` (la complétion propose les identifiants des mobs vanilla)
 - `/anpc tp <id>`
 - `/anpc center <id>`
 - `/anpc rename <id> <nom>`
@@ -142,7 +142,7 @@ La valeur est stockée dans SQLite sous l'UUID du joueur. Les variables de port�
 
 `/anpc list` affiche toutes les définitions de `npc.yml`, y compris celles dont le monde n'est pas chargé, avec leur statut. Les commandes de renommage, suppression et centrage fonctionnent également sur ces définitions non chargées. `/anpc reload-scripts` recharge uniquement les fichiers `.aa`, sans recréer les NPC : les proximités déjà actives sont conservées et les événements `on spawn` ne sont pas rejoués. `/anpc reload` reste le rechargement complet de la configuration, des NPC et des scripts ; comme il recrée les instances, leurs événements de spawn et de nouvelle approche peuvent se déclencher.
 
-## État de cette livraison (0.1.0)
+## Tests manuels des mobs vanilla\nUn plan de validation VM-01 à VM-12 est disponible dans [docs/TESTS_MOBS_VANILLA.md](docs/TESTS_MOBS_VANILLA.md). Il couvre l'apparition, les interactions, les dégâts, le renommage, la suppression, le cycle de vie des chunks et les types non pris en charge.\n\n## État de cette livraison (0.1.0)
 Le socle comprend le chargement de `npc.yml`, les NPC vanilla natifs (types Mob de Paper), les NPC BetterModel basés sur `DummyTracker`, les hitboxes d'interaction, le suivi des joueurs visibles, les commandes de base, les événements/conditions/actions de première tranche et le stockage SQLite.
 
 La stabilisation du cycle de vie, des commandes et du rechargement a été compilée avec succès par GitHub Actions. La prise en charge des skins PNG locaux, la correction du parseur, les variables, fonctions, boucles, sélecteurs, le pathfinding terrestre et aérien, les déplacements de suivi et le maintien de distance ont également été compilés. Les essais en jeu avec Paper 1.21.11 et BetterModel 2.2.0 restent à effectuer.
