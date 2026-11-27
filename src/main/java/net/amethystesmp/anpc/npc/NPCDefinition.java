@@ -97,7 +97,8 @@ public record NPCDefinition(String id, String displayName, String type, List<Str
     }
 
     public boolean isModel() {
-        return !type.toLowerCase(Locale.ROOT).startsWith("mythicmob:");
+        return !type.toLowerCase(Locale.ROOT).startsWith("mythicmob:")
+                && !VanillaMobAdapter.isVanillaMob(type);
     }
 
     public Location location(World world) {

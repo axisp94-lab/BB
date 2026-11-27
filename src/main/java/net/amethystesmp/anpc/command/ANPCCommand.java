@@ -3,6 +3,7 @@ package net.amethystesmp.anpc.command;
 import net.amethystesmp.anpc.ANPCPlugin;
 import net.amethystesmp.anpc.npc.ManagedNPC;
 import net.amethystesmp.anpc.npc.NPCDefinition;
+import net.amethystesmp.anpc.npc.VanillaMobAdapter;
 import org.bukkit.ChatColor;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandSender;
@@ -35,7 +36,7 @@ public final class ANPCCommand implements TabExecutor {
         }
 
         if (args.length == 0 || args[0].equalsIgnoreCase("help")) {
-            msg(sender, "/anpc list | create <id> <modele|limb:nom|mythicmob:id> | tp <id> | center <id> | rename <id> <nom> | kill <id> | reload | reload-scripts");
+            msg(sender, "/anpc list | create <id> <modele|limb:nom|mythicmob:id|mob-vanilla> | tp <id> | center <id> | rename <id> <nom> | kill <id> | reload | reload-scripts");
             return true;
         }
 
@@ -74,7 +75,7 @@ public final class ANPCCommand implements TabExecutor {
                     return true;
                 }
                 if (args.length < 3) {
-                    msg(sender, "Usage : /anpc create <id> <modele|limb:nom|mythicmob:id>");
+                    msg(sender, "Usage : /anpc create <id> <modele|limb:nom|mythicmob:id|mob-vanilla>");
                     return true;
                 }
                 if (plugin.npcs().create(args[1], args[2], player.getLocation())) {
@@ -166,6 +167,9 @@ public final class ANPCCommand implements TabExecutor {
         if (args.length == 2 && Set.of("tp", "center", "rename", "kill", "remove", "delete")
                 .contains(args[0].toLowerCase(Locale.ROOT))) {
             return filter(plugin.npcs().definitions().stream().map(NPCDefinition::id).toList(), args[1]);
+        }
+        if (args.length == 3 && args[0].equalsIgnoreCase("create")) {
+            return filter(VanillaMobAdapter.availableTypes(), args[2]);
         }
         return Collections.emptyList();
     }

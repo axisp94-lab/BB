@@ -16,7 +16,7 @@ Plugin Paper 1.21.11 / Java 21. BetterModel 2.2.0 est requis pour afficher les m
 npcs:
   gardien:
     display-name: "&6Gardien"
-    type: "limb:steve" # ou mythicmob:identifiant pour un mob MythicMobs
+    type: "limb:steve" # ou zombie, allay, minecraft:ender_dragon, mythicmob:identifiant
     world: [world]
     x: 0.5
     y: 65
@@ -26,7 +26,7 @@ npcs:
     skin: "file:gardiens.png"
 ```
 
-`type: player` sélectionne le limb `steve`. Pour les modèles classiques, `type` est le nom BetterModel. `type: mythicmob:gardien` crée une entité MythicMobs (MythicMobs doit être installé) ; son IA, sa gravité et sa disparition à distance sont désactivées afin que le script contrôle son déplacement. Le mode de despawn MythicMobs est réglé sur `NEVER` pendant que le NPC est géré ; l'entité reste non persistante pour éviter les doublons après redémarrage et est recréée lorsque son chunk est rechargé. Sa fermeture passe par l'API MythicMobs pour nettoyer aussi son instance active. Les NPC ne subissent pas les dégâts du jeu, mais l'événement `on damage` et la condition `npc is under attack` restent déclenchés lorsqu'une attaque ou une autre source de dégâts les touche. `world` accepte un nom, une liste de noms ou `all`. Les NPC configurés dans des mondes Multiverse apparaissent et disparaissent avec le chargement/déchargement du monde.
+`type: player` sélectionne le limb `steve`. Pour les mobs vanilla, utilise directement leur identifiant Bukkit/Minecraft (par exemple `zombie`, `allay`, `villager`, `ender_dragon` ou `minecraft:ender_dragon`) : le mob est créé comme entité réelle du serveur, sans modèle externe. La prise en charge couvre les types vanilla exposés comme mobs par Paper ; les entités non-mobs (objets, projectiles, véhicules, supports d'armure, etc.) ne sont pas concernées. L'IA, la détection et le ramassage d'objets sont désactivés, et le mob est silencieux et invulnérable afin qu'il reste un NPC décoratif. Pour les modèles classiques, `type` est le nom BetterModel. `type: mythicmob:gardien` crée une entité MythicMobs (MythicMobs doit être installé) ; son IA, sa gravité et sa disparition à distance sont désactivées afin que le script contrôle son déplacement. Le mode de despawn MythicMobs est réglé sur `NEVER` pendant que le NPC est géré ; l'entité reste non persistante pour éviter les doublons après redémarrage et est recréée lorsque son chunk est rechargé. Sa fermeture passe par l'API MythicMobs pour nettoyer aussi son instance active. Les NPC ne subissent pas les dégâts du jeu, mais l'événement `on damage` et la condition `npc is under attack` restent déclenchés lorsqu'une attaque ou une autre source de dégâts les touche. `world` accepte un nom, une liste de noms ou `all`. Les NPC configurés dans des mondes Multiverse apparaissent et disparaissent avec le chargement/déchargement du monde.
 
 ### Skins des NPC joueur
 Le champ `skin` accepte :
@@ -132,7 +132,7 @@ La valeur est stockée dans SQLite sous l'UUID du joueur. Les variables de port�
 
 ## Commandes disponibles
 - `/anpc list`
-- `/anpc create <id> <modele|limb:nom|mythicmob:id>`
+- `/anpc create <id> <modele|limb:nom|mob-vanilla|mythicmob:id>` (la complétion propose les identifiants des mobs vanilla)
 - `/anpc tp <id>`
 - `/anpc center <id>`
 - `/anpc rename <id> <nom>`
@@ -142,8 +142,8 @@ La valeur est stockée dans SQLite sous l'UUID du joueur. Les variables de port�
 
 `/anpc list` affiche toutes les définitions de `npc.yml`, y compris celles dont le monde n'est pas chargé, avec leur statut. Les commandes de renommage, suppression et centrage fonctionnent également sur ces définitions non chargées. `/anpc reload-scripts` recharge uniquement les fichiers `.aa`, sans recréer les NPC : les proximités déjà actives sont conservées et les événements `on spawn` ne sont pas rejoués. `/anpc reload` reste le rechargement complet de la configuration, des NPC et des scripts ; comme il recrée les instances, leurs événements de spawn et de nouvelle approche peuvent se déclencher.
 
-## État de cette livraison (0.1.0)
-Le socle comprend le chargement de `npc.yml`, les NPC BetterModel basés sur `DummyTracker`, les hitboxes d'interaction, le suivi des joueurs visibles, les commandes de base, les événements/conditions/actions de première tranche et le stockage SQLite.
+## Tests manuels des mobs vanilla\nUn plan de validation VM-01 à VM-12 est disponible dans [docs/TESTS_MOBS_VANILLA.md](docs/TESTS_MOBS_VANILLA.md). Il couvre l'apparition, les interactions, les dégâts, le renommage, la suppression, le cycle de vie des chunks et les types non pris en charge.\n\n## État de cette livraison (0.1.0)
+Le socle comprend le chargement de `npc.yml`, les NPC vanilla natifs (types Mob de Paper), les NPC BetterModel basés sur `DummyTracker`, les hitboxes d'interaction, le suivi des joueurs visibles, les commandes de base, les événements/conditions/actions de première tranche et le stockage SQLite.
 
 La stabilisation du cycle de vie, des commandes et du rechargement a été compilée avec succès par GitHub Actions. La prise en charge des skins PNG locaux, la correction du parseur, les variables, fonctions, boucles, sélecteurs, le pathfinding terrestre et aérien, les déplacements de suivi et le maintien de distance ont également été compilés. Les essais en jeu avec Paper 1.21.11 et BetterModel 2.2.0 restent à effectuer.
 
