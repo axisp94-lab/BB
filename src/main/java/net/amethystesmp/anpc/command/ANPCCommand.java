@@ -35,7 +35,7 @@ public final class ANPCCommand implements TabExecutor {
         }
 
         if (args.length == 0 || args[0].equalsIgnoreCase("help")) {
-            msg(sender, "/anpc list | create <id> <modele|limb:nom|mythicmob:id> | tp <id> | center <id> | rename <id> <nom> | kill <id> | reload | reload-scripts");
+            msg(sender, "/anpc list | create <id> <modele|limb:nom|mythicmob:id|zombie|allay> | tp <id> | center <id> | rename <id> <nom> | kill <id> | reload | reload-scripts");
             return true;
         }
 
@@ -74,7 +74,7 @@ public final class ANPCCommand implements TabExecutor {
                     return true;
                 }
                 if (args.length < 3) {
-                    msg(sender, "Usage : /anpc create <id> <modele|limb:nom|mythicmob:id>");
+                    msg(sender, "Usage : /anpc create <id> <modele|limb:nom|mythicmob:id|zombie|allay>");
                     return true;
                 }
                 if (plugin.npcs().create(args[1], args[2], player.getLocation())) {
