@@ -3,6 +3,7 @@ package net.amethystesmp.anpc.command;
 import net.amethystesmp.anpc.ANPCPlugin;
 import net.amethystesmp.anpc.npc.ManagedNPC;
 import net.amethystesmp.anpc.npc.NPCDefinition;
+import net.amethystesmp.anpc.npc.VanillaMobAdapter;
 import org.bukkit.ChatColor;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandSender;
@@ -166,6 +167,9 @@ public final class ANPCCommand implements TabExecutor {
         if (args.length == 2 && Set.of("tp", "center", "rename", "kill", "remove", "delete")
                 .contains(args[0].toLowerCase(Locale.ROOT))) {
             return filter(plugin.npcs().definitions().stream().map(NPCDefinition::id).toList(), args[1]);
+        }
+        if (args.length == 3 && args[0].equalsIgnoreCase("create")) {
+            return filter(VanillaMobAdapter.availableTypes(), args[2]);
         }
         return Collections.emptyList();
     }
