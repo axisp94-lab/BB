@@ -33,7 +33,7 @@ public final class VanillaMobAdapter {
         }
 
         EntityType type = Registry.ENTITY_TYPE.get(key);
-        if (type == null || !type.isAlive() || !type.isSpawnable()) return null;
+        if (type == null || !type.isAlive()) return null;
 
         Class<? extends Entity> entityClass = type.getEntityClass();
         if (entityClass == null || !Mob.class.isAssignableFrom(entityClass)) return null;
