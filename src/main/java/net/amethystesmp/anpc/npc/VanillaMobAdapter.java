@@ -44,6 +44,23 @@ public final class VanillaMobAdapter {
         return resolve(input) != null;
     }
 
+    /**
+     * Returns every registered vanilla entity type that Paper exposes as a Mob.
+     * The returned identifiers can be used directly in npc.yml and /anpc create.
+     */
+    public static java.util.List<String> availableTypes() {
+        return Registry.ENTITY_TYPE.stream()
+                .filter(type -> type.getKey().getNamespace().equals("minecraft"))
+                .filter(type -> type.isAlive())
+                .filter(type -> {
+                    Class<? extends Entity> entityClass = type.getEntityClass();
+                    return entityClass != null && Mob.class.isAssignableFrom(entityClass);
+                })
+                .map(type -> type.getKey().getKey())
+                .sorted()
+                .toList();
+    }
+
     public static Entity spawn(Location location, String typeName, String displayName) {
         if (location == null || location.getWorld() == null) return null;
         EntityType type = resolve(typeName);
